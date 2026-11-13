@@ -1,0 +1,14 @@
+Identificacion de la revision 01 de la aplicacion de soportes
+=============================================================
+
+Rama:                       claude/eloquent-turing-cwpcd8
+Commit de codigo y paquete: f486b836b2bbd0da01742544846cd4f37a1c782f
+Commit de la version recibida (rev00, notebook): c9208948f93f7a3cddc691550aa967c1e0eca363
+Version recibida:           auditoria/ (ZIP auditoria_soportes.zip, SHA-256 1d0ac439cecf6bb28cc14c0d0e562787e8a896472219c7c07c7f676442879eeb)
+
+Manifiesto:                 auditoria_rev01/manifiesto_sha256.txt (67 entradas, verificadas contra el commit f486b83)
+
+Verificacion, desde la raiz del repositorio en el commit f486b83:
+    grep -E '^[0-9a-f]{64}  ' auditoria_rev01/manifiesto_sha256.txt | sha256sum -c
+
+Este archivo se escribio en un commit posterior al de codigo y no esta en el manifiesto.
