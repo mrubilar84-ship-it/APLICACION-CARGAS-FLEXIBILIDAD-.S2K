@@ -61,6 +61,7 @@ def resolver(par, nor):
     ks_metodo = str(par['KS_METODO']).strip()
     if ks_metodo not in (KS_CONSERVADOR, KS_SEGUN_ZONA):
         errores.append(f'PARAMETROS KS_METODO: elija "{KS_CONSERVADOR}" o "{KS_SEGUN_ZONA}"')
+    # DECISION D10 (abierta): DEFORMABLES = SÍ da LDNE 0.004 (NTC 1.7). Se eligio SÍ porque el proyecto no tiene frageles; confirmar.
     deformables = _si_no(par['DEFORMABLES'])
     fragiles = _si_no(par['FRAGILES'])
     if deformables is None:
@@ -69,6 +70,7 @@ def resolver(par, nor):
         errores.append('PARAMETROS FRAGILES: elija SÍ o NO')
     if str(par['VIENTO']).strip().upper() != VIENTO_NO:
         errores.append('PARAMETROS VIENTO: en esta version el viento no se considera (elija NO)')
+    # DECISION D4 (abierta): Kz = 1.0 o 0.5 (AISC E4). El significado de cada opcion no esta confirmado.
     kz = _numero(par['KZ_TORSION'])
     if kz not in (1.0, 0.5):
         errores.append('PARAMETROS KZ_TORSION: elija 1.0 o 0.5 (factor Kz de pandeo torsional, AISC E4)')
@@ -78,8 +80,10 @@ def resolver(par, nor):
         return None, errores
 
     k1 = V['K1_SI'] if crujias else V['K1_NO']
+    # DECISION D6 (abierta): Q' = 1 + (Q-1)/k con k del SASID. Con k = 1, Q' = Q. Si k < 1, Q' > Q (NTC 3.2, comentario).
     qp = 1.0 + (s['Q'] - 1.0) / num['K_SASID']                       # NTC 3.2.1 (rama Ta-Tb), con k del SASID
     if ks_metodo == KS_CONSERVADOR:
+        # DECISION D7 (abierta): Ks = 1 por defecto (conservador). Alternativa: Ks por zona (tabla 3.1.1, eq. 3.1.1).
         ks, ks_txt = 1.0, 'Ks = 1 (conservador)'
     elif zona == 'A':
         ks, ks_txt = 1.0 / V['KS_A_DEN'], f'Ks = 1/{V["KS_A_DEN"]:g} (zona A)'

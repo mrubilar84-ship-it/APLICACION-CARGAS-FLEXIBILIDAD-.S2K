@@ -22,6 +22,35 @@ Este documento es el punto de entrada para un agente o ingeniero que vaya a **au
 
 ---
 
+## 0.2 Decisiones abiertas (considerarlas en la auditoría)
+
+Estas decisiones se tomaron para poder avanzar, pero **no están cerradas**. Cada una aparece en el código con un comentario `DECISION Dn (abierta)` en la línea donde se aplica. El auditor debe evaluarlas y decir si las acepta, las cambia o las considera incorrectas. Son independientes de los errores de programa que pueda encontrar.
+
+| ID | Decisión actual | Alternativas | Dónde está (archivo, función o hoja) | Qué debe evaluar el auditor |
+|---|---|---|---|---|
+| D1 | Flecha límite **L/300**, justificada con el Comentario L2 de AISC 360-22 (pág. 16.1-543). La NTC no fija número. | L/240, L/360 (carga viva) o un límite por tipo de estructura. | NORMA `FLECHA_DIVISOR`; `flechas_vigas`; memoria 6.4. | ¿La justificación basta para un proyecto en México? ¿Qué límite exige el proyecto? |
+| D2 | La flecha se evalúa con la **combinación gravitacional total** (D y L). | Solo carga viva, o total con otro límite. | `analisis_opensees.flechas_vigas` (filtro de clase gravitacional). | ¿Qué combinación corresponde a flecha según la norma y el criterio del proyecto? |
+| D3 | Distorsión NTC-CA **h/250**, porque no hay elementos no estructurales frágiles unidos. Se revisa por la columna que controla y solo en combinaciones gravitacionales. | h/500 si hay frágiles unidos. | PARAMETROS `FRAGILES`; memoria 6.2. | ¿La interpretación de "frágiles unidos" es correcta? ¿La columna que controla es la forma adecuada de reportar? |
+| D4 | **Kz** de pandeo torsional: lista 1.0 o 0.5 (AISC E4), elegida por el usuario. | Kz calculado según las condiciones de extremo. | PARAMETROS `KZ_TORSION`; `pn_compresion`. | ¿Qué significa cada opción? ¿Debe calcularse y no elegirse? |
+| D5 | La carga sísmica de la planilla es **diseño para Seguridad de Vida**, reducido por Q′R′. Distorsión elástica = f × planilla, con f = Q′R para LDNE y OI, y f = QR para SV. | Carga sin reducir (f = 1), o reducida solo por Q. | memoria 6.3 (`_seccion_sismo`). | ¿La interpretación de §1.7 y §6.3 es correcta? Impacto en el resultado de LDNE. |
+| D6 | **Q′ = Q**, es decir k = 1 del SASID. | k del SASID: Q′ = 1 + (Q − 1)/k. | `parametros.resolver`; PARAMETROS `K_SASID`. | ¿Qué k corresponde al sitio? Verificar la ecuación 3.2.1 contra el PDF. |
+| D7 | **Ks = 1** (conservador) para LDNE. | Ks por zona: 1/6 (A), 1/[6 − 4(Ts − 0.5)] (B), 1/4 (C). | PARAMETROS `KS_METODO`. | ¿Es aceptable el conservadurismo? Verificar la ecuación 3.1.1. |
+| D8 | **k2** = 0.5(1 − (T/Ta)²) con el **periodo menor** de los estados sísmicos, calculado con §6.4.1. | Otro método de periodo que no sea modal. | memoria 6.3; `parametros.k2_de_T`; `_periodo`. | ¿El periodo de §6.4.1 con las fuerzas de la planilla es válido? Verificar la forma de la fórmula. |
+| D9 | **Segundo orden**: 0.08·V/W, con V el cortante del sismo y W la carga D sin factor más el peso propio de las barras encima. Se compara con la mayor distorsión elástica o SV del entrepiso. | Análisis P-Δ explícito. | memoria 6.3. | ¿Está bien aplicado el criterio? ¿W debe incluir sobrecarga o no? |
+| D10 | `DEFORMABLES = SÍ` (LDNE 0.004), porque el proyecto no tiene elementos frágiles. | `DEFORMABLES = NO` (0.002). | PARAMETROS `DEFORMABLES`. | ¿"No hay frágiles" implica "deformables o separados" (NTC 1.7)? |
+| D11 | Combinaciones de **servicio ASD**. Los factores los define el usuario en COMBINACIONES. Las combinaciones con E entran al diseño. | Combinaciones LRFD o las que indique la norma. | hoja COMBINACIONES; `diseno_asd`. | ¿Son suficientes? ¿Qué factores de sismo exige la norma para ASD? |
+| D12 | **Análisis lineal de primer orden**, sin P-Δ. | Análisis de segundo orden. | `analisis_opensees`. | ¿Afecta de forma relevante con las cargas y esbelteces del proyecto? |
+| D13 | **Viento fuera de esta versión**: no se resuelven estados ni combinaciones W. | Incluir viento para información. | `analisis_opensees.correr`. | ¿Es aceptable para el uso previsto? |
+| D14 | Ángulos con b/t > 0.71√(E/Fy): E4 flexotorsional **no implementado**; la barra queda NO REVISADO. | Implementar E4 para ángulos. | `diseno_asd` (motivo). | ¿Cuántas barras típicas quedarían NO REVISADO? |
+| D15 | Sistemas sísmicos: **solo marcos de acero** (tabla 4.3.2, 3 filas). | Contraventeos, sistemas duales y otros de la tabla. | hoja NORMA (SISTEMAS). | ¿Cuáles agregar en la primera versión? |
+| D16 | Propiedades faltantes en la base Gerdau: la barra queda **NO REVISADO**, sin estimar. | Error que detiene el diseño. | `diseno_asd._props_asd`. | ¿Qué prefiere el proyecto? |
+| D17 | **LX, LY, LB, KX, KY y CB obligatorios** en LONGITUDES, sin valores por defecto. | Valores por defecto con marca (longitud de la barra, K = 1). | `celda7` (`validar_datos_diseno`). | ¿Es aceptable la carga de datos? ¿K y Cb deben calcularse en otra versión? |
+| D18 | **Resistencia por AISC 360-22 ASD**; NTC-Acero para esbelteces y ductilidad. | Diseño completo por NTC-Acero. | `diseno_asd`. | ¿Es correcta esta combinación de criterios normativos? |
+| D19 | **DUCTILIDAD obligatoria** solo en COLUMNA y VIGA. | Obligatoria en todas las barras. | `celda7` (`validar_datos_diseno`). | ¿Es suficiente? |
+| D20 | Candidatos LI sin LI CONEXION o LI LONGITUD CONEXION: quedan **NO REVISADO**. | Error. | `diseno_asd` (matriz de FU). | ¿Es aceptable para la lista de perfiles? |
+
+---
+
 ## 1. Contenido del paquete
 
 | Ruta | Qué es |
@@ -117,7 +146,7 @@ Estado de la verificación:
 | NTC Diseño por Sismo 2023 | 6.3 y ec. 6.3.1 (V0 = c W0 / (Q′R′)) | `_seccion_sismo` (texto de memoria) | Texto leído. |
 | NTC Diseño por Sismo 2023 | 6.4.1 (periodo aproximado T = 2π √(ΣW X² / (g ΣF X))) | `_periodo` | Texto leído. Verificar la forma en el PDF. |
 
-### 4.1 Decisiones de interpretación normativa (para discutir)
+### 4.1 Decisiones de interpretación normativa (ver §0.2: D1 a D10)
 
 1. **Flecha L/300.** La NTC-Acero (§11.4) remite a las NTC de Criterios y Acciones, y la NTC-CA §4.1.1 a) remite a las normas del material. Ninguna da un número. Se usa L/300 por criterio del proyecto, con la justificación del Comentario L2 de AISC 360-22 (pág. 16.1-543). La combinación evaluada es la gravitacional total (D y L).
 2. **Distorsión de entrepiso (NTC-CA 4.1.1 b).** Se usa h/250 porque el proyecto indica que no hay elementos no estructurales frágiles unidos. La distorsión se revisa por columna (la que controla) y solo en combinaciones gravitacionales. Las combinaciones con sismo se revisan en la sección 6.3 de la memoria.
@@ -298,6 +327,8 @@ Esta sección deja trazabilidad de lo que cambió a lo largo del trabajo. Varias
 
 ## 10. Preguntas abiertas para el auditor
 
+Cada pregunta se relaciona con las decisiones de la sección 0.2 (D1 a D20). Si una respuesta cambia una decisión, indique el identificador.
+
 Responda a cada número. Si una respuesta depende de un texto de norma, cite el apartado y el extracto de `referencias/referencias_normativas.md`. Si necesita otro texto, indíquelo.
 
 **Resistencia AISC (ASD)**
@@ -346,8 +377,8 @@ Responda a cada número. Si una respuesta depende de un texto de norma, cite el 
 
 Entregue sus comentarios en una tabla con este formato. Un comentario por fila.
 
-| ID | Severidad | Área | Archivo y función | Referencia normativa (apartado y extracto) | Hallazgo | Evidencia (línea, valor o cálculo) | Recomendación | Confirmado o hipótesis |
-|---|---|---|---|---|---|---|---|---|
+| ID | Severidad | Área | Archivo y función | Referencia normativa (apartado y extracto) | Decisión relacionada (Dn) | Hallazgo | Evidencia (línea, valor o cálculo) | Recomendación | Confirmado o hipótesis |
+|---|---|---|---|---|---|---|---|---|---|
 
 - **Severidad:** crítico (resultado incorrecto o inseguro), alto (criterio normativo mal aplicado), medio (dato o supuesto no trazable), bajo (presentación, texto, redacción) o nota.
 - **Confirmado:** lo comprobó con el texto de la norma o con una prueba reproducible. **Hipótesis:** lo sospecha y debe confirmarse.

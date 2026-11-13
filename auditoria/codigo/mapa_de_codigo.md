@@ -15,23 +15,23 @@ Generado con AST a partir de codigo/modulos/. Linea = inicio de la definicion en
 | 77 | funcion | `propiedades_barras` | Propiedades de cada barra: seccion desde la base Gerdau y E, nu desde MATERIALES. Lanza ErrorAnalisis |
 | 106 | funcion | `_verificar_conectividad` |  |
 | 116 | funcion | `_modelo` | Construye el modelo OpenSees del caso: nodos, apoyos, barras (con rotulas), cargas nodales y peso propio. |
-| 168 | funcion | `_resolver` | Un caso (estado): desplazamientos de nodos, fuerzas en extremos de barras y reacciones (cm, kgf). |
-| 202 | funcion | `_combinar` | Superposicion lineal: partes = [(factor, resultado)]. |
-| 215 | funcion | `_residuo` | Equilibrio global de fuerzas: suma de reacciones + cargas aplicadas + peso propio (debe ser ~0). |
-| 230 | funcion | `_fuerzas_extremo` | Fuerzas de un extremo en unidades de salida: kgf y kgf·m. |
-| 235 | funcion | `_tablas` |  |
-| 264 | funcion | `tabla_maximos` | Maximo y minimo de cada esfuerzo entre los extremos I y J, por barra y caso (solo barras REPORTAR = SI). |
-| 279 | funcion | `tabla_deformada` | Coordenadas de todos los nodos por caso: original, desplazamientos (mm, rad) y posicion deformada (m). |
-| 293 | funcion | `_arco` | Arco de momento: positivo alrededor de a x b (regla de la mano derecha). |
-| 302 | funcion | `figura_ejes_locales` | PNG: ejes locales de una barra de ejemplo (viga a lo largo de X con peralte vertical), fuerzas en los |
-| 362 | funcion | `_lineas` |  |
-| 370 | funcion | `figura_deformada` | Figura 3D interactiva: deformada por estado y combinacion (botones). Sin escala dada, la escala hace que el |
-| 411 | funcion | `_escribir` |  |
-| 432 | funcion | `clase_combinacion` | Clase de una combinacion segun el TIPO (hoja ESTADOS) de sus estados con factor no nulo: 'viento' si incluye W |
-| 446 | funcion | `_deflexion_viga` | Desviacion vertical (Z global, cm) de la viga i a lo largo de su eje (xi = 0 a 1), respecto a la cuerda entre |
-| 467 | funcion | `flechas_vigas` | Flecha vertical maxima de cada viga horizontal (desviacion respecto a la cuerda entre sus extremos) sobre las |
-| 492 | funcion | `correr` | Resuelve todos los estados y combinaciones y escribe el Excel de resultados. |
-| 547 | funcion | `correr_desde_planilla` | Punto de entrada del notebook: toma los datos de la planilla ya leida y valida (bloque 7). |
+| 169 | funcion | `_resolver` | Un caso (estado): desplazamientos de nodos, fuerzas en extremos de barras y reacciones (cm, kgf). |
+| 203 | funcion | `_combinar` | Superposicion lineal: partes = [(factor, resultado)]. |
+| 216 | funcion | `_residuo` | Equilibrio global de fuerzas: suma de reacciones + cargas aplicadas + peso propio (debe ser ~0). |
+| 231 | funcion | `_fuerzas_extremo` | Fuerzas de un extremo en unidades de salida: kgf y kgf·m. |
+| 236 | funcion | `_tablas` |  |
+| 265 | funcion | `tabla_maximos` | Maximo y minimo de cada esfuerzo entre los extremos I y J, por barra y caso (solo barras REPORTAR = SI). |
+| 280 | funcion | `tabla_deformada` | Coordenadas de todos los nodos por caso: original, desplazamientos (mm, rad) y posicion deformada (m). |
+| 294 | funcion | `_arco` | Arco de momento: positivo alrededor de a x b (regla de la mano derecha). |
+| 303 | funcion | `figura_ejes_locales` | PNG: ejes locales de una barra de ejemplo (viga a lo largo de X con peralte vertical), fuerzas en los |
+| 363 | funcion | `_lineas` |  |
+| 371 | funcion | `figura_deformada` | Figura 3D interactiva: deformada por estado y combinacion (botones). Sin escala dada, la escala hace que el |
+| 412 | funcion | `_escribir` |  |
+| 433 | funcion | `clase_combinacion` | Clase de una combinacion segun el TIPO (hoja ESTADOS) de sus estados con factor no nulo: 'viento' si incluye W |
+| 447 | funcion | `_deflexion_viga` | Desviacion vertical (Z global, cm) de la viga i a lo largo de su eje (xi = 0 a 1), respecto a la cuerda entre |
+| 468 | funcion | `flechas_vigas` | Flecha vertical maxima de cada viga horizontal (desviacion respecto a la cuerda entre sus extremos) sobre las |
+| 494 | funcion | `correr` | Resuelve todos los estados y combinaciones y escribe el Excel de resultados. |
+| 550 | funcion | `correr_desde_planilla` | Punto de entrada del notebook: toma los datos de la planilla ya leida y valida (bloque 7). |
 
 ## dibujo_directo.py
 
@@ -47,48 +47,48 @@ Generado con AST a partir de codigo/modulos/. Linea = inicio de la definicion en
 
 | linea | tipo | nombre | proposito (primera linea de docstring) |
 |---|---|---|---|
-| 47 | funcion | `_req` | Dato obligatorio de LONGITUDES (KX, KY, CB, LX, LY, LB): sin valor no se supone nada, se detiene el diseno. |
-| 54 | funcion | `cargar_norma` | Carga los valores de norma desde la hoja NORMA ({CLAVE: valor}) y el Kz elegido en PARAMETROS. |
-| 85 | clase | `ErrorAsd` |  |
-| 89 | funcion | `_forma` |  |
-| 93 | funcion | `_elementos_E7` | Elementos esbeltos en compresion de I y canales (B4.1a / E7). Devuelve Ae y detalle. |
-| 126 | funcion | `pn_compresion` | Resistencia nominal a compresion de I y canales (E3, E4, E7). Devuelve (Pn, detalle). |
-| 152 | funcion | `_ltb_I` | Pandeo lateral torsional (F2.2 y F2-4..F2-8) con Mp = Fy Zx. |
-| 175 | funcion | `mn_fuerte` | Momento nominal eje mayor de I y canales (F2, F3). Devuelve (Mn, detalle). |
-| 195 | funcion | `mn_debil` | Momento nominal eje menor de I y canales (F6). |
-| 212 | funcion | `_cv` |  |
-| 219 | funcion | `vn_fuerte` | Cortante en el alma eje mayor de I y canales (G2). |
-| 231 | funcion | `vn_debil` | Cortante en el eje menor (G6): dos patines, Cv2 con kv = 1.2 (nota de usuario de G6). |
-| 240 | funcion | `propiedades_angulo` | Propiedades de un angulo de lados iguales: b = pata (H = B), t = espesor. |
-| 260 | funcion | `_fn_E3` |  |
-| 266 | funcion | `_slend_angulo` | Esbeltez efectiva: z (menor, rz) por E5 o KL/rz, y u (mayor principal) por KL/ru. |
-| 279 | funcion | `_resistencias_angulo` |  |
-| 342 | funcion | `_utilizacion_angulo` | LI: H2-1 con el momento resultante sobre cada eje principal (cubre cualquier orientacion). |
-| 363 | funcion | `resistencias_asd` | Capacidades ASD (admisibles) de la barra: Pa tension, Pa compresion, Ma eje mayor y menor, Va. |
-| 396 | funcion | `utilizacion_asd` | Utilizaciones ASD (<= 1 cumple): tension, compresion, flexion eje mayor y menor, cortante, H1 o H2. |
-| 425 | funcion | `esbeltez_local` | Esbeltez local por elemento segun NTC: lambda / lambda_r (<= 1 cumple). Compresion: Tabla 3.2.1; |
-| 442 | funcion | `tipo_seccion_flexion` | Tipo de seccion (NTC 3.2.1.2, Tabla 3.2.2): 1, 2, 3 o 4 segun el elemento mas esbelto. |
-| 461 | funcion | `clasificacion_compresion` | NTC 3.2.1.1 (Tabla 3.2.1): seccion no-esbelta si todos sus elementos cumplen lambda <= lambda_r. |
-| 467 | funcion | `_num` |  |
-| 479 | funcion | `_texto` |  |
-| 485 | funcion | `e5_cumple` | E5(a): el angulo se trata con E5 solo si LONGITUDES marca SI en las cuatro condiciones de E5 (1 a 4). |
-| 491 | funcion | `factor_u_angulo` | Factor de rezago U para tension (AISC D3, Tabla D3.1). Ambas patas conectadas: U = 1.0 (caso 1). |
-| 499 | funcion | `_props_asd` | Propiedades para ASD desde la base Gerdau. No se estima ninguna propiedad: lo que falta queda NO REVISADO. |
-| 523 | funcion | `_demanda_fila` | Demandas ASD de una fila de BARRAS (kgf, kgf·cm). |
-| 555 | funcion | `_valores_designacion` | Numeros de la designacion comercial: 'IR 6 × 12' -> [6, 12]; 'LI 3 1/2 × 3/8' -> [3.5, 0.375]. |
-| 575 | funcion | `clave_orden` | Orden de las listas: tipo (IR, CE, LI), luego la designacion comercial (peralte o ala, luego peso o espesor) |
-| 584 | funcion | `seccion_de` | Seccion sin el tipo: 'IR 10 × 30' -> '10 × 30'. |
-| 590 | funcion | `_ductilidad` | Tabla 12.1.2 (NTC): I y canales (DN); angulos sencillos: alas (no atiesadas), lambda = b/t <= 0.30 (alta) o |
-| 603 | funcion | `_chequear` | Utilizaciones ASD por demanda (una fila por combinacion) y verificaciones de esbeltez de la barra. |
-| 630 | funcion | `_resumen_fu` | FU por verificacion (maximo sobre combinaciones) y caso que gobierna. pares = [(fila, caso)]. |
-| 658 | funcion | `_preparar_entradas` | Materiales por nombre, longitudes por ID de barra y combinaciones de servicio. |
-| 670 | funcion | `_entrada_barra` | Datos de entrada ASD de la barra i: longitud, K, Cb, ductilidad y material. Lo no dado se supone y se anota. |
-| 709 | funcion | `perfil_por_grupo` | Perfil de cada grupo. Cada grupo usa una sola seccion: si sus barras tienen perfiles distintos, ErrorAsd |
-| 733 | funcion | `matriz_fu_por_perfil` | FU ASD de cada barra con cada perfil del catalogo (IR, CE, LI), con sus combinaciones, longitudes, K y el |
-| 785 | funcion | `diseno_asd_desde_planilla` | Diseno ASD (AISC 360-22) de las barras IR, CE y LI con las combinaciones de servicio (COMBINACIONES). |
-| 905 | funcion | `fu_grupo_por_perfil` | Por perfil: el FU maximo de las barras del grupo, cada una con su propia demanda. None si alguna barra del |
-| 916 | funcion | `listas_desde_matriz` | Perfiles que cumplen por grupo: cada barra del grupo cumple con su propia demanda (FU <= 1 en resistencia, |
-| 961 | funcion | `listas_por_grupo_asd` | Perfiles de IR, CE y LI que cumplen en ASD para cada grupo de elementos: FU <= 1 por resistencia, esbeltez |
+| 48 | funcion | `_req` | Dato obligatorio de LONGITUDES (KX, KY, CB, LX, LY, LB): sin valor no se supone nada, se detiene el diseno. |
+| 55 | funcion | `cargar_norma` | Carga los valores de norma desde la hoja NORMA ({CLAVE: valor}) y el Kz elegido en PARAMETROS. |
+| 86 | clase | `ErrorAsd` |  |
+| 90 | funcion | `_forma` |  |
+| 94 | funcion | `_elementos_E7` | Elementos esbeltos en compresion de I y canales (B4.1a / E7). Devuelve Ae y detalle. |
+| 127 | funcion | `pn_compresion` | Resistencia nominal a compresion de I y canales (E3, E4, E7). Devuelve (Pn, detalle). |
+| 153 | funcion | `_ltb_I` | Pandeo lateral torsional (F2.2 y F2-4..F2-8) con Mp = Fy Zx. |
+| 176 | funcion | `mn_fuerte` | Momento nominal eje mayor de I y canales (F2, F3). Devuelve (Mn, detalle). |
+| 196 | funcion | `mn_debil` | Momento nominal eje menor de I y canales (F6). |
+| 213 | funcion | `_cv` |  |
+| 220 | funcion | `vn_fuerte` | Cortante en el alma eje mayor de I y canales (G2). |
+| 232 | funcion | `vn_debil` | Cortante en el eje menor (G6): dos patines, Cv2 con kv = 1.2 (nota de usuario de G6). |
+| 241 | funcion | `propiedades_angulo` | Propiedades de un angulo de lados iguales: b = pata (H = B), t = espesor. |
+| 261 | funcion | `_fn_E3` |  |
+| 267 | funcion | `_slend_angulo` | Esbeltez efectiva: z (menor, rz) por E5 o KL/rz, y u (mayor principal) por KL/ru. |
+| 280 | funcion | `_resistencias_angulo` |  |
+| 344 | funcion | `_utilizacion_angulo` | LI: H2-1 con el momento resultante sobre cada eje principal (cubre cualquier orientacion). |
+| 365 | funcion | `resistencias_asd` | Capacidades ASD (admisibles) de la barra: Pa tension, Pa compresion, Ma eje mayor y menor, Va. |
+| 399 | funcion | `utilizacion_asd` | Utilizaciones ASD (<= 1 cumple): tension, compresion, flexion eje mayor y menor, cortante, H1 o H2. |
+| 428 | funcion | `esbeltez_local` | Esbeltez local por elemento segun NTC: lambda / lambda_r (<= 1 cumple). Compresion: Tabla 3.2.1; |
+| 445 | funcion | `tipo_seccion_flexion` | Tipo de seccion (NTC 3.2.1.2, Tabla 3.2.2): 1, 2, 3 o 4 segun el elemento mas esbelto. |
+| 464 | funcion | `clasificacion_compresion` | NTC 3.2.1.1 (Tabla 3.2.1): seccion no-esbelta si todos sus elementos cumplen lambda <= lambda_r. |
+| 470 | funcion | `_num` |  |
+| 482 | funcion | `_texto` |  |
+| 488 | funcion | `e5_cumple` | E5(a): el angulo se trata con E5 solo si LONGITUDES marca SI en las cuatro condiciones de E5 (1 a 4). |
+| 494 | funcion | `factor_u_angulo` | Factor de rezago U para tension (AISC D3, Tabla D3.1). Ambas patas conectadas: U = 1.0 (caso 1). |
+| 502 | funcion | `_props_asd` | Propiedades para ASD desde la base Gerdau. No se estima ninguna propiedad: lo que falta queda NO REVISADO. |
+| 527 | funcion | `_demanda_fila` | Demandas ASD de una fila de BARRAS (kgf, kgf·cm). |
+| 559 | funcion | `_valores_designacion` | Numeros de la designacion comercial: 'IR 6 × 12' -> [6, 12]; 'LI 3 1/2 × 3/8' -> [3.5, 0.375]. |
+| 579 | funcion | `clave_orden` | Orden de las listas: tipo (IR, CE, LI), luego la designacion comercial (peralte o ala, luego peso o espesor) |
+| 588 | funcion | `seccion_de` | Seccion sin el tipo: 'IR 10 × 30' -> '10 × 30'. |
+| 594 | funcion | `_ductilidad` | Tabla 12.1.2 (NTC): I y canales (DN); angulos sencillos: alas (no atiesadas), lambda = b/t <= 0.30 (alta) o |
+| 607 | funcion | `_chequear` | Utilizaciones ASD por demanda (una fila por combinacion) y verificaciones de esbeltez de la barra. |
+| 634 | funcion | `_resumen_fu` | FU por verificacion (maximo sobre combinaciones) y caso que gobierna. pares = [(fila, caso)]. |
+| 662 | funcion | `_preparar_entradas` | Materiales por nombre, longitudes por ID de barra y combinaciones de servicio. |
+| 674 | funcion | `_entrada_barra` | Datos de entrada ASD de la barra i: longitud, K, Cb, ductilidad y material. Lo no dado se supone y se anota. |
+| 713 | funcion | `perfil_por_grupo` | Perfil de cada grupo. Cada grupo usa una sola seccion: si sus barras tienen perfiles distintos, ErrorAsd |
+| 737 | funcion | `matriz_fu_por_perfil` | FU ASD de cada barra con cada perfil del catalogo (IR, CE, LI), con sus combinaciones, longitudes, K y el |
+| 790 | funcion | `diseno_asd_desde_planilla` | Diseno ASD (AISC 360-22) de las barras IR, CE y LI con las combinaciones de servicio (COMBINACIONES). |
+| 910 | funcion | `fu_grupo_por_perfil` | Por perfil: el FU maximo de las barras del grupo, cada una con su propia demanda. None si alguna barra del |
+| 921 | funcion | `listas_desde_matriz` | Perfiles que cumplen por grupo: cada barra del grupo cumple con su propia demanda (FU <= 1 en resistencia, |
+| 966 | funcion | `listas_por_grupo_asd` | Perfiles de IR, CE y LI que cumplen en ASD para cada grupo de elementos: FU <= 1 por resistencia, esbeltez |
 
 ## diseno_ntc.py
 
@@ -157,15 +157,15 @@ Generado con AST a partir de codigo/modulos/. Linea = inicio de la definicion en
 | 633 | funcion | `_dcol` | Desplazamiento de entrepiso / h de una columna: gravedad dG mas +-fac*dE (la accion sismica es reversible). |
 | 638 | funcion | `_periodo` | Periodo fundamental aproximado, NTC 6.4.1: T = 2*pi*sqrt(sum(W X^2) / (g*sum(F X))), sumando todos los niveles. |
 | 671 | funcion | `_seccion_sismo` | 6.3 Distorsion por sismo, metodo estatico (NTC Diseno por Sismo 2023). Todos los valores vienen de la |
-| 776 | funcion | `_seccion_desplazamientos` | Seccion 6: desplazamientos por combinacion y deformada de la que controla (6.1); distorsion de entrepiso con |
-| 864 | funcion | `_encabezado_doc` |  |
-| 882 | funcion | `_criterios_html` |  |
-| 907 | funcion | `_parametros_html` | 3.1 Parametros de diseno y de norma usados por el calculo, con su referencia (hojas PARAMETROS y NORMA). |
-| 945 | funcion | `_datos_entrada_html` |  |
-| 995 | funcion | `_modelo_html` |  |
-| 1010 | funcion | `_pendientes_html` |  |
-| 1043 | funcion | `_simbologia_html` |  |
-| 1060 | funcion | `memoria_html` | Escribe la memoria de calculo completa (HTML imprimible) del diseno de todas las barras del modelo. |
+| 779 | funcion | `_seccion_desplazamientos` | Seccion 6: desplazamientos por combinacion y deformada de la que controla (6.1); distorsion de entrepiso con |
+| 869 | funcion | `_encabezado_doc` |  |
+| 887 | funcion | `_criterios_html` |  |
+| 912 | funcion | `_parametros_html` | 3.1 Parametros de diseno y de norma usados por el calculo, con su referencia (hojas PARAMETROS y NORMA). |
+| 950 | funcion | `_datos_entrada_html` |  |
+| 1000 | funcion | `_modelo_html` |  |
+| 1015 | funcion | `_pendientes_html` |  |
+| 1048 | funcion | `_simbologia_html` |  |
+| 1065 | funcion | `memoria_html` | Escribe la memoria de calculo completa (HTML imprimible) del diseno de todas las barras del modelo. |
 
 ## orientacion_gerdau.py
 
@@ -188,7 +188,7 @@ Generado con AST a partir de codigo/modulos/. Linea = inicio de la definicion en
 | 18 | funcion | `_numero` |  |
 | 26 | funcion | `_si_no` |  |
 | 31 | funcion | `resolver` | par: {CLAVE: valor} de la hoja PARAMETROS. nor: {'SISTEMAS': {nombre: {Q, gSV, gOI, R0}}, 'VALORES': {CLAVE: n}}. |
-| 108 | funcion | `k2_de_T` | k2 = 0.5 (1 - (T/Ta)^2) si T < Ta; 0 si T >= Ta (NTC 3.3.1b). |
+| 112 | funcion | `k2_de_T` | k2 = 0.5 (1 - (T/Ta)^2) si T < Ta; 0 si T >= Ta (NTC 3.3.1b). |
 
 ## perfiles_gerdau.py
 

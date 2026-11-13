@@ -684,9 +684,11 @@ def _seccion_sismo(dib, casos, id_barra, proyecto):
     cols = _columnas(dib, id_barra)
     periodos = _periodo(dib, cargas, estados, sismos, D_estados, g=cf['g'])
     T_list = [t for t in periodos.values() if t is not None]
+    # DECISION D8 (abierta): k2 con el periodo menor de los estados sismicos (conservador); T segun 6.4.1 con las fuerzas del estado.
     T_ctrl = min(T_list) if T_list else None                  # el periodo menor da el k2 mayor (conservador)
     k2 = 0.0 if (T_ctrl is None or T_ctrl >= cf['ta']) else cf['k2_coef'] * (1.0 - (T_ctrl / cf['ta']) ** cf['k2_exp'])
     R = cf['k1'] * cf['R0'] + k2
+    # DECISION D5 (abierta): la carga de la planilla se toma como diseno SV reducido por Q'R'. Distorsion elastica = f * planilla.
     f_el = cf['qp'] * R                                       # LDNE y OI
     f_sv = cf['Q'] * R                                        # Seguridad de Vida (multiplicador QR' de 1.7)
     ks, g_ldne, g_oi, g_sv = cf['ks'], cf['gLDNE'], cf['gOI'], cf['gSV']
@@ -730,6 +732,7 @@ def _seccion_sismo(dib, casos, id_barra, proyecto):
                 pb = np.array(dib.nodos[b['n1']], float) - np.array(dib.nodos[b['n2']], float)
                 masa = (G.obtener_perfil(b['perfil']) or {}).get('masa') or 0.0
                 W += masa * float(np.linalg.norm(pb))                          # kgf: kg/m por m
+        # DECISION D9 (abierta): V = cortante del sismo; W = carga D sin factor mas peso propio encima; se compara con la mayor distorsion elastica o SV.
         lim = cf['seg2'] * V / W if W > 0 else None
         dmax_piso = drift_piso.get(zb)
         if lim is None or dmax_piso is None:
@@ -788,6 +791,7 @@ def _seccion_desplazamientos(dib, casos, id_de_indice, id_barra, clase, proyecto
     fila_max, res_ctrl = mejor
     png, escala = _png_deformada(dib, res_ctrl, f'Deformada: combinación que controla {fila_max["combinacion"]}')
 
+    # DECISION D3 (abierta): h/250 sin elementos frageles unidos (NTC-CA 4.1.1 b); distorsion por columna que controla; solo gravitacionales.
     lim_h = cf['lim_h']
     if cf['fragiles']:
         criterio = (f'Límite h/{lim_h:g}: hay elementos no estructurales frágiles unidos a la estructura '
@@ -814,6 +818,7 @@ def _seccion_desplazamientos(dib, casos, id_de_indice, id_barra, clase, proyecto
     else:
         tabla_dist = '<p class="nota">No hay columnas verticales en el modelo para revisar la distorsión.</p>'
 
+    # DECISION D1 (abierta): L/300 justificado con AISC 360-22 Comentario L2 (pag. 16.1-543); la NTC no fija numero. Alternativas: L/240, L/360.
     divisor = cf['flecha_divisor']
     filas_f = []
     for i, r in sorted((getattr(dib, 'flechas', {}) or {}).items()):

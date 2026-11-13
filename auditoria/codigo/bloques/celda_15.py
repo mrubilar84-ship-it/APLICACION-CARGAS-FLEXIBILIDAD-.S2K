@@ -348,10 +348,12 @@ def validar_datos_diseno(barras, longitudes):
         id_ = int(float(r['ID']))
         fila = k + 2
         lr = lon.get(id_)
+        # DECISION D17 (abierta): LX, LY, LB, KX, KY y CB obligatorios; alternativa: valores por defecto marcados.
         for campo in ['LX (m)', 'LY (m)', 'LB (m)', 'KX', 'KY', 'CB']:
             if lr is None or _vacio(lr[campo]):
                 msgs.append(('LONGITUDES', fila, 'ERROR', f'barra {id_}: falta {campo} (dato obligatorio para el diseno)'))
         elemento = str(r['ELEMENTO']).strip().upper() if not _vacio(r['ELEMENTO']) else ''
+        # DECISION D19 (abierta): DUCTILIDAD obligatoria solo en COLUMNA y VIGA; ARRIOSTRE y DIAGONAL opcionales.
         if elemento in ('COLUMNA', 'VIGA') and _vacio(r['DUCTILIDAD']):
             msgs.append(('BARRAS', fila, 'ERROR', f'barra {id_} ({elemento}): falta DUCTILIDAD (ALTA o MEDIA)'))
     return msgs

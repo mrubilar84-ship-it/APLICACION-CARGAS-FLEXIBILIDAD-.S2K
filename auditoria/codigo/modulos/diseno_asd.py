@@ -33,6 +33,7 @@ import re
 import numpy as np
 import pandas as pd
 import perfiles_gerdau as G
+# DECISION D18 (abierta): resistencia por AISC 360-22 ASD; la NTC-Acero se usa para esbelteces y ductilidad (requisito del proyecto).
 
 # Valores de norma (AISC 360-22 y NTC-Acero CDMX): se leen de la hoja NORMA de la planilla con cargar_norma().
 # Este modulo no trae valores de norma ni supuestos: si falta un valor, el calculo se detiene.
@@ -300,6 +301,7 @@ def _resistencias_angulo(p, fy, E, Lx, Ly, Lb, Kx, Ky, Cb, e5):
     pn_c = fn * Ae
     motivo = None
     if lam_leg > AISC_LIM_ANG_E4 * sq:
+        # DECISION D14 (abierta): E4 flexotorsional de angulos no implementado; la barra queda NO REVISADO. Alternativa: implementarlo.
         motivo = 'b/t > 0.71 sqrt(E/Fy): requiere pandeo flexotorsional E4 (no implementado)'
     # F10 flexion sobre ejes principales
     Cb_u = min(Cb, CB_MAX_ANGULO)
@@ -372,6 +374,7 @@ def resistencias_asd(p, familia, fy, fu, E, nu, Lx, Ly, Lb, Kx, Ky, Lz, Cb=None,
     if familia == 'LI':
         out.update(_resistencias_angulo(p, fy, E, Lx, Ly, Lb, Kx, Ky, Cb, e5))
         return out
+    # DECISION D4 (abierta): Kz elegido en PARAMETROS (1.0 o 0.5).
     pn_c, det_c = pn_compresion(p, familia, fy, E, G_, Kx, Ky, Lx, Ly, Lz, Kz=KZ_TORSION)
     out['Pa_c'] = pn_c / OMEGA_C
     out['detalle_c'] = det_c
@@ -510,6 +513,7 @@ def _props_asd(nombre, familia):
             req.append('Cw')
         if familia == 'CE':
             req.append('ro')
+    # DECISION D16 (abierta): sin estimaciones; si la base Gerdau no trae una propiedad, la barra queda NO REVISADO (alternativa: error).
     # Sin estimaciones: si la base Gerdau no trae una propiedad, la barra queda NO REVISADO (se reporta).
     falta = [k for k in req if p.get(k) is None]
     if falta:
@@ -754,6 +758,7 @@ def matriz_fu_por_perfil(dib, materiales_filas, longitudes_df, demandas, id_barr
                 filas.append(base + [motivo] + ['NO REVISADO'] * 6)
                 continue
             if fam == 'LI' and (e['l_li'] is None or e['conexion'] is None):
+                # DECISION D20 (abierta): candidatos LI sin datos de conexion quedan NO REVISADO (alternativa: error).
                 # candidato angulo: sin LI CONEXION y LI LONGITUD CONEXION en LONGITUDES no se evalua (no se supone)
                 filas.append(base + ['falta LI CONEXION o LI LONGITUD CONEXION en LONGITUDES'] + ['NO REVISADO'] * 6)
                 continue

@@ -116,6 +116,7 @@ def _verificar_conectividad(dib):
 def _modelo(dib, props, cargas_nodales, pp):
     """Construye el modelo OpenSees del caso: nodos, apoyos, barras (con rotulas), cargas nodales y peso propio."""
     ops.wipe()
+    # DECISION D12 (abierta): analisis lineal de primer orden (sin P-Delta).
     ops.model('basic', '-ndm', 3, '-ndf', 6)
     coords = [tuple(float(c) * 100.0 for c in p) for p in dib.nodos]          # m -> cm
     for i, (x, y, z) in enumerate(coords):
@@ -477,6 +478,7 @@ def flechas_vigas(dib, props, casos, combinaciones, estados_pp, clase):
             continue                                               # columnas y elementos inclinados: no es viga
         mejor = None
         for nombre, tipo, res in casos:
+            # DECISION D2 (abierta): la flecha se evalua solo en combinaciones gravitacionales (D y L, total). Alternativa: solo carga viva.
             if tipo != 'COMBINACION' or clase.get(nombre) != 'gravitacional':
                 continue
             fpp = sum(f for e, f in combinaciones[nombre].items() if estados_pp.get(e))
@@ -499,7 +501,7 @@ def correr(dib, materiales, estados, rep_barras, rep_nodos, id_barra, id_de_indi
     cargas = getattr(dib, 'cargas', {}) or {}
     combinaciones = getattr(dib, 'combinaciones', {}) or {}
     tipos = getattr(dib, 'estados_tipo', {}) or {}
-    # Viento no se considera en esta version: se omiten los estados W y las combinaciones que lo incluyen.
+    # DECISION D13 (abierta): viento fuera de esta version: se omiten los estados W y las combinaciones que lo incluyen.
     estados = [(n, pp) for n, pp in estados if tipos.get(n) != 'W']
     clase_todas = {n: clase_combinacion(n, combinaciones, tipos) for n in combinaciones}
     combinaciones = {n: f for n, f in combinaciones.items() if clase_todas[n] != 'viento'}
@@ -518,6 +520,7 @@ def correr(dib, materiales, estados, rep_barras, rep_nodos, id_barra, id_de_indi
         resumen.append([f'Combinacion {nombre}', ' + '.join(f'{f:g}·{e}' for e, f in factores.items())])
     clase = {nombre: clase_combinacion(nombre, combinaciones, tipos) for nombre in combinaciones}
     dib.clase_combinacion = clase_todas                 # clase de TODAS las combinaciones (la memoria excluye las de viento)
+    # DECISION D11 (abierta): el diseno usa las combinaciones de servicio ASD definidas por el usuario (sin viento); E entra si esta definido.
     casos_diseno = [c for c in casos if not (c[1] == 'COMBINACION' and clase.get(c[0]) == 'viento')]
     dib.flechas = flechas_vigas(dib, props, casos, combinaciones, dict(estados), clase)
     cab_b, cab_n, cab_r = _tablas(dib, casos, rep_barras, rep_nodos, id_barra, id_de_indice)
