@@ -1,0 +1,13 @@
+[codigo recibido, rev00]
+H-02 flecha relativa a cuerda, cm: [-0.09375000000000001, 0.0, 0.09375000000000001] ; esperado: [0,0,0]
+H-01 demanda Mr_x que recibe el diseno, kgf cm: 0.0 ; esperado: 9000
+H-01 momento interior por equilibrio q*L^2/8, kgf cm: 9000.0
+
+[codigo de salida: 0]
+
+[codigo corregido, rev01]
+H-02 flecha relativa a cuerda, cm: [-1.3877787807814457e-17, 0.0, 1.3877787807814457e-17] ; esperado: [0,0,0]
+H-01 demanda Mr_x que recibe el diseno, kgf cm: 9000.0 ; esperado: 9000
+H-01 momento interior por equilibrio q*L^2/8, kgf cm: 9000.0
+
+[codigo de salida: 0]

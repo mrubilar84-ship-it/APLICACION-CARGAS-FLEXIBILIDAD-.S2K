@@ -1,0 +1,145 @@
+--- rev00/analisis_opensees.py
++++ rev01/analisis_opensees.py
+@@ -233,14 +233,18 @@
+     return [f[0], f[1], f[2], f[3] / 100.0, f[4] / 100.0, f[5] / 100.0]
+ 
+ 
+-def _tablas(dib, casos, rep_barras, rep_nodos, id_barra, id_de_indice):
++def _tablas(dib, casos, rep_barras, rep_nodos, id_barra, id_de_indice, props=None, fpp=None):
+     filas_b, filas_n, filas_r = [], [], []
+     for nombre, tipo, res in casos:
+         for i in sorted(rep_barras):
+             b = dib.barras[i]
+             f = res['barras'][i]
+-            filas_b.append([nombre, tipo, id_barra.get(i, i), id_de_indice[b['n1']], id_de_indice[b['n2']],
+-                            b['elemento'], b['perfil']] + _fuerzas_extremo(f[:6]) + _fuerzas_extremo(f[6:]))
++            fila = [nombre, tipo, id_barra.get(i, i), id_de_indice[b['n1']], id_de_indice[b['n2']],
++                    b['elemento'], b['perfil']] + _fuerzas_extremo(f[:6]) + _fuerzas_extremo(f[6:])
++            if props is not None:
++                mz, my = momentos_maximos_viga(dib, props, i, res, fpp[nombre])
++                fila += [mz / 100.0, my / 100.0]                       # kgf cm -> kgf m
++            filas_b.append(fila)
+         for i in sorted(rep_nodos):
+             d = res['nodos'][i]
+             filas_n.append([nombre, tipo, id_de_indice[i], d[0] * 10, d[1] * 10, d[2] * 10,
+@@ -251,7 +255,8 @@
+                                 r[3] / 100.0, r[4] / 100.0, r[5] / 100.0])
+     cab_b = ['CASO', 'TIPO', 'BARRA', 'NODO I', 'NODO J', 'ELEMENTO', 'PERFIL'] + \
+             [f'{e} I ({u})' for e, u in zip(ETIQUETA, ['kgf', 'kgf', 'kgf', 'kgf·m', 'kgf·m', 'kgf·m'])] + \
+-            [f'{e} J ({u})' for e, u in zip(ETIQUETA, ['kgf', 'kgf', 'kgf', 'kgf·m', 'kgf·m', 'kgf·m'])]
++            [f'{e} J ({u})' for e, u in zip(ETIQUETA, ['kgf', 'kgf', 'kgf', 'kgf·m', 'kgf·m', 'kgf·m'])] + \
++            (['MZ MAX EN EL TRAMO (kgf·m)', 'MY MAX EN EL TRAMO (kgf·m)'] if props is not None else [])
+     cab_n = ['CASO', 'TIPO', 'NODO', 'UX (mm)', 'UY (mm)', 'UZ (mm)', 'RX (rad)', 'RY (rad)', 'RZ (rad)']
+     cab_r = ['CASO', 'TIPO', 'NODO', 'APOYO', 'FX (kgf)', 'FY (kgf)', 'FZ (kgf)', 'MX (kgf·m)', 'MY (kgf·m)',
+              'MZ (kgf·m)']
+@@ -460,9 +465,44 @@
+     ui, uj = res['extremos'][i]
+     ti, tj = ui[3:6], uj[3:6]
+     # plano local x-y (v): giro theta_z = dv/dx, rigidez E*Iz.  plano local x-z (w): theta_y = -dw/dx, rigidez E*Iy
+-    v = L * ((ti @ zl) * h1 + (tj @ zl) * h2) + fpp * (w @ yl) * L ** 4 * burbuja / (24.0 * E * Iz)
+-    wz = L * (-(ti @ yl) * h1 - (tj @ yl) * h2) + fpp * (w @ zl) * L ** 4 * burbuja / (24.0 * E * Iy)
++    # Hermite: el termino de traslacion de los extremos no es lineal. Respecto a la cuerda queda g(xi)*(v_i - v_j),
++    # con g = xi - 3 xi^2 + 2 xi^3 (corrige H-02: antes solo se usaban los giros).
++    g = xi - 3.0 * xi ** 2 + 2.0 * xi ** 3
++    v_ext = (ui[:3] @ yl) - (uj[:3] @ yl)
++    w_ext = (ui[:3] @ zl) - (uj[:3] @ zl)
++    v = L * ((ti @ zl) * h1 + (tj @ zl) * h2) + g * v_ext + fpp * (w @ yl) * L ** 4 * burbuja / (24.0 * E * Iz)
++    wz = L * (-(ti @ yl) * h1 - (tj @ yl) * h2) + g * w_ext + fpp * (w @ zl) * L ** 4 * burbuja / (24.0 * E * Iy)
+     return v * yl[2] + wz * zl[2]
++
++
++def _curvatura_max(v_i, v_j, s_i, s_j, q, EI, L):
++    """Maximo |M| = EI * v'' a lo largo de una viga (Euler-Bernoulli exacto entre extremos, malla de 401 puntos).
++    v_i, v_j: desplazamientos transversales de los extremos (cm); s_i, s_j: pendientes dv/dx; q: carga uniforme (kgf/cm)
++    en el mismo plano; EI en kgf cm2. Devuelve kgf cm."""
++    xi = np.linspace(0.0, 1.0, 401)
++    x = xi * L
++    vpp = ((-6.0 + 12.0 * xi) * v_i + (6.0 - 12.0 * xi) * v_j) / L ** 2 \
++        + s_i * (-4.0 + 6.0 * xi) / L + s_j * (-2.0 + 6.0 * xi) / L \
++        + q * (12.0 * x ** 2 - 12.0 * L * x + 2.0 * L ** 2) / (24.0 * EI)
++    return float(np.max(np.abs(EI * vpp)))
++
++
++def momentos_maximos_viga(dib, props, i, res, fpp):
++    """Momento maximo en el tramo (no solo en los extremos) de la barra i para una combinacion (corrige H-01).
++    Devuelve (Mz_max, My_max) en kgf cm, con el peso propio de la combinacion (factor fpp)."""
++    p1 = np.array(dib.nodos[dib.barras[i]['n1']], float)
++    p2 = np.array(dib.nodos[dib.barras[i]['n2']], float)
++    L = float(np.linalg.norm(p2 - p1)) * 100.0
++    _, yl, zl = ejes_locales(dib, i)
++    w = props[i]['masa'] / 100.0 * GRAVEDAD
++    E, Iy, Iz = props[i]['E'], props[i]['Iy'], props[i]['Iz']
++    ui, uj = res['extremos'][i]
++    ti, tj = ui[3:6], uj[3:6]
++    # plano x-y: flexion Mz con EI = E Iz; v = u.yl, pendiente dv/dx = theta_z = t.zl
++    Mz = _curvatura_max(ui[:3] @ yl, uj[:3] @ yl, ti @ zl, tj @ zl, fpp * (w @ yl), E * Iz, L)
++    # plano x-z: flexion My con EI = E Iy; w = u.zl, pendiente dw/dx = -theta_y = -(t.yl)
++    My = _curvatura_max(ui[:3] @ zl, uj[:3] @ zl, -(ti @ yl), -(tj @ yl), fpp * (w @ zl), E * Iy, L)
++    return Mz, My
+ 
+ 
+ def flechas_vigas(dib, props, casos, combinaciones, estados_pp, clase):
+@@ -523,7 +563,10 @@
+     # DECISION D11 (abierta): el diseno usa las combinaciones de servicio ASD definidas por el usuario (sin viento); E entra si esta definido.
+     casos_diseno = [c for c in casos if not (c[1] == 'COMBINACION' and clase.get(c[0]) == 'viento')]
+     dib.flechas = flechas_vigas(dib, props, casos, combinaciones, dict(estados), clase)
+-    cab_b, cab_n, cab_r = _tablas(dib, casos, rep_barras, rep_nodos, id_barra, id_de_indice)
++    pp_map = dict(estados)
++    fpp_caso = {n: (1.0 if pp_map.get(n) else 0.0) for n, _ in estados}
++    fpp_caso.update({n: sum(f for e, f in combinaciones[n].items() if pp_map.get(e)) for n in combinaciones})
++    cab_b, cab_n, cab_r = _tablas(dib, casos, rep_barras, rep_nodos, id_barra, id_de_indice, props, fpp_caso)
+     bloques = {'BARRAS': cab_b, 'NODOS': cab_n, 'REACCIONES': cab_r,
+                'MAXIMOS_BARRAS': tabla_maximos(cab_b),
+                'DEFORMADA': tabla_deformada(dib, casos, id_de_indice)}
+@@ -541,7 +584,8 @@
+     ]
+     for nombre, residuo in equilibrio:
+         cabecera.append([f'Equilibrio estado {nombre}', f'residuo de fuerzas {residuo:.3g} kgf'])
+-    bloques['DISENO_BARRAS'] = _tablas(dib, casos_diseno, set(range(len(dib.barras))), set(), id_barra, id_de_indice)[0]
++    bloques['DISENO_BARRAS'] = _tablas(dib, casos_diseno, set(range(len(dib.barras))), set(), id_barra, id_de_indice,
++                                       props, fpp_caso)[0]
+     png = figura_ejes_locales('ejes_locales.png')
+     _escribir(ruta_salida, bloques, cabecera + resumen, png)
+     return bloques, equilibrio, casos
+--- rev00/diseno_asd.py
++++ rev01/diseno_asd.py
+@@ -528,8 +528,11 @@
+     """Demandas ASD de una fila de BARRAS (kgf, kgf·cm)."""
+     N_I, N_J = _num(fila['N I (kgf)'], 0.0), _num(fila['N J (kgf)'], 0.0)
+     return dict(Pr_c=max(N_I, -N_J, 0.0), Pr_t=max(-N_I, N_J, 0.0),
+-                Mr_x=max(abs(_num(fila['Mz I (kgf·m)'], 0.0)), abs(_num(fila['Mz J (kgf·m)'], 0.0))) * 100.0,
+-                Mr_y=max(abs(_num(fila['My I (kgf·m)'], 0.0)), abs(_num(fila['My J (kgf·m)'], 0.0))) * 100.0,
++                # H-01: el momento de diseno incluye el maximo en el tramo (no solo los extremos)
++                Mr_x=max(abs(_num(fila['Mz I (kgf·m)'], 0.0)), abs(_num(fila['Mz J (kgf·m)'], 0.0)),
++                         abs(fila['MZ MAX EN EL TRAMO (kgf·m)'])) * 100.0,
++                Mr_y=max(abs(_num(fila['My I (kgf·m)'], 0.0)), abs(_num(fila['My J (kgf·m)'], 0.0)),
++                         abs(fila['MY MAX EN EL TRAMO (kgf·m)'])) * 100.0,
+                 Vr_x=max(abs(_num(fila['Vy I (kgf)'], 0.0)), abs(_num(fila['Vy J (kgf)'], 0.0))),
+                 Vr_y=max(abs(_num(fila['Vz I (kgf)'], 0.0)), abs(_num(fila['Vz J (kgf)'], 0.0))))
+ 
+@@ -964,6 +967,7 @@
+ 
+ 
+ def listas_por_grupo_asd(dib, materiales_filas, longitudes_df, demandas, id_barra, familias=FAMILIAS_ASD):
++    raise NotImplementedError('Sin uso en la version actual: sus demandas leen solo momentos de extremo (auditoria H-01). No usar.')
+     """Perfiles de IR, CE y LI que cumplen en ASD para cada grupo de elementos: FU <= 1 por resistencia, esbeltez
+     local y esbeltez global, con la envolvente de las combinaciones, la longitud, K y Cb mas exigentes.
+     Ordenados por tipo y seccion. Un grupo sin barras (o sin demanda) recibe el catalogo completo sin verificar.
+--- rev00/diseno_ntc.py
++++ rev01/diseno_ntc.py
+@@ -460,6 +460,7 @@
+ 
+ 
+ def diseno_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id_barra, ruta_salida):
++    raise NotImplementedError('Sin uso en la version actual: sus demandas leen solo momentos de extremo (auditoria H-01). No usar.')
+     """Diseña todas las barras con las combinaciones del analisis. Las longitudes y factores K vienen de la hoja
+     LONGITUDES; lo vacio se toma como supuesto y se marca en la salida. demandas: tabla BARRAS del analisis
+     (todas las barras y casos). Devuelve (capacidades, resultados, detalle) y escribe el Excel."""
+@@ -641,6 +642,7 @@
+ 
+ 
+ def listas_por_grupo(dib, materiales_filas, longitudes_df, demandas, id_barra, familias=FAMILIAS_CATALOGO):
++    raise NotImplementedError('Sin uso en la version actual: sus demandas leen solo momentos de extremo (auditoria H-01). No usar.')
+     """Perfiles del catalogo que cumplen (resistencia, Fu, esbeltez local y global) para cada grupo de elementos.
+     Usa la envolvente de las combinaciones de las barras del grupo y la longitud, K y ductilidad mas exigentes.
+     Devuelve (listas {grupo: [perfil,...] ordenados por masa}, tabla DataFrame)."""

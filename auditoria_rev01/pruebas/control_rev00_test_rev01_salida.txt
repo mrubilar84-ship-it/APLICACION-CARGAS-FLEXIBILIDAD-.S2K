@@ -1,0 +1,15 @@
+[control: test_rev01.py ejecutado contra el codigo recibido (rev00)]
+FALLA H-02 solido rigido x/L=0.25: obtenido=-0.09375 esperado=0
+OK   H-02 solido rigido x/L=0.5: obtenido=0 esperado=0
+FALLA H-02 solido rigido x/L=0.75: obtenido=0.09375 esperado=0
+FALLA H-02 asentamiento 1 cm, subdividido, x/L=0.25: flecha relativa a la cuerda (cm): obtenido=-0.1526884191 esperado=-0.05893841912
+OK   H-02 asentamiento 1 cm, subdividido, x/L=0.5: flecha relativa a la cuerda (cm): obtenido=-0.08272058824 esperado=-0.08272058824
+FALLA H-02 asentamiento 1 cm, subdividido, x/L=0.75: flecha relativa a la cuerda (cm): obtenido=0.03481158088 esperado=-0.05893841912
+Traceback (most recent call last):
+  File "<ruta_local>", line 98, in <module>
+    mz, my = AO.momentos_maximos_viga(d, p, 0, r, 1.0)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'analisis_opensees' has no attribute 'momentos_maximos_viga'
+Process 0 Terminating
+
+[codigo de salida: 1]

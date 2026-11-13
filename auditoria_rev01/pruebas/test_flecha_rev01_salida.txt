@@ -1,0 +1,8 @@
+OK   peso propio: signo y magnitud analitica: obtenido=-0.08272058824 cm, esperado=-0.08272058824 cm (-5qL^4/384EI)
+OK   peso propio: 1 elemento contra 4 elementos: 1 elem=-0.08272058824, 4 elem=-0.08272058824 cm
+OK   momento en extremo: 1 elemento contra 4 elementos: 1 elem=1.654411765, 4 elem=1.654411765 cm
+OK   peso propio y momento: 1 elemento contra 4 elementos: 1 elem=1.571691176, 4 elem=1.571691176 cm
+RESULTADO: OK
+Process 0 Terminating
+
+[codigo de salida: 0]

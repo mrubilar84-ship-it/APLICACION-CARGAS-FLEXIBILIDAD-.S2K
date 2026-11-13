@@ -1,0 +1,15 @@
+OK   H-02 solido rigido x/L=0.25: obtenido=-1.387778781e-17 esperado=0
+OK   H-02 solido rigido x/L=0.5: obtenido=0 esperado=0
+OK   H-02 solido rigido x/L=0.75: obtenido=1.387778781e-17 esperado=0
+OK   H-02 asentamiento 1 cm, subdividido, x/L=0.25: flecha relativa a la cuerda (cm): obtenido=-0.05893841912 esperado=-0.05893841912
+OK   H-02 asentamiento 1 cm, subdividido, x/L=0.5: flecha relativa a la cuerda (cm): obtenido=-0.08272058824 esperado=-0.08272058824
+OK   H-02 asentamiento 1 cm, subdividido, x/L=0.75: flecha relativa a la cuerda (cm): obtenido=-0.05893841912 esperado=-0.05893841912
+OK   H-01 SS con peso propio: momento maximo en el tramo (kgf cm): obtenido=9000 esperado=9000
+OK   H-01 SS: momento de extremo Mz I (kgf cm) = 0: obtenido=0 esperado=0
+OK   H-01 demanda Mr_x que recibe el diseno (kgf cm): obtenido=9000 esperado=9000
+OK   H-01 doblemente empotrada: momento maximo en el apoyo (kgf cm) = qL^2/12: obtenido=6000 esperado=6000
+OK   H-01 voladizo: momento maximo (kgf cm) = qL^2/2: obtenido=36000 esperado=36000
+RESULTADO: OK
+Process 0 Terminating
+
+[codigo de salida: 0]
