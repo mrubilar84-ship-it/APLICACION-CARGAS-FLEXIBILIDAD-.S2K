@@ -1,7 +1,7 @@
 # Manifiesto SHA-256: auditoria_rev02 (revision 02)
 
-Generado con el paquete, antes del commit que lo contiene. No incluye IDENTIFICACION.txt (escrito despues del commit) ni este archivo.
-Formato: SHA-256  ruta relativa a la raiz del repositorio. Incluye el notebook y la plantilla de la raiz, que son las entradas y el artefacto del paquete.
+# Generado con el paquete, antes del commit que lo contiene. No incluye IDENTIFICACION.txt (escrito despues del commit) ni este archivo.
+# Formato: SHA-256  ruta relativa a la raiz del repositorio. Incluye el notebook y la plantilla de la raiz, que son las entradas y el artefacto del paquete.
 
 88bfbad2dbb4889b8513da880953b46e8c98ef9bb50c71871e83e0fedd814551  auditoria_rev02/CAMBIOS_REV02.md
 3dd2c0ba96113344a0c4b80eb3bfe375ec51ee9654cc1d82fa868fb7f094f09b  auditoria_rev02/RESPUESTA_AUDITORIA_REV02.md
