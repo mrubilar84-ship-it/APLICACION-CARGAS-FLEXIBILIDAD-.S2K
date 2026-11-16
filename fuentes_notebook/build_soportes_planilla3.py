@@ -24,9 +24,11 @@ def md(texto):
     return {'cell_type': 'markdown', 'metadata': {}, 'source': texto.splitlines(keepends=True)}
 
 
-def code(texto):
-    # Celda de codigo colapsable: el codigo queda oculto (se despliega con el boton de la celda); las salidas se ven.
-    return {'cell_type': 'code', 'metadata': {'jupyter': {'source_hidden': True}}, 'execution_count': None, 'outputs': [],
+def code(texto, oculto=True):
+    # Celda de codigo colapsable: por defecto el codigo queda oculto (se despliega con el boton de la celda); las
+    # salidas se ven. Las celdas que el usuario debe editar (bloque 9b) se generan con oculto=False: codigo visible.
+    meta = {'jupyter': {'source_hidden': True}} if oculto else {}
+    return {'cell_type': 'code', 'metadata': meta, 'execution_count': None, 'outputs': [],
             'source': texto.splitlines(keepends=True)}
 
 
@@ -155,7 +157,7 @@ def construir():
     celdas.append(code('%%writefile analisis_opensees.py\n' + leer('analisis_opensees.py')))
     celdas.append(code(BLOQUE_9))
     celdas.append(md('## Bloque 9b. Deformada con escala editable\n\nCambie `ESCALA_DEFORMADA` y ejecute solo esta celda: no vuelve a resolver el análisis.'))
-    celdas.append(code(BLOQUE_9B))
+    celdas.append(code(BLOQUE_9B, oculto=False))
     celdas.append(md('## Bloque 10. Diseño por AISC 360-22 (ASD)\n\nCapacidades de IR, CE y LI (tensión, compresión, flexión, cortante, interacción H1 o H2) con las combinaciones de servicio del bloque 9 (sin las que incluyen viento: para el diseño solo aplica el sismo) y las longitudes de la hoja LONGITUDES. Escribe `diseno_asd.xlsx` y `planilla_con_diseno.xlsx`. Los perfiles macizos (CS, OS y SOL) fueron eliminados de la base y no se diseñan. Las barras CS quedan fuera del diseño. Los resultados salen **por grupo**: elija la sección de cada grupo en su desplegable (ordenado por tipo y sección); la tabla se recalcula y el botón **Aplicar** actualiza el Excel por elemento y la planilla (hoja PERFIL_GRUPO).'))
     celdas.append(code('%%writefile diseno_ntc.py\n' + leer('diseno_ntc.py')))
     celdas.append(code('%%writefile diseno_asd.py\n' + leer('diseno_asd.py')))
