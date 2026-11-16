@@ -7,7 +7,8 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.worksheet.datavalidation import DataValidation
 COLS_MATRIZ_XL = ['CLAVE', 'ID', 'PERFIL', 'ELEMENTO DISENO', 'FU MAXIMO', 'FU DEMANDA',
                   'FU ESBELTEZ LOCAL (B4.1)', 'FU ESBELTEZ GLOBAL (KL/r<=200)',
-                  'FU DUCTILIDAD (12.1.2, 12.1.3.1)', 'CASO QUE GOBIERNA', 'ESTADO']
+                  'FU DUCTILIDAD (12.1.2, 12.1.3.1)', 'CASO QUE GOBIERNA', 'ESTADO',
+                  'FU ESFUERZOS', 'FU ESBELTEZ', 'ESBELTEZ QUE GOBIERNA']
 from openpyxl.chart import ScatterChart, Reference, Series
 from openpyxl.drawing.image import Image as XLImage
 from openpyxl.workbook.properties import CalcProperties
@@ -1380,7 +1381,7 @@ def _hojas_diseno_vivo(wb, grupos_perfil, fu_matriz, perfiles_analizados=None):
     ws_f.freeze_panes = 'A2'
 
     ws_m = wb.create_sheet('FU_MATRIZ')
-    _encabezado(ws_m, COLS_MATRIZ_XL, [26, 6, 22, 14, 12, 12, 16, 18, 20, 24, 14])
+    _encabezado(ws_m, COLS_MATRIZ_XL, [26, 6, 22, 14, 12, 12, 16, 18, 20, 24, 14, 12, 12, 30])
     for fila in fu_matriz.itertuples(index=False):
         ws_m.append([None if (isinstance(v, float) and v != v) else (v.item() if hasattr(v, 'item') else v)
                      for v in fila])

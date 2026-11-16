@@ -769,7 +769,8 @@ COLS_RESULTADOS = ['ID', 'PERFIL', 'MATERIAL', 'GRUPO', 'CASO QUE GOBIERNA', 'FU
                    'FU FLEXION EJE MAYOR', 'FU FLEXION EJE MENOR', 'FU CORTANTE EJE MAYOR', 'FU CORTANTE EJE MENOR',
                    'FU INTERACCION (H1/H2)', 'FU ESBELTEZ LOCAL (B4.1)', 'FU ESBELTEZ GLOBAL (KL/r<=200)',
                    'FU DUCTILIDAD (12.1.2, 12.1.3.1)', 'FU MAXIMO', 'KL/r EJE FUERTE', 'KL/r EJE DEBIL',
-                   'ESTADO', 'NOTAS', 'FU TORSION (H3.1)', 'VERIFICACION QUE GOBIERNA']
+                   'ESTADO', 'NOTAS', 'FU TORSION (H3.1)', 'VERIFICACION QUE GOBIERNA', 'FU ESFUERZOS',
+                   'ESFUERZO QUE GOBIERNA', 'FU ESBELTEZ', 'ESBELTEZ QUE GOBIERNA']
 
 
 def _valores_designacion(nombre):
@@ -856,8 +857,34 @@ def _chequear(p, familia, fy, fu, E, nu, Lx, Ly, Lb, kx, ky, grupo, nivel, deman
     return out
 
 
+_NOMBRE_ESFUERZO = {
+    'T traccion': 'tracción', 'C compresion': 'compresión', 'F flexion eje mayor': 'flexión eje mayor',
+    'F flexion eje menor': 'flexión eje menor', 'V cortante eje mayor': 'cortante eje mayor',
+    'V cortante eje menor': 'cortante eje menor', 'H1 flexocompresion': 'interacción H1 flexocompresión',
+    'H1 flexotension': 'interacción H1 flexotensión', 'H2 angulo (H2-1)': 'interacción H2 (ángulo)',
+    'T torsion (H3.1)': 'torsión H3.1', 'H3 interaccion (H3-6)': 'interacción H3-6',
+}
+
+
+def _valores_esbeltez(ev, c):
+    """(lambda, limite, texto) de la verificacion de esbeltez c: esbeltez local, KL/r o ductilidad (12.1.2)."""
+    if c == CHEQUEO_EL:
+        nombre, (lam, lr) = max(ev['el_det'].items(), key=lambda t: t[1][0] / t[1][1])
+        return lam, lr, f'λ {nombre} {lam:.1f}/{lr:.1f}'
+    if c in (CHEQUEO_EG, CHEQUEO_D60):
+        lim = 60.0 if CHEQUEO_D60 in ev['const'] else LIMITE_KLR
+        return ev['klr'], lim, f'KL/r {ev["klr"]:.1f}/{lim:.1f}'
+    dd = ev['dd']
+    lam = dd['lf'] if 'lf' in dd else dd['lambda']
+    lim = lam / dd['U']
+    return lam, lim, f'λ ductil {lam:.2f}/{lim:.2f}'
+
+
 def _resumen_fu(ev, pares):
-    """FU por verificacion (maximo sobre combinaciones) y caso que gobierna. pares = [(fila, caso)]."""
+    """FU por verificacion (maximo sobre combinaciones) y caso que gobierna. pares = [(fila, caso)].
+    FU ESFUERZOS: resistencia (tension, compresion, flexion, cortante, interaccion, torsion).
+    FU ESBELTEZ: esbeltez local, KL/r y ductilidad (valores de λ o KL/r y su limite en el texto).
+    FU MAXIMO: el mayor de ambos (la seccion cumple si FU MAXIMO <= 1)."""
     mx = {}
     for c in CHEQUEOS_DEMANDA:
         vals = [(u[c], caso) for u, caso in pares if u.get(c) is not None]
@@ -867,14 +894,20 @@ def _resumen_fu(ev, pares):
     def val(c):
         return mx[c][0] if c in mx else None
     inter = [mx[c] for c in INTERACCION if c in mx]
-    # cada candidato: (FU, caso de carga o tipo de chequeo, nombre de la verificacion)
-    cands = [(mx[c][0], mx[c][1], c) for c in CHEQUEOS_DEMANDA if c in mx]
+    esf = [(mx[c][0], mx[c][1], c) for c in CHEQUEOS_DEMANDA if c in mx]
+    esb = []
     for c, v in ev['const'].items():
         nombre = '(esbeltez local)' if c == CHEQUEO_EL else ('(esbeltez global)' if c == CHEQUEO_EG else '(ductilidad)')
-        cands.append((v, nombre, c))
+        esb.append((v, nombre, c))
+    cands = esf + esb
     fu_max, caso_gob, verif_gob = max(cands, key=lambda t: t[0]) if cands else (None, '', '')
+    fu_esf = max(esf, key=lambda t: t[0]) if esf else (None, '', '')
+    fu_esb = max(esb, key=lambda t: t[0]) if esb else (None, '', '')
+    txt_esb = _valores_esbeltez(ev, fu_esb[2])[2] if esb else '—'
     duct = [ev['const'][c] for c in (CHEQUEO_D60, CHEQUEO_D12) if c in ev['const']]
     return {'CASO QUE GOBIERNA': caso_gob, 'VERIFICACION QUE GOBIERNA': verif_gob,
+            'FU ESFUERZOS': fu_esf[0], 'ESFUERZO QUE GOBIERNA': _NOMBRE_ESFUERZO.get(fu_esf[2], fu_esf[2]),
+            'FU ESBELTEZ': fu_esb[0], 'ESBELTEZ QUE GOBIERNA': txt_esb,
             'FU TRACCION': val('T traccion'), 'FU COMPRESION': val('C compresion'),
             'FU FLEXION EJE MAYOR': val('F flexion eje mayor'), 'FU FLEXION EJE MENOR': val('F flexion eje menor'),
             'FU CORTANTE EJE MAYOR': val('V cortante eje mayor'), 'FU CORTANTE EJE MENOR': val('V cortante eje menor'),
@@ -956,7 +989,8 @@ def perfil_por_grupo(dib):
 
 
 COLS_MATRIZ = ['CLAVE', 'ID', 'PERFIL', 'ELEMENTO DISENO', 'FU MAXIMO', 'FU DEMANDA', 'FU ESBELTEZ LOCAL (B4.1)',
-               'FU ESBELTEZ GLOBAL (KL/r<=200)', 'FU DUCTILIDAD (12.1.2, 12.1.3.1)', 'CASO QUE GOBIERNA', 'ESTADO']
+               'FU ESBELTEZ GLOBAL (KL/r<=200)', 'FU DUCTILIDAD (12.1.2, 12.1.3.1)', 'CASO QUE GOBIERNA', 'ESTADO',
+               'FU ESFUERZOS', 'FU ESBELTEZ', 'ESBELTEZ QUE GOBIERNA']
 FU_DEMANDA_CLAVES = ['FU TRACCION', 'FU COMPRESION', 'FU FLEXION EJE MAYOR', 'FU FLEXION EJE MENOR',
                      'FU CORTANTE EJE MAYOR', 'FU CORTANTE EJE MENOR', 'FU INTERACCION (H1/H2)', 'FU TORSION (H3.1)']
 
@@ -982,24 +1016,25 @@ def matriz_fu_por_perfil(dib, materiales_filas, longitudes_df, demandas, id_barr
             base = [f'{int(id_)}|{nombre}', int(id_), nombre, b['elemento']]
             if p is None or m is None or m['fy'] is None or m['E'] is None or m['nu'] is None:
                 motivo = falta if p is None else 'material sin fy, E o nu'
-                filas.append(base + [motivo] + ['NO REVISADO'] * 6)
+                filas.append(base + [motivo] + ['NO REVISADO'] * 9)
                 continue
             if fam == 'LI' and (e['l_li'] is None or e['conexion'] is None):
                 # DECISION D20 (abierta): candidatos LI sin datos de conexion quedan NO REVISADO (alternativa: error).
                 # candidato angulo: sin LI CONEXION y LI LONGITUD CONEXION en LONGITUDES no se evalua (no se supone)
-                filas.append(base + ['falta LI CONEXION o LI LONGITUD CONEXION en LONGITUDES'] + ['NO REVISADO'] * 6)
+                filas.append(base + ['falta LI CONEXION o LI LONGITUD CONEXION en LONGITUDES'] + ['NO REVISADO'] * 9)
                 continue
             ev = _chequear(p, fam, m['fy'], m['fu'], m['E'], m['nu'], e['lx'] * 100.0, e['ly'] * 100.0,
                            e['lb'] * 100.0, e['kx'], e['ky'], b['elemento'], e['nivel'], demandas_list, cb=e['cb'],
                            e5=(fam == 'LI' and e['e5']),
                            u_t=(factor_u_angulo(p['xc'], e['l_li'], e['conexion']) if fam == 'LI' else 1.0))
             if ev['motivo'] and any(d['Pr_c'] > 0 for d in demandas_list):
-                filas.append(base + ['NO REVISADO'] * 6 + ['NO REVISADO'])
+                filas.append(base + ['NO REVISADO'] * 9 + ['NO REVISADO'])
                 continue
             if not demandas_list:
                 el, eg = ev['const'][CHEQUEO_EL], ev['const'].get(CHEQUEO_EG)
                 filas.append(base + ['SIN COMBINACIONES', '—', round(el, 3),
-                                     round(eg, 3) if eg is not None else '—', '—', '—', 'SIN COMBINACIONES'])
+                                     round(eg, 3) if eg is not None else '—', '—', '—', 'SIN COMBINACIONES',
+                                     '—', round(max(el, eg or 0.0), 3), '—'])
                 continue
             fu = _resumen_fu(ev, list(zip(ev['filas'], casos)))
             dem = [fu[c] for c in FU_DEMANDA_CLAVES if fu.get(c) is not None]
@@ -1010,7 +1045,8 @@ def matriz_fu_por_perfil(dib, materiales_filas, longitudes_df, demandas, id_barr
                                  round(eg, 4) if eg is not None else '—',
                                  round(duct, 4) if duct is not None else '—',
                                  fu['CASO QUE GOBIERNA'],
-                                 'CUMPLE' if fu['FU MAXIMO'] <= 1.0 else 'NO CUMPLE'])
+                                 'CUMPLE' if fu['FU MAXIMO'] <= 1.0 else 'NO CUMPLE',
+                                 _r4(fu['FU ESFUERZOS']), _r4(fu['FU ESBELTEZ']), fu['ESBELTEZ QUE GOBIERNA']])
     return pd.DataFrame(filas, columns=COLS_MATRIZ)
 
 
@@ -1133,6 +1169,26 @@ def diseno_asd_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id
         resultados.to_excel(w, sheet_name='RESULTADOS', index=False)
         detalle.to_excel(w, sheet_name='DETALLE', index=False)
     return capacidades, resultados, detalle
+
+
+def _r4(x):
+    return round(x, 4) if x is not None else '—'
+
+
+def esbeltez_grupo_por_perfil(fu_matriz, grupo):
+    """Por perfil: (FU esfuerzos maximo, FU esbeltez maximo, texto de la esbeltez de la barra que mas gobierna),
+    con las barras del grupo. None si alguna barra no se puede revisar."""
+    fm = fu_matriz[fu_matriz['ELEMENTO DISENO'] == grupo]
+    out = {}
+    for perfil, sub in fm.groupby('PERFIL'):
+        esf = pd.to_numeric(sub['FU DEMANDA'], errors='coerce')
+        esb = pd.to_numeric(sub['FU ESBELTEZ'], errors='coerce')
+        if esf.isna().any() or esb.isna().any():
+            out[perfil] = None
+            continue
+        k = int(esb.values.argmax())
+        out[perfil] = (float(esf.max()), float(esb.max()), str(sub['ESBELTEZ QUE GOBIERNA'].iloc[k]))
+    return out
 
 
 def fu_grupo_por_perfil(fu_matriz, grupo):

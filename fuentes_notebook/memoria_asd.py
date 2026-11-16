@@ -330,9 +330,9 @@ def _tabla_verif(v):
     return f'<table>{cabecera}{"".join(cuerpo)}</table>'
 
 
-COLS_GRUPO = ['ID', 'PERFIL', 'FU MÁXIMO', 'VERIFICACIÓN QUE GOBIERNA', 'FU INTERACCIÓN (H1/H2)', 'ELEM. LOCAL CRÍTICO',
-              'CLASIF. NTC (3.2)', 'λ LOCAL CALC', 'λ LOCAL LÍMITE', 'KL/r CALC', 'KL/r LÍMITE', 'λ DUCT CALC',
-              'λ DUCT LÍMITE', 'ESTADO', 'NOTA']
+COLS_GRUPO = ['ID', 'PERFIL', 'FU ESFUERZOS', 'ESFUERZO QUE GOBIERNA', 'FU ESBELTEZ', 'ESBELTEZ QUE GOBIERNA',
+              'ELEM. LOCAL CRÍTICO', 'CLASIF. NTC (3.2)', 'λ LOCAL CALC', 'λ LOCAL LÍMITE', 'KL/r CALC', 'KL/r LÍMITE',
+              'λ DUCT CALC', 'λ DUCT LÍMITE', 'ESTADO', 'NOTA']
 
 
 def _interaccion(v):
@@ -353,7 +353,7 @@ def _interaccion(v):
 def _fila_grupo(v):
     """Una fila de la tabla por grupo: FU de interaccion, esbeltez local y global (calculado y limite) y estado."""
     if 'res' not in v or not v.get('fu_res'):
-        return [v['id'], v['perfil']] + [None] * 11 + [v['estado'], v.get('motivo', '')]
+        return [v['id'], v['perfil']] + [None] * 12 + [v['estado'], v.get('motivo', '')]
     ev = v['ev']
     inter = _interaccion(v)
     crit, lam_c, lam_l = max(((n, l, r) for n, (l, r) in ev['el_det'].items()), key=lambda t: t[1] / t[2])
@@ -374,8 +374,10 @@ def _fila_grupo(v):
         nota.append('sin compresión: KL/r no aplica')
     clasif = (f'tipo {DA.tipo_seccion_flexion(v["p"], v["familia"], v["fy"], v["E"])}' if v['grupo'] == 'VIGA'
               else DA.clasificacion_compresion(v['p'], v['familia'], v['fy'], v['E']))
-    return [v['id'], v['perfil'], round(fu_max(v), 3), v['fu_res'].get('VERIFICACION QUE GOBIERNA'), round(inter, 3),
-            crit, clasif, round(lam_c, 2), round(lam_l, 2), klr_c, klr_l,
+    fr = v['fu_res']
+    return [v['id'], v['perfil'], round(fr['FU ESFUERZOS'], 3) if fr.get('FU ESFUERZOS') is not None else None,
+            fr.get('ESFUERZO QUE GOBIERNA'), round(fr['FU ESBELTEZ'], 3) if fr.get('FU ESBELTEZ') is not None else None,
+            fr.get('ESBELTEZ QUE GOBIERNA'), crit, clasif, round(lam_c, 2), round(lam_l, 2), klr_c, klr_l,
             lam_d_c, lam_d_l, v['estado'], '; '.join(nota)]
 
 
@@ -394,6 +396,7 @@ def opciones_grupo(fu_matriz, grupo):
     resultado para todas las barras del grupo (cada una con su demanda), segun FU_MATRIZ."""
     catalogo = sorted([n for n, d in G.PERFILES.items() if d['familia'] in DA.FAMILIAS_ASD], key=DA.clave_orden)
     peor = DA.fu_grupo_por_perfil(fu_matriz, grupo)
+    det = DA.esbeltez_grupo_por_perfil(fu_matriz, grupo)
     ops = []
     for n in catalogo:
         if n not in peor:
@@ -402,7 +405,12 @@ def opciones_grupo(fu_matriz, grupo):
             etiqueta = f'{n}  —  no revisado en alguna barra'
         else:
             x = peor[n]
-            etiqueta = f'{n}  —  {"cumple" if x <= 1.0 else "no cumple"} (FU máx {x:.2f})'
+            cumple = 'cumple' if x <= 1.0 else 'no cumple'
+            r = det.get(n)
+            if r is not None:
+                etiqueta = f'{n}  —  {cumple} · FU esfuerzos {r[0]:.2f} · FU esbeltez {r[1]:.2f} ({r[2]})'
+            else:
+                etiqueta = f'{n}  —  {cumple} (FU máx {x:.2f})'
         ops.append((etiqueta, n))
     return ops
 
@@ -1166,7 +1174,7 @@ el detalle completo de cada elemento está en diseno_asd.xlsx (RESULTADOS).</p>
 <h2>3. Datos de entrada</h2>{_parametros_html(proyecto['conf'])}{_datos_entrada_html(dib, materiales_filas, id_barra, lon, mat, equilibrio)}
 <h2>4. Modelo de análisis</h2>{_modelo_html(dib, equilibrio)}
 <h2>5. Resultados por grupo</h2>
-<p class="nota">Por grupo: FU de interacción flexocompresión (H1/H2); clasificación NTC; λ calculado y λ límite del elemento
+<p class="nota">Por grupo: FU de esfuerzos (resistencia, incluida la interacción H1/H2 y la torsión H3) y FU de esbeltez (local, KL/r y ductilidad) por separado, con sus valores calculado y límite; clasificación NTC; λ calculado y λ límite del elemento
 que gobierna (esbeltez local, NTC); KL/r calculado y límite (200; 60 en columna dúctil); ductilidad y estado global
 (todas las verificaciones).</p>
 {('<p>' + resumen_txt + '</p>') if resumen_txt else ''}
