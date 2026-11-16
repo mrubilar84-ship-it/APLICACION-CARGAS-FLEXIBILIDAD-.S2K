@@ -187,3 +187,7 @@ Columna barra 1, PP: N_I + N_J = 255.1500 kgf vs masa x L = 72.9 kg/m * 3.5 m = 
 Estado Sobrecarga en BARRAS: 26 filas, suma de |esfuerzos| = 0.000000e+00 (cero: la sobrecarga no carga la estructura)
 
 FIN.
+
+Salida escrita en: <ruta_local>
+
+--- codigo de salida: 0

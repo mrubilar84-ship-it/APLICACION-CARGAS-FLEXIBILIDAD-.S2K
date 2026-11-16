@@ -1,0 +1,193 @@
+COMPROBACION MANUAL INDEPENDIENTE (AISC 360-22 ASD / NTC) - salida
+Unidades: kgf, kgf·cm, cm. Las columnas "memoria" y "xlsx" son comparacion, no entrada.
+
+##############################################################################################################
+A. FACTOR DE USO: BARRA 1 (columna) Y CONTROL BARRA 13 (viga)
+##############################################################################################################
+==============================================================================================================
+BARRA 1  |  ID 1  |  IR 10 × 49  |  72.9 kg/m
+Geometria (JSON, IR!A36): d=25.3 bf=25.4 tw=0.86 tf=1.42 A=92.9 Ix=11321 Iy=3888 Sx=894.941 Sy=306.142 Zx=990 Zy=464 rx=11 ry=6.5 J=57.9 Cw=554287.28
+Longitudes (memoria sec.7): KLx=350.0 KLy=350.0 Lb=350.0 Lz=350.0 cm  Cb=1.0  (ductilidad MEDIA)
+
+-- Capacidades y demandas: mio | memoria | xlsx
+                                         mio       memoria          xlsx
+  Traccion D2
+  Pn fluencia Fy Ag             326,543.5000             -             -   OK
+  Pn fractura Fu Ae             424,553.0000             -             -   OK
+  Pt admisible                  195,535.0299  195,535.0000  195,535.0299   OK
+  Compresion E3/E4/E7
+  KL/rx                                31.82         31.80         31.82   OK
+  KL/ry                                53.85         53.80         53.85   OK
+  Fex (kgf/cm2)                  19,876.7307             -             -   OK
+  Fey (kgf/cm2)                     6,940.43      6,940.00             -   OK
+  Fez (kgf/cm2)                   8,997.6565             -             -   OK
+  Fe = min (kgf/cm2)                6,940.43      6,940.00             -   OK
+  Fcr = Fn (kgf/cm2)                2,843.58      2,844.00      2,843.58   OK
+  Pn = Fn Ae (kgf)                264,168.50    264,168.00             -   OK
+  Pc = Pn/Omega_c (kgf)           158,184.73    158,185.00    158,184.73   OK
+  Flexion eje fuerte F2 (Lb=350 cm, Cb=1)
+  Lp (cm)                             275.53             -             -   OK
+  Lr (cm)                             963.54             -             -   OK
+  rts (cm)                             7.202             -             -   OK
+  Mp = Fy Zx (kgf·cm)            3,479,850.0   3,479,850.0             -   OK
+  Mn LTB (kgf·cm)                3,341,528.1   3,341,528.0             -   OK
+  Mcx = Mn/Omega_b (kgf·cm)      2,000,915.0   2,000,915.0   2,000,915.0   OK
+    zona LTB: Lp < Lb <= Lr: F2-2
+  Flexion eje debil F6
+  Mp_y = min(Fy Zy,1.6FySy)      1,630,960.0   1,630,960.0             -   OK
+  Mcy = Mp_y/Omega_b (kgf·cm)      976,622.8     976,623.0     976,622.8   OK
+  Cortante G2 (eje fuerte) y G6 (eje debil)
+  Vn_x = 0.6 Fy Aw Cv1              45,887.6             -             -   OK
+  Vcx = Vn/1.50 (kgf)               30,591.7      30,592.0      30,591.7   OK
+  Vcy = Vn/1.67 (kgf)               91,098.7      91,099.0      91,098.7   OK
+  Demandas ASD1 (BARRAS) | memoria
+  Pc (kgf)                         2,216.945          2217
+  Pt (kgf)                             0.000           0.0
+  Mrx = MZ (kgf·cm)                  974.788         974.8  (MZ MAX hoja 974.788)
+  Mry = MY (kgf·cm)                1,412.923          1413  (MY MAX hoja 1,412.923)
+  Vrx = Vy (kgf)                       4.228           4.2
+  Vry = Vz (kgf)                       6.101           6.1
+
+-- FU (mio) | memoria | xlsx RESULTADOS
+                                         mio       memoria          xlsx
+  FU traccion                        0.00000       0.00000       0.00000   OK
+  FU compresion                      0.01401       0.01400       0.01401   OK
+  FU flexion eje mayor               0.00049       0.00000       0.00049   OK
+  FU flexion eje menor               0.00145       0.00100       0.00145   OK
+  FU cortante eje mayor              0.00014       0.00000       0.00014   OK
+  FU cortante eje menor              0.00007       0.00000       0.00007   OK
+  FU interaccion H1-1b               0.00894       0.00900       0.00894   OK
+  FU esbeltez local                  0.72776             -       0.72776   OK
+  FU esbeltez global KL/r/200        0.26923             -       0.26923   OK
+  FU ductilidad b/t                  0.97723       0.97700       0.97723   OK
+  FU ductilidad KL/r/60              0.89744             -             -   OK
+
+  FU maximo AISC (fuerzas)          mio = 0.01401
+  FU maximo NTC (esbeltez/ductil.)  mio = 0.97723
+  FU MAXIMO total                   mio = 0.97723  | memoria cabecera = 0.977  | xlsx FU MAXIMO = 0.97723
+  Detalle esbeltez local (compresion NTC 3.2.1): lam_f = 8.9437 (lim 13.4872), lam_w = 26.1163 (lim 35.8857)
+  Ductilidad MEDIA: b/t = 8.9437, limite 0.38 sqrt(E/Fy) = 9.1521
+
+  Nota interpretacion: si Omega_c = 2.00 (instruccion), FU compresion = 0.01170 (en vez de 0.01401); no cambia el FU maximo total.
+
+==============================================================================================================
+CONTROL BARRA 13 (viga)  |  ID 13  |  IR 12 × 16  |  23.9 kg/m
+Geometria (JSON, IR!A45): d=30.5 bf=10.1 tw=0.5599999999999999 tf=0.67 A=30.4 Ix=4287 Iy=117 Sx=281.115 Sy=23.168 Zx=329 Zy=37 rx=11.9 ry=2 J=4.2 Cw=26027.50
+Longitudes (memoria sec.7): KLx=500.0 KLy=500.0 Lb=500.0 Lz=500.0 cm  Cb=1.0  (ductilidad MEDIA)
+
+-- Capacidades y demandas: mio | memoria | xlsx
+                                         mio       memoria          xlsx
+  Traccion D2
+  Pn fluencia Fy Ag             106,856.0000             -             -   OK
+  Pn fractura Fu Ae             138,928.0000             -             -   OK
+  Pt admisible                   63,985.6287   63,986.0000   63,985.6287   OK
+  Compresion E3/E4/E7
+  KL/rx                                42.02             -         42.02   OK
+  KL/ry                               250.00             -        250.00   OK
+  Fex (kgf/cm2)                  11,398.5494             -             -   OK
+  Fey (kgf/cm2)                       321.97        322.00             -   OK
+  Fez (kgf/cm2)                   1,217.3441             -             -   OK
+  Fe = min (kgf/cm2)                  321.97        322.00             -   OK
+  Fcr = Fn (kgf/cm2)                  282.37        282.40        282.37   OK
+  Pn = Fn Ae (kgf)                  8,583.98      8,584.00             -   OK
+  Pc = Pn/Omega_c (kgf)             5,140.11      5,140.00      5,140.11   OK
+  Flexion eje fuerte F2 (Lb=500 cm, Cb=1)
+  Lp (cm)                              84.78             -             -   OK
+  Lr (cm)                             244.17             -             -   OK
+  rts (cm)                             2.492             -             -   OK
+  Mp = Fy Zx (kgf·cm)            1,156,435.0   1,156,435.0             -   OK
+  Mn LTB (kgf·cm)                  225,326.9     225,327.0             -   OK
+  Mcx = Mn/Omega_b (kgf·cm)        134,926.3     134,926.0     134,926.3   OK
+    zona LTB: Lb > Lr: F2-3
+  Flexion eje debil F6
+  Mp_y = min(Fy Zy,1.6FySy)        130,055.0     130,055.0             -   OK
+  Mcy = Mp_y/Omega_b (kgf·cm)       77,877.2      77,877.0      77,877.2   OK
+  Cortante G2 (eje fuerte) y G6 (eje debil)
+  Vn_x = 0.6 Fy Aw Cv1              36,021.7             -             -   OK
+  Vcx = Vn/1.50 (kgf)               24,014.5      24,014.0      24,014.5   OK
+  Vcy = Vn/1.67 (kgf)               17,091.7      17,092.0      17,091.7   OK
+  Demandas ASD1 (BARRAS) | memoria
+  Pc (kgf)                             0.000           0.0
+  Pt (kgf)                            10.127          10.1
+  Mrx = MZ (kgf·cm)                5,456.044          5456  (MZ MAX hoja 5,456.044)
+  Mry = MY (kgf·cm)                    0.000           0.0  (MY MAX hoja 0.000)
+  Vrx = Vy (kgf)                      62.724          62.7
+  Vry = Vz (kgf)                       0.000           0.0
+
+-- FU (mio) | memoria | xlsx RESULTADOS
+                                         mio       memoria          xlsx
+  FU traccion                        0.00016       0.00000       0.00016   OK
+  FU compresion                      0.00000       0.00000       0.00000   OK
+  FU flexion eje mayor               0.04044       0.04000       0.04044   OK
+  FU flexion eje menor               0.00000       0.00000       0.00000   OK
+  FU cortante eje mayor              0.00261       0.00300       0.00261   OK
+  FU cortante eje menor              0.00000       0.00000       0.00000   OK
+  FU interaccion H1-1b               0.04052       0.04100       0.04052   OK
+  FU esbeltez local                  0.37931             -       0.37931   OK
+  FU ductilidad b/t                  0.82356       0.82400       0.82356   OK
+
+  FU maximo AISC (fuerzas)          mio = 0.04052
+  FU maximo NTC (esbeltez/ductil.)  mio = 0.82356
+  FU MAXIMO total                   mio = 0.82356  | memoria cabecera = 0.824  | xlsx FU MAXIMO = 0.82356
+  Detalle esbeltez local (flexion NTC 3.2.2): lam_f = 7.5373 (lim 24.0844), lam_w = 52.0714 (lim 137.2809)
+  Ductilidad MEDIA: b/t = 7.5373, limite 0.38 sqrt(E/Fy) = 9.1521
+
+##############################################################################################################
+B. FLECHA RELATIVA A LA CUERDA: BARRA 15 (IR 12 x 16, L = 500 cm), ASD1
+##############################################################################################################
+Barra 15: nodos I=3 J=9, L = 500.000 cm (memoria: 500.0). Direccion u = (1.0, 0.0, 0)
+Traslaciones UZ (DEFORMADA, mm): I = -0.070568   J = -0.074653
+Giros (DEFORMADA, RY rad): I = 2.776422e-05   J = 1.321438e-19
+Pendiente dw/ds (rad) = RX*uy - RY*ux: I = -2.776422e-05   J = -1.321438e-19
+EI (fuerte) = E Ix = 8.7408e+09 kgf·cm2;  EI (debil) = E Iy = 2.3855e+08
+q peso propio: masa 23.9 kg/m -> q = -0.239000 kgf/cm;  control BARRAS (VyI+VyJ)/L = 0.239000
+
+Control de signos y eje: momentos de extremo de la solucion vs BARRAS (ASD1 = PP aqui)
+                               EI fuerte        EI debil     BARRAS kgf·cm
+  EI w(0) [fuerte Ix]  =      -3,123.41   -> M_I = -EI w(0) =     3,123.41   BARRAS MZ_I =     3,123.41
+  EI w(L) [fuerte Ix]  =      -5,864.20   ->  M_J = +EI w(L)=    -5,864.20   BARRAS MZ_J =    -5,864.20
+  EI w(0) [debil Iy]  =      -4,928.52   -> M_I = -EI w(0) =     4,928.52   BARRAS MZ_I =     3,123.41
+  EI w(L) [debil Iy]  =      -5,003.32   ->  M_J = +EI w(L)=    -5,003.32   BARRAS MZ_J =    -5,864.20
+  (Se toma la eleccion de signo que reproduce ambos extremos: M_I = -EI w(0), M_J = +EI w(L).)
+
+FLECHA (solucion exacta EB con giros de DEFORMADA): 0.06248 mm  en x/L = 0.4620
+  signo: hacia abajo respecto a la cuerda; memoria: 0.06 mm, x/L = 0.46
+  mismo calculo con el eje debil (solo contraste): 1.6480 mm
+
+Sensibilidad (si los giros no existieran):
+  giros nulos (t1 = t2 = 0):          0.04451 mm  (-28.8 %)
+  giros = pendiente de la cuerda:     0.04450 mm  (-28.8 %)
+  peso del termino de carga (qL^4/384EI, extremos empotrados): 0.04450 mm
+
+Limite L/300 (memoria, FLECHA_DIVISOR 300):
+  L/300 = 5000.0 mm / 300 = 16.6667 mm  (memoria: 16.67) -> aritmetica correcta
+  Referencias: L/360 = 13.89 mm;  L/240 = 20.83 mm;  flecha/L/300 = 0.37 %
+
+Todas las vigas (sec. 6.4 de la memoria): mio | memoria
+  barra    L cm      mio mm   memo mm   mio x/L  memo x/L    L/300
+     13   500.0      0.0542      0.05     0.477      0.48    16.67
+     14   500.0      0.0542      0.05     0.522      0.52    16.67
+     15   500.0      0.0625      0.06     0.462      0.46    16.67
+     16   500.0      0.0625      0.06     0.538      0.54    16.67
+     17   500.0      0.0542      0.05     0.477      0.48    16.67
+     18   500.0      0.0542      0.05     0.522      0.52    16.67
+     19   500.0      0.0625      0.06     0.462      0.46    16.67
+     20   500.0      0.0625      0.06     0.538      0.54    16.67
+     21   400.0      0.0218      0.02     0.500      0.50    13.33
+     22   400.0      0.0273      0.03     0.500      0.50    13.33
+     23   400.0      0.0218      0.02     0.500      0.50    13.33
+     24   400.0      0.0273      0.03     0.500      0.50    13.33
+     25   400.0      0.0218      0.02     0.500      0.50    13.33
+     26   400.0      0.0273      0.03     0.500      0.50    13.33
+
+##############################################################################################################
+C. CONSISTENCIA DE ENTRADAS (BARRAS, RESUMEN)
+##############################################################################################################
+Columna barra 1, PP: N_I + N_J = 255.1500 kgf vs masa x L = 72.9 kg/m * 3.5 m = 255.1500 kgf
+Estado Sobrecarga en BARRAS: 26 filas, suma de |esfuerzos| = 0.000000e+00 (cero: la sobrecarga no carga la estructura)
+
+FIN.
+
+Salida escrita en: <ruta_local>
+
+--- codigo de salida: 0

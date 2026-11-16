@@ -12,8 +12,8 @@ B) Flecha de la barra 15 (IR 12 x 16, L = 500 cm) con la solucion exacta de
 
 Solo lectura de:
   fuentes_notebook/datos/perfiles_gerdau_mexico_rev04.json
-  auditoria_rev01/ejemplo/diseno_asd.xlsx        (CAPACIDADES, RESULTADOS: solo comparacion)
-  auditoria_rev01/ejemplo/resultados_soportes.xlsx (BARRAS, DEFORMADA: entradas)
+  auditoria_rev02/ejemplo/diseno_asd.xlsx        (CAPACIDADES, RESULTADOS: solo comparacion)
+  auditoria_rev02/ejemplo/resultados_soportes.xlsx (BARRAS, DEFORMADA: entradas)
 Los valores de la memoria se transcriben con su seccion (memoria_calculo.html).
 """
 import json
@@ -24,8 +24,8 @@ import openpyxl
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))  # raiz del repositorio
 JSON_PATH = os.path.join(REPO, 'fuentes_notebook', 'datos', 'perfiles_gerdau_mexico_rev04.json')
-DISENO_XLSX = os.path.join(REPO, 'auditoria_rev01', 'ejemplo', 'diseno_asd.xlsx')
-ESF_XLSX = os.path.join(REPO, 'auditoria_rev01', 'ejemplo', 'resultados_soportes.xlsx')
+DISENO_XLSX = os.path.join(REPO, 'auditoria_rev02', 'ejemplo', 'diseno_asd.xlsx')
+ESF_XLSX = os.path.join(REPO, 'auditoria_rev02', 'ejemplo', 'resultados_soportes.xlsx')
 OUT_TXT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'comprobacion_manual_salida.txt')
 
 SALIDA = []
