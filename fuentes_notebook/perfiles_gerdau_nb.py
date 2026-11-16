@@ -17,7 +17,8 @@ def obtener_perfil(nombre):
             'e': p['tw_cm'], 't': p['tf_t_cm'], 'A': p['area_cm2'], 'Ix': p['ix_cm4'], 'Iy': p['iy_cm4'],
             'Sx': p['sx_cm3'], 'Sy': p['sy_cm3'], 'rx': p['rx_cm'], 'ry': p['ry_cm'], 'J': p['j_cm4'],
             'Cw': p['cw_cm6'], 'Zx': p.get('zx_cm3'), 'Zy': p.get('zy_cm3'), 'ro': p.get('ro_cm'),
-            'estado': p['estado'], 'masa': p['masa_kg_m']}
+            'estado': p['estado'], 'masa': p['masa_kg_m'], 'pagina_manual': p.get('pagina_manual'),
+            'fuente_completado': p.get('fuente_completado')}
 
 
 def _clave_seccion(p):

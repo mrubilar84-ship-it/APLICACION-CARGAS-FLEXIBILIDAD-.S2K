@@ -7,7 +7,8 @@ D = os.path.dirname(os.path.abspath(__file__))
 SALIDA = sys.argv[1]
 PLANTILLA = sys.argv[2] if len(sys.argv) > 2 else None
 FUENTE_GERDAU = os.path.join(D, 'datos', 'perfiles_gerdau_mexico_rev04.json')
-CAMPOS = ['familia', 'perfil_comercial', 'estado', 'masa_kg_m', 'd_ala_diametro_cm', 'bf_b_cm', 'tw_cm',
+CAMPOS = ['pagina_manual', 'pagina_pdf', 'referencia_excel', 'campos_pendientes', 'designacion_pulgadas', 'designacion_metrica_manual', 'fuente_completado',
+          'familia', 'perfil_comercial', 'estado', 'masa_kg_m', 'd_ala_diametro_cm', 'bf_b_cm', 'tw_cm',
           'tf_t_cm', 'area_cm2', 'ix_cm4', 'iy_cm4', 'sx_cm3', 'sy_cm3', 'rx_cm', 'ry_cm', 'j_cm4', 'cw_cm6',
           'zx_cm3', 'zy_cm3', 'ro_cm']
 
@@ -51,6 +52,11 @@ def completar_desde_manual(perfiles):
             assert p.get(campo) is None, (p['perfil_comercial'], campo, p.get(campo))
             p[campo] = valor
             n += 1
+        if extra:
+            # Pagina impresa del catalogo: tabla CE en la 26 e IR en la 27 (imagen de la pagina PDF 14 del manual)
+            p['fuente_completado'] = ('Manual Gerdau, pág. impresa ' + ('26' if p['familia'] == 'CE' else '27')
+                                      + ' (pág. PDF 14), valor leído de la tabla'
+                                      + (' (imagen; verificado visualmente)'))
     print('valores completados desde el manual Gerdau:', n)
 
 

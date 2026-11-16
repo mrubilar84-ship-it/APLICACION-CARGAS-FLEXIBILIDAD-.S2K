@@ -13,13 +13,28 @@ RUTA_DISENO = 'diseno_asd.xlsx'
 RUTA_PLANILLA_DISENO = 'planilla_con_diseno.xlsx'
 
 
+def _perfiles_analizados():
+    """Perfil con que corrio el analisis, por grupo (hoja BARRAS de resultados_soportes.xlsx, columna PERFIL).
+    None si no hay resultados. Si un grupo tiene perfiles distintos, se listan todos."""
+    try:
+        b = pd.read_excel(RUTA_RESULTADOS, sheet_name='BARRAS', dtype=object)
+    except Exception:
+        return None
+    out = {}
+    for g, sub in b.groupby('ELEMENTO'):
+        perfiles = sorted({str(p) for p in sub['PERFIL'].dropna()})
+        out[str(g)] = perfiles[0] if len(perfiles) == 1 else ' / '.join(perfiles)
+    return out
+
+
 def _escribir_planilla(perfiles, listas, fu_matriz):
     escribir_planilla(RUTA_PLANILLA_DISENO, _filas(nodos, NODOS_COLS), _filas(barras, BARRAS_COLS),
                       filas_cargas=filas_cargas_para_excel(cargas), materiales=materiales_filas,
                       combinaciones=comb_crudas,
                       longitudes=filas_longitudes_para_excel(longitudes_df),
                       estados=[[None if _vacio(v) else v for v in f] for f in estados_df.values.tolist()],
-                      listas=listas, grupos_perfil=perfiles, fu_matriz=fu_matriz)
+                      listas=listas, grupos_perfil=perfiles, fu_matriz=fu_matriz,
+                      perfiles_analizados=_perfiles_analizados())
     guardar_con_valores(RUTA_PLANILLA_DISENO)
 
 

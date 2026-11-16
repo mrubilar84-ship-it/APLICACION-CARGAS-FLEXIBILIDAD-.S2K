@@ -1058,7 +1058,7 @@ def _hoja_normas_y_parametros(wb):
 
 def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas=None, estados=None,
                       materiales=None, combinaciones=None, longitudes=None, listas=None,
-                      grupos_perfil=None, fu_matriz=None):
+                      grupos_perfil=None, fu_matriz=None, perfiles_analizados=None):
     """Escribe el libro completo con los datos dados. Cada fila de NODOS: NODOS_COLS; de BARRAS: BARRAS_COLS."""
     wb = openpyxl.Workbook()
     ws_i = wb.active; ws_i.title = 'INSTRUCCIONES'
@@ -1164,7 +1164,7 @@ def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas
         ws_l.cell(row=k + 2, column=4, value=e)
     _hoja_listas_grupo(wb, ws_l, listas)
     if grupos_perfil is not None and fu_matriz is not None:
-        _hojas_diseno_vivo(wb, grupos_perfil, fu_matriz)
+        _hojas_diseno_vivo(wb, grupos_perfil, fu_matriz, perfiles_analizados)
 
     ws_calc = _hoja_calculo(wb)
     ws_3d, col_3d = _hoja_3d(wb)
@@ -1278,7 +1278,7 @@ display(_hojas['BARRAS'].head(8))
 
 
 # ---------------- DISENO POR GRUPO EN EXCEL: el perfil se elige por grupo y el FU se recalcula ----------------
-def _hojas_diseno_vivo(wb, grupos_perfil, fu_matriz):
+def _hojas_diseno_vivo(wb, grupos_perfil, fu_matriz, perfiles_analizados=None):
     """PERFIL_GRUPO: un perfil por grupo (desplegable), con FU y esbeltez maximos de sus barras.
     FU_BARRAS: FU y esbeltez de cada barra con su perfil (formulas). FU_MATRIZ: FU de cada barra con cada perfil
     del catalogo, calculado al ejecutar el bloque 10. Al cambiar el perfil de un grupo, Excel recalcula todo."""
@@ -1288,12 +1288,16 @@ def _hojas_diseno_vivo(wb, grupos_perfil, fu_matriz):
 
     ws_g = wb.create_sheet('PERFIL_GRUPO')
     _encabezado(ws_g, ['GRUPO', 'PERFIL ELEGIDO', 'FU MAXIMO', 'FU ESBELTEZ LOCAL', 'FU ESBELTEZ GLOBAL',
-                       'ESTADO', 'BARRAS'], [14, 26, 14, 18, 20, 14, 10])
+                       'ESTADO', 'BARRAS', 'PERFIL ANALIZADO', 'EJECUCION'], [14, 26, 14, 18, 20, 14, 10, 26, 52])
     for k, g in enumerate(GRUPOS_LISTA):
         r = k + 2
         ws_g.cell(row=r, column=1, value=g)
         ws_g.cell(row=r, column=2, value=grupos_perfil.get(g))
         ws_g.cell(row=r, column=7, value=f'=COUNTIF(FU_BARRAS!$B$2:$B${FIN_B},A{r})')
+        # Perfil con que corrio el analisis (snapshot al ejecutar el bloque 9): si cambia B, el resultado queda desactualizado
+        ws_g.cell(row=r, column=8, value=(perfiles_analizados or {}).get(g, 'sin analisis'))
+        ws_g.cell(row=r, column=9, value=(f'=IF(B{r}="","SIN PERFIL",IF(B{r}=H{r},"vigente: el analisis uso este perfil",'
+                                          f'"DESACTUALIZADO: el perfil cambio; vuelva a ejecutar el analisis"))'))
         for col, letra in ((3, 'E'), (4, 'F'), (5, 'G')):
             rango = f'FU_BARRAS!${letra}$2:${letra}${FIN_B}'
             ws_g.cell(row=r, column=col, value=(
@@ -1308,6 +1312,8 @@ def _hojas_diseno_vivo(wb, grupos_perfil, fu_matriz):
                                      'Verde = FU <= 1 (cumple), rojo = FU > 1.')
     ws_g.conditional_formatting.add('C2:E5', FormulaRule(formula=['AND(ISNUMBER(C2),C2>1)'], fill=rojo))
     ws_g.conditional_formatting.add('C2:E5', FormulaRule(formula=['AND(ISNUMBER(C2),C2<=1)'], fill=verde))
+    ws_g.conditional_formatting.add('I2:I5', FormulaRule(formula=['LEFT(I2,4)="DESA"'], fill=rojo))
+    ws_g.conditional_formatting.add('I2:I5', FormulaRule(formula=['LEFT(I2,4)="vige"'], fill=verde))
 
     ws_f = wb.create_sheet('FU_BARRAS')
     _encabezado(ws_f, ['ID', 'ELEMENTO', 'PERFIL', 'FILA (auxiliar)', 'FU MAXIMO', 'FU ESBELTEZ LOCAL',

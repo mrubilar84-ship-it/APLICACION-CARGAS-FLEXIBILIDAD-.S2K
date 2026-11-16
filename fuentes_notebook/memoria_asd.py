@@ -137,6 +137,10 @@ def _props_tabla(v):
             filas.append(('ro', p.get('ro'), 'cm'))
     body = ''.join(f'<tr><td>{html.escape(n)}</td><td class="num">{_v(x, 3)}</td><td>{u}</td></tr>'
                    for n, x, u in filas)
+    if p.get('pagina_manual') is not None:
+        body += f'<tr><td colspan="3" class="nota">Catálogo Gerdau rev04, pág. impresa {p["pagina_manual"]}.</td></tr>'
+    if p.get('fuente_completado'):
+        body += f'<tr><td colspan="3" class="nota">Completado desde el manual: {html.escape(p["fuente_completado"])}.</td></tr>'
     if any('estimado' in s for s in v.get('supuestos', [])):
         body += '<tr><td colspan="3" class="nota">Valores marcados como estimados en supuestos (geometría).</td></tr>'
     return f'<table><tr><th>Propiedad</th><th>Valor</th><th>Unidad</th></tr>{body}</table>'
