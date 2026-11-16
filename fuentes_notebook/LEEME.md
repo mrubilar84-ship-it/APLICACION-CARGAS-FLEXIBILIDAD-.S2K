@@ -29,4 +29,4 @@ El segundo argumento es la plantilla que el notebook incrusta. Con la plantilla 
 
 ## Perfiles macizos eliminados
 
-Los perfiles CS (cuadrado solido) y OS (redondo solido) se eliminan de la base del notebook al construirla (`FAMILIAS_ELIMINADAS` en `build_soportes_planilla3.py`) y no se diseñan. El catalogo `datos/perfiles_gerdau_mexico_rev04.json` se conserva completo, sin modificar, para trazabilidad. La base del notebook queda con 227 perfiles (IR 110, CE 7, LI 47, SOL 63).
+Los perfiles CS (cuadrado solido), OS (redondo solido) y SOL (solera) se eliminan de la base del notebook al construirla (`FAMILIAS_ELIMINADAS` en `build_soportes_planilla3.py`) y no se diseñan. El catalogo `datos/perfiles_gerdau_mexico_rev04.json` se conserva completo, sin modificar, para trazabilidad. La base del notebook queda con 164 perfiles (IR 110, CE 7, LI 47). La hoja LISTAS de la plantilla sale de esa base, por lo que tampoco contiene perfiles macizos.

@@ -900,7 +900,7 @@ def diseno_asd_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id
                       ['FU', 'factor de utilizacion = demanda / capacidad ASD; cumple si FU <= 1.0'],
                       ['FU esbeltez local', 'lambda / lambda_r por elemento (B4.1a en compresion, B4.1b en flexion; angulo: pata)'],
                       ['FU esbeltez global', 'KL/r / 200 en elementos a compresion (2.3.2); vigas sin verificacion de KL/r'],
-                      ['Alcance', 'IR, CE y LI (angulos de lados iguales). Perfiles macizos (CS, OS) eliminados de la base; LM no incluido. '
+                      ['Alcance', 'IR, CE y LI (angulos de lados iguales). Perfiles macizos (CS, OS, SOL) eliminados de la base; LM no incluido. '
                                   'Ductilidad: 12.1.2 (IR y CE) y 12.1.3.1 (columnas)'],
                       ['Unidades', 'fuerzas kgf; momentos kgf·cm; longitudes cm']],
                      columns=['DATO', 'VALOR']).to_excel(w, sheet_name='RESUMEN', index=False)

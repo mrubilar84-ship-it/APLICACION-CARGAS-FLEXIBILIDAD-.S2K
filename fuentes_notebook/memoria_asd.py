@@ -900,7 +900,7 @@ def _criterios_html():
         'ductilidad si está marcada (NTC 12.1.2).',
         'Elementos con λ &gt; λr (sección tipo 4) quedan fuera de la lista de perfiles. La NTC permite anchos efectivos '
         '(3.2.5); no se aplican, por criterio conservador.',
-        'Perfiles macizos (CS, OS) eliminados de la base; LM no se incluye.',
+        'Perfiles macizos (CS, OS, SOL) eliminados de la base; LM no se incluye.',
         'Fu: de la hoja MATERIALES de la planilla. Un material sin Fu deja sus barras como NO REVISADO.',
         f'Ángulos (LI): E5 solo si LONGITUDES marca las cuatro condiciones ({REF["E5"]}). Si no, K·L/rz y H2 '
         f'({REF["H2"]}). Tracción con Ae = U·Ag, U de D3 ({REF["D3"]}): una pata U = 1 − x̄/l; dos patas U = 1.0.',
