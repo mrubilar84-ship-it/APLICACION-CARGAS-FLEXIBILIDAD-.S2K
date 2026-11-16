@@ -1,7 +1,7 @@
 """Notebook de soportes por planilla v3: eje fuerte como vector libre, vista en vivo en el Excel (formulas y
 graficos vinculados a las celdas), y regeneracion del Excel con la figura 3D (secciones y ejes fuertes).
 Uso: build_soportes_planilla3.py SALIDA.ipynb [PLANTILLA.xlsx]   (la plantilla, si se da, se incrusta)"""
-import base64, json, os, sys
+import base64, json, os, sys, zlib
 
 D = os.path.dirname(os.path.abspath(__file__))
 SALIDA = sys.argv[1]
@@ -73,7 +73,10 @@ def datos_texto():
     with open(FUENTE_HSS, encoding='utf-8') as f:
         perfiles += json.load(f)['perfiles']
     compacto = [{k: p.get(k) for k in CAMPOS} for p in perfiles]
-    return json.dumps(json.dumps(compacto, ensure_ascii=False, separators=(',', ':')))
+    texto = json.dumps(compacto, ensure_ascii=False, separators=(',', ':'))
+    # comprimido (zlib + base64) para que el notebook quepa en el limite de 1 MB de importacion
+    comprimido = base64.b64encode(zlib.compress(texto.encode('utf-8'), 9)).decode('ascii')
+    return json.dumps(comprimido)
 
 
 PORTADA = """# Soportes: modelo por planilla Excel
@@ -105,7 +108,7 @@ Notebook nuevo (no modifica el ejemplo `agente_estructural.ipynb`). El modelo se
 ## Índice de bloques
 
 1. Motor de dibujo (dibujo_directo.py)
-2. Datos Gerdau rev04 (gerdau_datos.py)
+2. Datos de perfiles (gerdau_datos.py)
 3. Base de perfiles y lista ordenada (perfiles_gerdau.py)
 4. Orientación y secciones (orientacion_gerdau.py)
 5. Uso (sin código)
@@ -133,7 +136,7 @@ def construir():
     celdas = [md(PORTADA)]
     celdas.append(md('## Bloque 1. Motor de dibujo (dibujo_directo.py)'))
     celdas.append(code('%%writefile dibujo_directo.py\n' + leer('dibujo_directo.py')))
-    celdas.append(md('## Bloque 2. Datos Gerdau rev04 (gerdau_datos.py)\n\nLos 247 perfiles en un solo texto. No hay que editar este bloque.'))
+    celdas.append(md('## Bloque 2. Datos de perfiles (gerdau_datos.py)\n\nLos 280 perfiles (164 Gerdau rev04 y 116 HSS del catálogo ATC) en un texto comprimido. No hay que editar este bloque.'))
     celdas.append(code('%%writefile gerdau_datos.py\n_DATOS_TEXTO = ' + datos_texto() + '\n'))
     celdas.append(md('## Bloque 3. Base de perfiles y lista ordenada (perfiles_gerdau.py)'))
     celdas.append(code('%%writefile perfiles_gerdau.py\n' + leer('perfiles_gerdau_nb.py')))

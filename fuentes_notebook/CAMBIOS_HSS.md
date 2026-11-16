@@ -98,3 +98,8 @@ LI cambia (ver sección 4).
 - Valores normativos en la hoja NORMA: AISC_OMEGA_T_HSS, AISC_H3_LIM1, AISC_H3_LIM2, AISC_H3_LIM3, AISC_H3_K,
   AISC_H3_FCR_Y y AISC_H3_20PCT, con su cláusula.
 
+## 7. Tamaño del notebook
+
+- El importador de la plataforma acepta hasta 1 MB. El notebook quedó en 0.80 MB porque la base de perfiles
+  (280 registros) se guarda en el notebook como texto comprimido (zlib + base64). `perfiles_gerdau_nb.py` lo descomprime
+  al cargarse. La plantilla de Excel embebida (317 KB en base64) no cambió.
