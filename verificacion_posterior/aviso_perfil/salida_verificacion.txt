@@ -1,0 +1,5 @@
+OK    sin_cambio | EJECUCION fila 2 = vigente: el analisis uso este perfil | esperado empieza con vigente
+OK    cambio_columna | EJECUCION fila 2 = DESACTUALIZADO: el perfil cambio; vuelva a ejecutar el analisis | esperado empieza con DESACTUALIZADO
+OK    vuelve_igual | EJECUCION fila 2 = vigente: el analisis uso este perfil | esperado empieza con vigente
+OK    sin_perfil | EJECUCION fila 3 = SIN PERFIL | esperado empieza con SIN PERFIL
+RESULTADO: OK
