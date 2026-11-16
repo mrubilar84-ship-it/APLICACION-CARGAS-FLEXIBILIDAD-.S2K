@@ -330,8 +330,9 @@ def _tabla_verif(v):
     return f'<table>{cabecera}{"".join(cuerpo)}</table>'
 
 
-COLS_GRUPO = ['ID', 'PERFIL', 'FU INTERACCIÓN (H1/H2)', 'ELEM. LOCAL CRÍTICO', 'CLASIF. NTC (3.2)', 'λ LOCAL CALC',
-              'λ LOCAL LÍMITE', 'KL/r CALC', 'KL/r LÍMITE', 'λ DUCT CALC', 'λ DUCT LÍMITE', 'ESTADO', 'NOTA']
+COLS_GRUPO = ['ID', 'PERFIL', 'FU MÁXIMO', 'VERIFICACIÓN QUE GOBIERNA', 'FU INTERACCIÓN (H1/H2)', 'ELEM. LOCAL CRÍTICO',
+              'CLASIF. NTC (3.2)', 'λ LOCAL CALC', 'λ LOCAL LÍMITE', 'KL/r CALC', 'KL/r LÍMITE', 'λ DUCT CALC',
+              'λ DUCT LÍMITE', 'ESTADO', 'NOTA']
 
 
 def _interaccion(v):
@@ -352,7 +353,7 @@ def _interaccion(v):
 def _fila_grupo(v):
     """Una fila de la tabla por grupo: FU de interaccion, esbeltez local y global (calculado y limite) y estado."""
     if 'res' not in v or not v.get('fu_res'):
-        return [v['id'], v['perfil']] + [None] * 9 + [v['estado'], v.get('motivo', '')]
+        return [v['id'], v['perfil']] + [None] * 11 + [v['estado'], v.get('motivo', '')]
     ev = v['ev']
     inter = _interaccion(v)
     crit, lam_c, lam_l = max(((n, l, r) for n, (l, r) in ev['el_det'].items()), key=lambda t: t[1] / t[2])
@@ -373,7 +374,8 @@ def _fila_grupo(v):
         nota.append('sin compresión: KL/r no aplica')
     clasif = (f'tipo {DA.tipo_seccion_flexion(v["p"], v["familia"], v["fy"], v["E"])}' if v['grupo'] == 'VIGA'
               else DA.clasificacion_compresion(v['p'], v['familia'], v['fy'], v['E']))
-    return [v['id'], v['perfil'], round(inter, 3), crit, clasif, round(lam_c, 2), round(lam_l, 2), klr_c, klr_l,
+    return [v['id'], v['perfil'], round(fu_max(v), 3), v['fu_res'].get('VERIFICACION QUE GOBIERNA'), round(inter, 3),
+            crit, clasif, round(lam_c, 2), round(lam_l, 2), klr_c, klr_l,
             lam_d_c, lam_d_l, v['estado'], '; '.join(nota)]
 
 

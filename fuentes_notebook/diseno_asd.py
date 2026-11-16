@@ -769,7 +769,7 @@ COLS_RESULTADOS = ['ID', 'PERFIL', 'MATERIAL', 'GRUPO', 'CASO QUE GOBIERNA', 'FU
                    'FU FLEXION EJE MAYOR', 'FU FLEXION EJE MENOR', 'FU CORTANTE EJE MAYOR', 'FU CORTANTE EJE MENOR',
                    'FU INTERACCION (H1/H2)', 'FU ESBELTEZ LOCAL (B4.1)', 'FU ESBELTEZ GLOBAL (KL/r<=200)',
                    'FU DUCTILIDAD (12.1.2, 12.1.3.1)', 'FU MAXIMO', 'KL/r EJE FUERTE', 'KL/r EJE DEBIL',
-                   'ESTADO', 'NOTAS', 'FU TORSION (H3.1)']
+                   'ESTADO', 'NOTAS', 'FU TORSION (H3.1)', 'VERIFICACION QUE GOBIERNA']
 
 
 def _valores_designacion(nombre):
@@ -867,13 +867,14 @@ def _resumen_fu(ev, pares):
     def val(c):
         return mx[c][0] if c in mx else None
     inter = [mx[c] for c in INTERACCION if c in mx]
-    cands = [mx[c] for c in CHEQUEOS_DEMANDA if c in mx]
+    # cada candidato: (FU, caso de carga o tipo de chequeo, nombre de la verificacion)
+    cands = [(mx[c][0], mx[c][1], c) for c in CHEQUEOS_DEMANDA if c in mx]
     for c, v in ev['const'].items():
         nombre = '(esbeltez local)' if c == CHEQUEO_EL else ('(esbeltez global)' if c == CHEQUEO_EG else '(ductilidad)')
-        cands.append((v, nombre))
-    fu_max, caso_gob = max(cands, key=lambda t: t[0]) if cands else (None, '')
+        cands.append((v, nombre, c))
+    fu_max, caso_gob, verif_gob = max(cands, key=lambda t: t[0]) if cands else (None, '', '')
     duct = [ev['const'][c] for c in (CHEQUEO_D60, CHEQUEO_D12) if c in ev['const']]
-    return {'CASO QUE GOBIERNA': caso_gob,
+    return {'CASO QUE GOBIERNA': caso_gob, 'VERIFICACION QUE GOBIERNA': verif_gob,
             'FU TRACCION': val('T traccion'), 'FU COMPRESION': val('C compresion'),
             'FU FLEXION EJE MAYOR': val('F flexion eje mayor'), 'FU FLEXION EJE MENOR': val('F flexion eje menor'),
             'FU CORTANTE EJE MAYOR': val('V cortante eje mayor'), 'FU CORTANTE EJE MENOR': val('V cortante eje menor'),
