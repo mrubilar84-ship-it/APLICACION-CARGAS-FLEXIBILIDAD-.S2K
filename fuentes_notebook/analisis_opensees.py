@@ -592,7 +592,7 @@ def correr(dib, materiales, estados, rep_barras, rep_nodos, id_barra, id_de_indi
                    'Mz momento fuerte. Ejes locales y signos: figura a la derecha'],
         ['Signos', 'fuerzas que el nudo ejerce sobre la barra en cada extremo, ejes locales (OpenSees localForces). '
                    'Barra traccionada: N en I < 0 y N en J > 0'],
-        ['Reacciones', 'fuerzas que recibe el apoyo desde la estructura (FZ positivo hacia arriba)'],
+        ['Reacciones', 'fuerzas que el apoyo ejerce sobre la estructura (FZ positivo hacia arriba); con las cargas aplicadas suman cero'],
         ['MAXIMOS_BARRAS', 'maximo y minimo de cada esfuerzo entre los extremos I y J, por barra y caso'],
         ['DEFORMADA', 'coordenadas de todos los nodos por caso: original, desplazamientos y posicion deformada'],
         ['Barras y nodos reportados', f'{len(rep_barras)} barras y {len(rep_nodos)} nodos marcados REPORTAR = SI'],
