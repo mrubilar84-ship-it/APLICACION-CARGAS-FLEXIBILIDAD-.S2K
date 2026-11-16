@@ -528,10 +528,13 @@ def figura_deformada(dib, casos, id_de_indice, escala=None):
         xs, ys, zs = _lineas(dib.barras, P)
         fig.add_trace(go.Scatter3d(x=xs, y=ys, z=zs, mode='lines', line=dict(color='#1f77b4', width=6),
                                    name=f'{nombre} ({tipo})', visible=(k == 0), hoverinfo='skip'))
+        d_mm = U[nombre] * 1000.0          # desplazamiento real del nodo (sin la escala grafica), en mm
+        textos = [f'nodo {id_de_indice[i]} · {nombre} ({tipo})<br>Ux = {d_mm[i, 0]:.2f} mm<br>Uy = {d_mm[i, 1]:.2f} mm'
+                  f'<br>Uz = {d_mm[i, 2]:.2f} mm<br>|U| = {np.linalg.norm(d_mm[i]):.2f} mm' for i in range(len(P))]
         fig.add_trace(go.Scatter3d(x=P[:, 0], y=P[:, 1], z=P[:, 2], mode='markers+text',
-                                   marker=dict(size=3, color='black'),
+                                   marker=dict(size=5, color='black'),
                                    text=[f'N{id_de_indice[i]}' for i in range(len(P))], textposition='top center',
-                                   hovertext=[f'nodo {id_de_indice[i]}' for i in range(len(P))], hoverinfo='text',
+                                   hovertext=textos, hoverinfo='text',
                                    name=f'nodos {nombre}', visible=(k == 0)))
     botones = []
     for k, (nombre, tipo, _) in enumerate(casos):
