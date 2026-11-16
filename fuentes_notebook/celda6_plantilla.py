@@ -34,6 +34,8 @@ MATERIALES_DEFAULT = [
      'Manual Gerdau, pie de pagina 22. Perfiles IR (pag. 6): A992 / A572 G50. Fu 4570 kgf/cm2: dato del usuario (confirmar). E y NU: confirmar.'],
     ['A-572 G 60', 'Acero', 4200, None, E_ACERO_PARTIDA, NU_ACERO_PARTIDA,
      'Manual Gerdau, pie de pagina 22. Fu pendiente. E y NU: confirmar.'],
+    ['A500 Gr C', 'Acero', 3234, 4359, E_ACERO_PARTIDA, NU_ACERO_PARTIDA,
+     'HSS (ATC). Referencia ASTM A500 Gr C: Fy 46 ksi, Fu 62 ksi (1 ksi = 70.31 kgf/cm2). Dato de entrada: confirmar con el proveedor del tubo. E y NU: confirmar.'],
 ]
 NODOS_MAX = 98          # filas 2..99 de NODOS
 BARRAS_MAX = 106        # filas 2..107 de BARRAS
@@ -991,6 +993,26 @@ NORMA_VALORES = [
     ('AISC_B41A_C1_PATA', 0.22, '', 'AISC 360-22, Tabla B4.1a', 'Coeficiente c1 de pata (E7).'),
     ('AISC_B41A_C2_PATA', 1.49, '', 'AISC 360-22, Tabla B4.1a', 'Coeficiente c2 de pata (E7).'),
     ('AISC_LR_PATA_B41A', 0.45, 'sqrt(E/Fy)', 'AISC 360-22, Tabla B4.1a', 'lambda_r de pata de angulo (E7).'),
+    # HSS rectangulares y cuadradas (agregadas para el diseno de HSS del catalogo ATC)
+    ('AISC_HSS_LP_PATIN', 1.12, 'sqrt(E/Fy)', 'AISC 360-22, Tabla B4.1b, caso 17 (F7.2)', 'lambda_p de patin de HSS en flexion (compacto).'),
+    ('AISC_HSS_LR_PATIN', 1.40, 'sqrt(E/Fy)', 'AISC 360-22, Tabla B4.1b, caso 17 (F7.2)', 'lambda_r de patin de HSS en flexion (no compacto a esbelto).'),
+    ('AISC_HSS_LP_ALMA', 2.42, 'sqrt(E/Fy)', 'AISC 360-22, Tabla B4.1b, caso 19 (F7.3)', 'lambda_p de alma de HSS en flexion.'),
+    ('AISC_HSS_LR_ALMA', 5.70, 'sqrt(E/Fy)', 'AISC 360-22, Tabla B4.1b, caso 19 (F7.3)', 'lambda_r de alma de HSS en flexion.'),
+    ('AISC_HSS_LR_COMP', 1.40, 'sqrt(E/Fy)', 'AISC 360-22, Tabla B4.1a, caso 6 (E7)', 'lambda_r de paredes de HSS rectangular en compresion.'),
+    ('AISC_HSS_C1', 0.20, '', 'AISC 360-22, Tabla E7.1, caso (b)', 'Coeficiente c1 de paredes de HSS (E7-3).'),
+    ('AISC_HSS_C2', 1.38, '', 'AISC 360-22, Tabla E7.1, caso (b)', 'Coeficiente c2 de paredes de HSS (E7-5).'),
+    ('NTC_HSS_LR_COMP', 1.40, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.1, elementos atiesados, paredes de HSS, pag. 58',
+     'lambda_r de paredes de HSS rectangulares en compresion (clasificacion de seccion).'),
+    ('NTC_HSS_LIM_PATIN_PL', 1.12, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.2, patines de HSS, pag. 59', 'Patin de HSS: lambda_pl (seccion tipo 1).'),
+    ('NTC_HSS_LIM_PATIN_P', 1.12, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.2, patines de HSS, pag. 59', 'Patin de HSS: lambda_p (seccion tipo 2).'),
+    ('NTC_HSS_LIM_PATIN_R', 1.40, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.2, patines de HSS, pag. 59', 'Patin de HSS: lambda_r (seccion tipo 3).'),
+    ('NTC_HSS_LIM_ALMA_P', 2.42, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.2, almas de HSS, pag. 59', 'Alma de HSS: lambda_p (seccion tipo 2).'),
+    ('NTC_HSS_LIM_ALMA_R', 5.70, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.2, almas de HSS, pag. 59', 'Alma de HSS: lambda_r (seccion tipo 3).'),
+    ('NTC_HSS_DUC_ALTA', 0.55, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 12.1.2, paredes de HSS rectangulares, pag. 212',
+     'lambda_da de paredes de HSS (ductilidad alta). La nota [b] fija 0.6 para columnas de cajon: no reduce este valor.'),
+    ('NTC_HSS_DUC_MEDIA', 0.64, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 12.1.2, paredes de HSS rectangulares, pag. 212',
+     'lambda_dm de paredes de HSS (ductilidad media). POR CONFIRMAR: la nota [c] (1.12 sqrt(E/Fy)) se interpreta como '
+     'limite de patines de vigas, no de paredes comprimidas.'),
 ]
 
 

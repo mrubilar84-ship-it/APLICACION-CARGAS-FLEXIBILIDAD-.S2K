@@ -1,11 +1,11 @@
-"""Base de perfiles Gerdau rev04 (datos en gerdau_datos.py)."""
+"""Base de perfiles: Gerdau rev04 (datos en gerdau_datos.py) y HSS del catalogo ATC (en la misma base)."""
 import json
 from gerdau_datos import _DATOS_TEXTO
 
 _DATOS = json.loads(_DATOS_TEXTO)
 PERFILES = {p['perfil_comercial']: p for p in _DATOS}
 
-FAMILIA_ORDEN = ['IR', 'CE', 'LI']   # CS, OS y SOL (macizos) eliminados de la base
+FAMILIA_ORDEN = ['IR', 'CE', 'LI', 'HSS']   # CS, OS y SOL (macizos) eliminados de la base
 
 
 def obtener_perfil(nombre):
@@ -18,7 +18,9 @@ def obtener_perfil(nombre):
             'Sx': p['sx_cm3'], 'Sy': p['sy_cm3'], 'rx': p['rx_cm'], 'ry': p['ry_cm'], 'J': p['j_cm4'],
             'Cw': p['cw_cm6'], 'Zx': p.get('zx_cm3'), 'Zy': p.get('zy_cm3'), 'ro': p.get('ro_cm'),
             'estado': p['estado'], 'masa': p['masa_kg_m'], 'pagina_manual': p.get('pagina_manual'),
-            'fuente_completado': p.get('fuente_completado')}
+            'fuente_completado': p.get('fuente_completado'), 'seccion': p.get('seccion'),
+            'pagina_catalogo_atc': p.get('pagina_catalogo_atc'), 'referencia_catalogo': p.get('referencia_catalogo'),
+            'fuente_propiedades': p.get('fuente_propiedades')}
 
 
 def _clave_seccion(p):

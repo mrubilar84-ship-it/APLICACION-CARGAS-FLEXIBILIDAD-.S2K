@@ -43,6 +43,9 @@ AISC_LP_PATIN = AISC_LR_PATIN = AISC_CV_LIM = AISC_HTW_LAM = AISC_LIM_ANG_E4 = A
 AISC_B41A = NTC_LR_COMPRESION = NTC_LIMITES_FLEXION = None
 NTC_KLR_COMPRESION = NTC_KLR_TENSION_REF = LIMITE_KLR = None
 KZ_TORSION = None
+AISC_HSS_LP_PATIN = AISC_HSS_LR_PATIN = AISC_HSS_LP_ALMA = AISC_HSS_LR_ALMA = AISC_HSS_LR_COMP = None
+AISC_HSS_C1 = AISC_HSS_C2 = NTC_HSS_LR_COMP = None
+NTC_HSS_FLEX = NTC_HSS_DUC = None
 
 
 def _req(valor, campo_nombre, barra=''):
@@ -59,6 +62,8 @@ def cargar_norma(v, kz):
     global OMEGA_T_FLU, OMEGA_T_FRA, OMEGA_C, OMEGA_B, OMEGA_V, OMEGA_V_LAMINADA, KV_I, KV_ANGULO, CB_MAX_ANGULO
     global AISC_LP_PATIN, AISC_LR_PATIN, AISC_CV_LIM, AISC_HTW_LAM, AISC_LIM_ANG_E4, AISC_E5_RAT_LIM, AISC_B41A
     global NTC_LR_COMPRESION, NTC_LIMITES_FLEXION, NTC_KLR_COMPRESION, NTC_KLR_TENSION_REF, LIMITE_KLR
+    global AISC_HSS_LP_PATIN, AISC_HSS_LR_PATIN, AISC_HSS_LP_ALMA, AISC_HSS_LR_ALMA, AISC_HSS_LR_COMP
+    global AISC_HSS_C1, AISC_HSS_C2, NTC_HSS_LR_COMP, NTC_HSS_FLEX, NTC_HSS_DUC
     try:
         OMEGA_T_FLU, OMEGA_T_FRA = v['AISC_OMEGA_TFLU'], v['AISC_OMEGA_TFRA']
         OMEGA_C, OMEGA_B, OMEGA_V = v['AISC_OMEGA_C'], v['AISC_OMEGA_B'], v['AISC_OMEGA_V']
@@ -77,6 +82,13 @@ def cargar_norma(v, kz):
         NTC_KLR_COMPRESION = v['NTC_KLR_COMP']
         NTC_KLR_TENSION_REF = {'principal': v['NTC_KLR_REF_PRINC'], 'contraventeo': v['NTC_KLR_REF_CONTR']}
         LIMITE_KLR = v['NTC_KLR_COMP']
+        AISC_HSS_LP_PATIN, AISC_HSS_LR_PATIN = v['AISC_HSS_LP_PATIN'], v['AISC_HSS_LR_PATIN']
+        AISC_HSS_LP_ALMA, AISC_HSS_LR_ALMA = v['AISC_HSS_LP_ALMA'], v['AISC_HSS_LR_ALMA']
+        AISC_HSS_LR_COMP, AISC_HSS_C1, AISC_HSS_C2 = v['AISC_HSS_LR_COMP'], v['AISC_HSS_C1'], v['AISC_HSS_C2']
+        NTC_HSS_LR_COMP = v['NTC_HSS_LR_COMP']
+        NTC_HSS_FLEX = {'patin': (v['NTC_HSS_LIM_PATIN_PL'], v['NTC_HSS_LIM_PATIN_P'], v['NTC_HSS_LIM_PATIN_R']),
+                        'alma': (None, v['NTC_HSS_LIM_ALMA_P'], v['NTC_HSS_LIM_ALMA_R'])}
+        NTC_HSS_DUC = {'ALTA': v['NTC_HSS_DUC_ALTA'], 'MEDIA': v['NTC_HSS_DUC_MEDIA']}
     except KeyError as falta:
         raise ErrorAsd(f'falta el valor de norma {falta} en la hoja NORMA de la planilla')
 
@@ -88,7 +100,7 @@ class ErrorAsd(Exception):
 
 
 def _forma(familia):
-    return {'IR': 'I', 'CE': 'canal', 'LI': 'angulo'}.get(familia)
+    return {'IR': 'I', 'CE': 'canal', 'LI': 'angulo', 'HSS': 'HSS'}.get(familia)
 
 
 def _elementos_E7(p, forma, fy, E, fn):
@@ -110,15 +122,12 @@ def _elementos_E7(p, forma, fy, E, fn):
     det = []
     for b, t, lr, c1, c2, nombre in elems:
         lam = b / t
-        if lam <= lr:
+        if lam <= lr * math.sqrt(fy / fn):                      # E7-2: be = b si lambda <= lambda_r sqrt(Fy/Fn)
             be = b
         else:
             fel = (c2 * lr / lam) ** 2 * fy                     # E7-5
-            if fel >= fn:
-                be = b
-            else:
-                r = math.sqrt(fel / fn)
-                be = min(b * (1.0 - c1 * r) * r, b)            # E7-3
+            r = math.sqrt(fel / fn)
+            be = min(b * (1.0 - c1 * r) * r, b)                # E7-3 (sin atajo: r < c2 da reduccion)
         Ae -= (b - be) * t
         det.append((nombre, round(lam, 2), round(lr, 2), round(be, 3)))
     return Ae, {'elementos': det}
@@ -145,7 +154,10 @@ def pn_compresion(p, familia, fy, E, G_, Kx, Ky, Lx, Ly, Lz, Kz=None):
     fe_min_nombre = min(fes, key=fes.get)
     fe = fes[fe_min_nombre]
     fn = (0.658 ** (fy / fe)) * fy if fy / fe <= 2.25 else 0.877 * fe            # E3-2 / E3-3
-    Ae, det_e7 = _elementos_E7(p, forma, fy, E, fn)
+    if forma == 'HSS':
+        Ae, det_e7 = _elementos_E7_hss(p, fy, E, fn)
+    else:
+        Ae, det_e7 = _elementos_E7(p, forma, fy, E, fn)
     return fn * Ae, dict(Fe=fe, gobierna=fe_min_nombre, Fn=fn, Ae=Ae, E7=det_e7,
                          KLr_x=Kx * Lx / p['rx'], KLr_y=Ky * Ly / p['ry'])
 
@@ -175,6 +187,8 @@ def _ltb_I(p, fy, E, G_, Lb, Cb, canal=False):
 
 def mn_fuerte(p, familia, fy, E, G_, Lb, Cb=None):
     """Momento nominal eje mayor de I y canales (F2, F3). Devuelve (Mn, detalle)."""
+    if familia == 'HSS':
+        return mn_hss(p, fy, E, 'x', Lb, Cb)
     canal = _forma(familia) == 'canal'
     ltb, det = _ltb_I(p, fy, E, G_, Lb, Cb, canal=canal)
     b = p['B'] if canal else p['B'] / 2.0
@@ -195,6 +209,8 @@ def mn_fuerte(p, familia, fy, E, G_, Lb, Cb=None):
 
 def mn_debil(p, familia, fy, E):
     """Momento nominal eje menor de I y canales (F6)."""
+    if familia == 'HSS':
+        return mn_hss(p, fy, E, 'y')
     forma = _forma(familia)
     Mp = min(fy * p['Zy'], 1.6 * fy * p['Sy'])                                    # F6-1
     b = p['B'] / 2.0 if forma == 'I' else p['B']
@@ -219,6 +235,8 @@ def _cv(ht, kv, E, fy):
 
 def vn_fuerte(p, familia, fy, E):
     """Cortante en el alma eje mayor de I y canales (G2)."""
+    if familia == 'HSS':
+        return vn_hss(p, fy, E, 'x')
     h = p['H'] - 2.0 * p['t']
     ht = h / p['e']
     aw = p['H'] * p['e']                                       # Aw = d tw
@@ -231,10 +249,128 @@ def vn_fuerte(p, familia, fy, E):
 
 def vn_debil(p, familia, fy, E):
     """Cortante en el eje menor (G6): dos patines, Cv2 con kv = 1.2 (nota de usuario de G6)."""
+    if familia == 'HSS':
+        return vn_hss(p, fy, E, 'y')
     ratio = (p['B'] / (2.0 * p['t'])) if _forma(familia) == 'I' else (p['B'] / p['t'])
     cv2 = _cv(ratio, KV_ANGULO, E, fy)
     vn = 2.0 * 0.6 * fy * p['B'] * p['t'] * cv2
     return vn, OMEGA_V, dict(Cv2=cv2, ratio=ratio)
+
+
+# ---------------------------------------------------------------- HSS rectangulares y cuadradas (E3, E7, F7, G2)
+def _hss_planos(p):
+    """Anchos planos (B4.1b): ancho total menos 3t, porque el catalogo no trae radio de esquina.
+    Devuelve (bp, hp): bp = ancho de las paredes horizontales, hp = peralte plano de las paredes verticales."""
+    bp = p['B'] - 3.0 * p['t']
+    hp = p['H'] - 3.0 * p['t']
+    if bp <= 0 or hp <= 0:
+        raise ErrorAsd('HSS con ancho plano no positivo: revisar dimensiones y espesor en la base')
+    return bp, hp
+
+
+def _hss_muros(p, eje):
+    """(patin, alma) planos para flexion o cortante alrededor del eje 'x' (fuerte) o 'y' (debil)."""
+    bp, hp = _hss_planos(p)
+    return (bp, hp) if eje == 'x' else (hp, bp)
+
+
+def _elementos_E7_hss(p, fy, E, fn):
+    """Ae de HSS (E7.1, caso (b) de la tabla E7.1): cuatro paredes de grueso t; cada pared esbelta se reduce."""
+    bp, hp = _hss_planos(p)
+    t = p['t']
+    lr = AISC_HSS_LR_COMP * math.sqrt(E / fy)
+    Ae = p['A']
+    det = []
+    for nombre, b in [('pared horizontal', bp), ('pared vertical', hp)]:
+        lam = b / t
+        if lam <= lr * math.sqrt(fy / fn):                             # E7-2: be = b si lambda <= lambda_r sqrt(Fy/Fn)
+            be = b
+        else:
+            fel = (AISC_HSS_C2 * lr / lam) ** 2 * fy                  # E7-5
+            r = math.sqrt(fel / fn)
+            be = min(b * (1.0 - AISC_HSS_C1 * r) * r, b)              # E7-3 (sin atajo: r < c2 da reduccion)
+        Ae -= 2.0 * (b - be) * t                                       # cada pared aparece dos veces
+        det.append((nombre, round(lam, 2), round(lr, 2), round(be, 3)))
+    return Ae, {'elementos': det}
+
+
+def _Se_hss(p, eje, be):
+    """Modulo de seccion efectivo Se (F7-3): solo el patin comprimido se reduce a be. Modelo de lineas medias
+    (sin radios de esquina): patines de ancho W - t, almas de altura D - t, grueso t. Se = Ief / c, con c la
+    mayor distancia del eje neutro efectivo a una fibra extrema (conservador)."""
+    t = p['t']
+    W, D = (p['B'], p['H']) if eje == 'x' else (p['H'], p['B'])
+    bf = W - 3.0 * t
+    wc = (W - t) - (bf - be)                       # linea media del patin superior reducido
+    dc = D - t
+    A_top, y_top = wc * t, dc / 2.0
+    A_bot, y_bot = (W - t) * t, -dc / 2.0
+    A_web = 2.0 * dc * t
+    yc = (A_top * y_top + A_bot * y_bot) / (A_top + A_bot + A_web)
+    I = ((wc * t ** 3 / 12.0 + A_top * (y_top - yc) ** 2)
+         + ((W - t) * t ** 3 / 12.0 + A_bot * (y_bot - yc) ** 2)
+         + 2.0 * (t * dc ** 3 / 12.0 + dc * t * yc ** 2))
+    c = max(D / 2.0 - yc, D / 2.0 + yc)
+    return I / c
+
+
+def mn_hss(p, fy, E, eje, Lb=None, Cb=None):
+    """Momento nominal de HSS rectangular o cuadrada (F7). eje 'x' (fuerte): incluye pandeo lateral-torsional
+    (F7.4); eje 'y' (debil): sin pandeo lateral-torsional (nota de usuario de F7). Devuelve (Mn, detalle)."""
+    bf, hw = _hss_muros(p, eje)
+    t = p['t']
+    sq = math.sqrt(E / fy)
+    S = p['Sx'] if eje == 'x' else p['Sy']
+    Z = p['Zx'] if eje == 'x' else p['Zy']
+    Mp = fy * Z                                                       # F7-1
+    My = fy * S
+    lam_f, lam_w = bf / t, hw / t
+    lpf, lrf = AISC_HSS_LP_PATIN * sq, AISC_HSS_LR_PATIN * sq
+    lpw, lrw = AISC_HSS_LP_ALMA * sq, AISC_HSS_LR_ALMA * sq
+    det = dict(lam_f=lam_f, lpf=lpf, lrf=lrf, lam_w=lam_w, lpw=lpw, lrw=lrw, Mp=Mp, My=My, S=S, Z=Z, eje=eje)
+    if lam_f <= lpf:
+        lfb = Mp
+    elif lam_f <= lrf:
+        lfb = Mp - (Mp - My) * (lam_f - lpf) / (lrf - lpf)            # F7-2
+    else:
+        be = min(1.92 * t * sq * (1.0 - 0.38 / lam_f * sq), bf)        # F7-4
+        Se = _Se_hss(p, eje, be)
+        lfb = fy * Se                                                  # F7-3
+        det.update(be=be, Se=Se)
+    if lam_w <= lpw:
+        lwb = Mp
+    elif lam_w <= lrw:
+        lwb = Mp - (Mp - My) * (lam_w - lpw) / (lrw - lpw)            # F7-6
+    else:
+        raise ErrorAsd('alma esbelta de HSS: F7.3(c) no se aplica (AISC: no hay HSS con almas esbeltas)')
+    mn = min(lfb, lwb, Mp)
+    if eje == 'x':
+        if Lb is None or Cb is None:
+            raise ErrorAsd('falta Lb o Cb para el pandeo lateral-torsional de HSS (LONGITUDES)')
+        Ag, J, ry = p['A'], p['J'], p['ry']
+        lp = 0.13 * E * ry * math.sqrt(J * Ag) / Mp                   # F7-10
+        lr = 2.0 * E * ry * math.sqrt(J * Ag) / (0.7 * fy * S)        # F7-11
+        if Lb <= lp:
+            ltb = Mp
+        elif Lb <= lr:
+            ltb = Cb * (Mp - (Mp - 0.7 * fy * S) * (Lb - lp) / (lr - lp))   # F7-8
+        else:
+            ltb = 2.0 * E * Cb * math.sqrt(J * Ag) / (Lb / ry)            # F7-9
+        ltb = min(ltb, Mp)
+        mn = min(mn, ltb)
+        det.update(LTB=ltb, Lp=lp, Lr=lr)
+    det.update(LFB=lfb, LWB=lwb, Mn=mn)
+    return mn, det
+
+
+def vn_hss(p, fy, E, eje):
+    """Cortante de HSS (G2.1 con Aw = 2 h t; h = ancho plano del alma). Omega_v = 1.67 (OMEGA_V, no la laminada)."""
+    _, h = _hss_muros(p, eje)
+    t = p['t']
+    ht = h / t
+    cv = 1.0 if ht <= AISC_HTW_LAM * math.sqrt(E / fy) else _cv(ht, KV_I, E, fy)   # G2-3 / G2-4
+    aw = 2.0 * h * t
+    return 0.6 * fy * aw * cv, OMEGA_V, dict(h_tw=ht, Cv1=cv, Cv2=cv, Aw=aw)
 
 
 # ---------------------------------------------------------------- angulos de lados iguales (LI)
@@ -429,6 +565,16 @@ def esbeltez_local(p, familia, fy, E, compresion):
     """Esbeltez local por elemento segun NTC: lambda / lambda_r (<= 1 cumple). Compresion: Tabla 3.2.1;
     flexion: Tabla 3.2.2 (lambda_r = limite de seccion tipo 3). Devuelve (FU, {elemento: (lambda, lambda_r)})."""
     sq = math.sqrt(E / fy)
+    if familia == 'HSS':
+        bf, hw = _hss_planos(p)
+        t = p['t']
+        if compresion:
+            lims = {'patin': (bf / t, NTC_HSS_LR_COMP * sq), 'alma': (hw / t, NTC_HSS_LR_COMP * sq)}
+        else:
+            lr_p, lr_a = NTC_HSS_FLEX['patin'][2] * sq, NTC_HSS_FLEX['alma'][2] * sq
+            lims = {'patin': (bf / t, lr_p), 'alma': (hw / t, lr_a),
+                    'patin_y': (hw / t, lr_p), 'alma_y': (bf / t, lr_a)}
+        return {n: lam / lr for n, (lam, lr) in lims.items()}, lims
     if familia == 'LI':
         lams = {'pata': p['H'] / p['t']}
     else:
@@ -448,7 +594,8 @@ def tipo_seccion_flexion(p, familia, fy, E):
     _, det = esbeltez_local(p, familia, fy, E, compresion=False)
     tipo = 1
     for n, (lam, _) in det.items():
-        lpl, lp, lr = NTC_LIMITES_FLEXION[n]
+        base = n.split('_')[0]
+        lpl, lp, lr = (NTC_HSS_FLEX if familia == 'HSS' else NTC_LIMITES_FLEXION)[base]
         if lpl is not None and lam <= lpl * sq:
             t = 1
         elif lam <= lp * sq:
@@ -540,8 +687,8 @@ def _demanda_fila(fila):
 # ---------------------------------------------------------------- planilla -> diseno ASD (IR, CE, LI)
 GRUPOS_ELEMENTO = ['COLUMNA', 'VIGA', 'ARRIOSTRE', 'DIAGONAL']
 COMPRESION_GRUPOS = ('COLUMNA', 'ARRIOSTRE', 'DIAGONAL')
-FAMILIAS_ASD = ('IR', 'CE', 'LI')
-FAMILIA_ORDEN = ['IR', 'CE', 'LI']
+FAMILIAS_ASD = ('IR', 'CE', 'LI', 'HSS')
+FAMILIA_ORDEN = ['IR', 'CE', 'LI', 'HSS']
 CHEQUEOS_DEMANDA = ['T traccion', 'C compresion', 'F flexion eje mayor', 'F flexion eje menor',
                     'V cortante eje mayor', 'V cortante eje menor', 'H1 flexocompresion', 'H1 flexotension',
                     'H2 angulo (H2-1)']
@@ -591,13 +738,22 @@ def clave_orden(nombre):
 def seccion_de(nombre):
     """Seccion sin el tipo: 'IR 10 × 30' -> '10 × 30'."""
     import re
-    return re.sub(r'^(IR|CE|LI)\s*ᴬ?\s*', '', nombre).strip()
+    return re.sub(r'^(IR|CE|LI|HSS)\s*ᴬ?\s*', '', nombre).strip()
 
 
 def _ductilidad(p, familia, fy, E, grupo, nivel):
     """Tabla 12.1.2 (NTC): I y canales (DN); angulos sencillos: alas (no atiesadas), lambda = b/t <= 0.30 (alta) o
     0.38 (media) sqrt(E/Fy)."""
     import diseno_ntc as DN
+    if familia == 'HSS':
+        if nivel not in ('ALTA', 'MEDIA'):
+            return None
+        bf, hw = _hss_planos(p)
+        lam = max(bf, hw) / p['t']                       # pared mas esbelta (patin o alma)
+        r = math.sqrt(E / fy)
+        lda, ldm = NTC_HSS_DUC['ALTA'] * r, NTC_HSS_DUC['MEDIA'] * r
+        lim = lda if nivel == 'ALTA' else ldm
+        return {'U': lam / lim, 'lambda': lam, 'limite': lim, 'lf': lam, 'lda_f': lda, 'ldm_f': ldm}
     if familia == 'LI':
         if nivel not in ('ALTA', 'MEDIA'):
             return None
@@ -791,9 +947,9 @@ def matriz_fu_por_perfil(dib, materiales_filas, longitudes_df, demandas, id_barr
 
 
 def diseno_asd_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id_barra, ruta_salida):
-    """Diseno ASD (AISC 360-22) de las barras IR, CE y LI con las combinaciones de servicio (COMBINACIONES).
+    """Diseno ASD (AISC 360-22) de las barras IR, CE, LI y HSS con las combinaciones de servicio (COMBINACIONES).
     RESULTADOS: FU por verificacion (demanda/capacidad, <= 1 cumple), esbeltez local (B4.1) y global (KL/r <= 200).
-    Las familias fuera de IR, CE y LI quedan FUERA DE ALCANCE. Devuelve (capacidades, resultados, detalle)."""
+    Las familias fuera de IR, CE, LI y HSS quedan FUERA DE ALCANCE. Devuelve (capacidades, resultados, detalle)."""
     if materiales_filas is None:
         raise ErrorAsd('la planilla no tiene la hoja MATERIALES.')
     mat = {str(f[0]).strip(): dict(fy=_num(f[2]), fu=_num(f[3]), E=_num(f[4]), nu=_num(f[5])) for f in materiales_filas}
@@ -818,7 +974,7 @@ def diseno_asd_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id
             continue
         familia = fam['familia']
         if familia not in FAMILIAS_ASD:
-            motivo = f'fuera del alcance del diseno ({familia}): solo IR, CE y LI'
+            motivo = f'fuera del alcance del diseno ({familia}): solo IR, CE, LI y HSS'
             caps.append({'ID': id_, 'PERFIL': perfil, 'FAMILIA': familia, 'NOTA': motivo})
             res_filas.append(dict(ID=id_, PERFIL=perfil, MATERIAL=b.get('material'), GRUPO=grupo,
                                   ESTADO='FUERA DE ALCANCE', NOTAS=motivo))
@@ -900,7 +1056,7 @@ def diseno_asd_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id
                       ['FU', 'factor de utilizacion = demanda / capacidad ASD; cumple si FU <= 1.0'],
                       ['FU esbeltez local', 'lambda / lambda_r por elemento (B4.1a en compresion, B4.1b en flexion; angulo: pata)'],
                       ['FU esbeltez global', 'KL/r / 200 en elementos a compresion (2.3.2); vigas sin verificacion de KL/r'],
-                      ['Alcance', 'IR, CE y LI (angulos de lados iguales). Perfiles macizos (CS, OS, SOL) eliminados de la base; LM no incluido. '
+                      ['Alcance', 'IR, CE, LI (angulos de lados iguales) y HSS (tubulares rectangulares y cuadradas, catalogo ATC). Perfiles macizos (CS, OS, SOL) eliminados de la base; LM no incluido. '
                                   'Ductilidad: 12.1.2 (IR y CE) y 12.1.3.1 (columnas)'],
                       ['Unidades', 'fuerzas kgf; momentos kgf·cm; longitudes cm']],
                      columns=['DATO', 'VALOR']).to_excel(w, sheet_name='RESUMEN', index=False)

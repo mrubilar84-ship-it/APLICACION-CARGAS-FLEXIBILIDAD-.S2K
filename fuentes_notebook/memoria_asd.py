@@ -70,7 +70,7 @@ def _evaluar(dib, i, id_barra, lon, mat, comb):
     familia = fam['familia']
     out['familia'] = familia
     if familia not in DA.FAMILIAS_ASD:
-        out.update(estado='FUERA DE ALCANCE', motivo=f'familia {familia}: no se disena (solo IR, CE y LI)')
+        out.update(estado='FUERA DE ALCANCE', motivo=f'familia {familia}: no se disena (solo IR, CE, LI y HSS)')
         return out
     e = DA._entrada_barra(dib, i, id_barra, lon, mat)
     m = e['m']
@@ -127,6 +127,12 @@ def _props_tabla(v):
                  ('Producto de inercia Ixy', p['Ixy'], 'cm⁴'), ('Iu (eje mayor principal)', p['Iu'], 'cm⁴'),
                  ('Iv (eje menor principal)', p['Iv'], 'cm⁴'), ('ru', p['ru'], 'cm'), ('rz', p['rz'], 'cm'),
                  ('Su (u)', p['Su'], 'cm³'), ('Sv (v)', p['Sv'], 'cm³'), ('J (catálogo)', p.get('J'), 'cm⁴')]
+    elif familia == 'HSS':
+        filas = [('Peralte H', p['H'], 'cm'), ('Ancho B', p['B'], 'cm'), ('Espesor t (paredes)', p['t'], 'cm'),
+                 ('Ancho plano bp = B − 3t', p['B'] - 3.0 * p['t'], 'cm'), ('Peralte plano hp = H − 3t', p['H'] - 3.0 * p['t'], 'cm'),
+                 ('Área Ag', p['A'], 'cm²'), ('Ix', p['Ix'], 'cm⁴'), ('Iy', p['Iy'], 'cm⁴'), ('Sx', p['Sx'], 'cm³'),
+                 ('Sy', p['Sy'], 'cm³'), ('Zx (sin radios de esquina)', p['Zx'], 'cm³'), ('Zy (sin radios de esquina)', p['Zy'], 'cm³'),
+                 ('rx', p['rx'], 'cm'), ('ry', p['ry'], 'cm'), ('J (pared delgada, fórmula)', p['J'], 'cm⁴')]
     else:
         filas = [('Peralte H', p['H'], 'cm'), ('Ancho B', p['B'], 'cm'), ('Espesor del alma e', p['e'], 'cm'),
                  ('Espesor del patín t', p['t'], 'cm'), ('Area Ag', p['A'], 'cm²'), ('Ix', p['Ix'], 'cm⁴'),
@@ -139,6 +145,9 @@ def _props_tabla(v):
                    for n, x, u in filas)
     if p.get('pagina_manual') is not None:
         body += f'<tr><td colspan="3" class="nota">Catálogo Gerdau rev04, pág. impresa {p["pagina_manual"]}.</td></tr>'
+    if p.get('pagina_catalogo_atc'):
+        body += (f'<tr><td colspan="3" class="nota">Catálogo ATC, pág. impresa {p["pagina_catalogo_atc"]}. '
+                 'J por fórmula de pared delgada; Zx y Zy sin radios de esquina; Cw = 0.</td></tr>')
     if p.get('fuente_completado'):
         body += f'<tr><td colspan="3" class="nota">Completado desde el manual: {html.escape(p["fuente_completado"])}.</td></tr>'
     if any('estimado' in s for s in v.get('supuestos', [])):
@@ -166,6 +175,9 @@ def _verificaciones(v):
     else:
         klr_txt = f'KL/rx = {_v(res["KLr_fuerte"], 1)}; KL/ry = {_v(res["KLr_debil"], 1)}'
         ecu_c = '§E3: E3-4 Fe, E3-2/E3-3 Fn. §E4: E4-2, E4-3 (Fex), E4-7. §E7: Ae = Ag − Σ(b − be)·t. Ωc = 1.67'
+    if familia == 'HSS':
+        ecu_c = ('§E3: E3-4 Fe (Fex, Fey; sección cerrada sin pandeo torsional), E3-2/E3-3 Fn. '
+                 '§E7.1: Ae = Ag − Σ(b − be)·t, be por E7-2/E7-3 (c1 = 0.20, c2 = 1.38; λr = 1.40√(E/Fy)). Ωc = 1.67')
     calc_c = (f'{klr_txt}; gobierna {html.escape(str(dc.get("gobierna")))}; '
               + (f'Fe = {_v(dc["Fe"], 1)} kgf/cm²; ' if 'Fe' in dc else '') +
               f'Fn = {_v(dc["Fn"], 1)} kgf/cm²; Ae = {_v(dc["Ae"], 3)} cm²; '
@@ -185,6 +197,11 @@ def _verificaciones(v):
                   f'Mn = {_v(min(dx["LTB"], dx.get("LFB", dx["LTB"])), 1)}')
         ecu_x = '§F2: F2-1 Mn = Mp; F2-2 LTB inelástico; F2-3 LTB elástico (F2-4 a F2-8). §F3: F3-1, F3-2 (patín). Ωb = 1.67'
         mr = d.get('Mr_x') if d else None
+    if familia == 'HSS':
+        calc_x = (f'Mp = Fy·Zx = {_v(dx["Mp"], 1)}; patín (F7-2/F7-3) = {_v(dx["LFB"], 1)}; '
+                  f'alma (F7-6) = {_v(dx["LWB"], 1)}; LTB (F7-8/F7-9) = {_v(dx["LTB"], 1)}; Mn = {_v(dx["Mn"], 1)}')
+        ecu_x = ('§F7: F7-1 Mn = Mp = Fy·Z; F7-2 y F7-3 patín (F7-4: be); F7-6 alma; '
+                 '§F7.4: F7-8 y F7-9 LTB (F7-10 y F7-11). Ωb = 1.67')
     filas.append(('Flexión eje mayor', ecu_x, calc_x + f'; Ma = Mn/1.67 = {_v(res["Ma_x"], 1)}',
                   res['Ma_x'], mr, fu and fu['FU FLEXION EJE MAYOR']))
     # Flexion eje menor
@@ -197,6 +214,11 @@ def _verificaciones(v):
         calc_y = (f'Mp = mín(Fy·Zy; 1.6·Fy·Sy) = {_v(dy["Mp"], 1)}; My = Fy·Sy = {_v(dy["My"], 1)}')
         ecu_y = '§F6: F6-1 Mp = mín(Fy·Zy; 1.6·Fy·Sy); F6-2, F6-3 (patín y alma). Ωb = 1.67'
         mr_y = d.get('Mr_y') if d else None
+    if familia == 'HSS':
+        calc_y = (f'Mp = Fy·Zy = {_v(dy["Mp"], 1)}; patín (F7-2/F7-3) = {_v(dy["LFB"], 1)}; '
+                  f'alma (F7-6) = {_v(dy["LWB"], 1)}; Mn = {_v(dy["Mn"], 1)}')
+        ecu_y = ('§F7 (eje menor; las paredes verticales hacen de patín): F7-1, F7-2/F7-3, F7-6. '
+                 'Sin pandeo lateral-torsional. Ωb = 1.67')
     filas.append(('Flexión eje menor', ecu_y, calc_y + f'; Ma = {_v(res["Ma_y"], 1)}',
                   res['Ma_y'], mr_y, fu and fu['FU FLEXION EJE MENOR']))
     # Cortante
@@ -212,6 +234,13 @@ def _verificaciones(v):
         ecu_vx = '§G2.1: G2-1 Vn = 0.6·Fy·Aw·Cv1; G2-2 (I laminada, Ωv = 1.50). §G2.2: G2-3, G2-4 (kv = 5.34). Ωv = 1.67'
         calc_vy = (f'Vn = 2·0.6·Fy·B·t·Cv2 = 2·0.6·{_v(fy, 1)}·{_v(p["B"], 2)}·{_v(p["t"], 3)}·{_v(dvy["Cv2"], 3)}; Ωv = 1.67')
         ecu_vy = '§G6: Vn = 2·0.6·Fy·B·t·Cv2 (dos patines, kv = 1.2). Ωv = 1.67'
+    if familia == 'HSS':
+        calc_vx = (f'Vn = 0.6·Fy·Aw·Cv1 = 0.6·{_v(fy, 1)}·{_v(dvx["Aw"], 2)}·{_v(dvx["Cv1"], 3)}; '
+                   f'Aw = 2·h·t, h/t = {_v(dvx["h_tw"], 2)}; Ωv = 1.67')
+        calc_vy = (f'Vn = 0.6·Fy·Aw·Cv1 = 0.6·{_v(fy, 1)}·{_v(dvy["Aw"], 2)}·{_v(dvy["Cv1"], 3)}; '
+                   f'Aw = 2·h·t, h/t = {_v(dvy["h_tw"], 2)}; Ωv = 1.67')
+        ecu_vx = '§G2.1: G2-1 Vn = 0.6·Fy·Aw·Cv1 con Aw = 2·h·t (h = peralte plano). §G2.2: G2-3, G2-4 (kv = 5). Ωv = 1.67'
+        ecu_vy = '§G2.1: G2-1 con Aw = 2·h·t (h = ancho plano, paredes horizontales). Ωv = 1.67'
     filas.append(('Cortante eje mayor', ecu_vx, calc_vx + f'; Va = {_v(res["Va_x"], 1)}', res['Va_x'],
                   d.get('Vr_x') if d else None, fu and fu['FU CORTANTE EJE MAYOR']))
     filas.append(('Cortante eje menor', ecu_vy, calc_vy + f'; Va = {_v(res["Va_y"], 1)}', res['Va_y'],
@@ -502,6 +531,10 @@ REF = {
     'NTC_3_2_5': 'NTC-Acero CDMX 2020, §3.2.5 (anchos efectivos; no aplicados), pág. 61',
     'NTC_4_4': 'NTC-Acero CDMX 2020, §4.4 (relaciones de esbeltez en tensión), pág. 65 y 66',
     'NTC_12_1_2': 'NTC-Acero CDMX 2020, Tabla 12.1.2 (ancho/grueso, ductilidad), pág. 212',
+    'NTC_12_1_2_HSS': 'NTC-Acero CDMX 2020, Tabla 12.1.2 (paredes de HSS rectangulares), pág. 212',
+    'NTC_3_2_1_HSS': 'NTC-Acero CDMX 2020, Tabla 3.2.1 (paredes de HSS, λr), pág. 58',
+    'NTC_3_2_2_HSS': 'NTC-Acero CDMX 2020, Tabla 3.2.2 (patines y almas de HSS), pág. 59',
+    'F7': 'AISC 360-22 §F7 (HSS cuadradas y rectangulares), ecs. F7-1 a F7-11, pág. 16.1-63 a 16.1-65',
     'NTC_12_1_3_1': 'NTC-Acero CDMX 2020, §12.1.3.1 (columnas dúctiles, KL/r ≤ 60), pág. 207',
     'NTC_CA_4_1_1': 'NTC Criterios y Acciones CDMX, §4.1.1 b), pág. 8',
     'NTC_CA_4_1_1_A': 'NTC Criterios y Acciones CDMX, §4.1.1 a), pág. 8',
@@ -528,11 +561,16 @@ def _refs_verif(nombre, familia):
         'Cortante eje menor': ['G3'] if li else ['G6'],
         'Interacción': ['H2'] if li else ['H1'],
     }
+    if familia == 'HSS':
+        mapa = {'Tracción': ['D2'], 'Compresión': ['E3', 'E7'], 'Flexión eje mayor': ['F7'], 'Flexión eje menor': ['F7'],
+                'Cortante eje mayor': ['G2'], 'Cortante eje menor': ['G2'], 'Interacción': ['H1']}
     return ''.join(_ref_html(k) for k in mapa.get(nombre, []))
 
 
 def _ref_local(v):
     """Referencia NTC de la esbeltez local: Tabla 3.2.1 en compresion, Tabla 3.2.2 en flexion."""
+    if v.get('familia') == 'HSS':
+        return _ref_html('NTC_3_2_1_HSS' if v['grupo'] in DA.COMPRESION_GRUPOS else 'NTC_3_2_2_HSS')
     return _ref_html('NTC_3_2_1_1' if v['grupo'] in DA.COMPRESION_GRUPOS else 'NTC_3_2_1_2')
 
 

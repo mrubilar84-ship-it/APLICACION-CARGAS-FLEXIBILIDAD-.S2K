@@ -7,10 +7,12 @@ D = os.path.dirname(os.path.abspath(__file__))
 SALIDA = sys.argv[1]
 PLANTILLA = sys.argv[2] if len(sys.argv) > 2 else None
 FUENTE_GERDAU = os.path.join(D, 'datos', 'perfiles_gerdau_mexico_rev04.json')
+FUENTE_HSS = os.path.join(D, 'datos', 'hss_atc_catalogo.json')   # HSS del catalogo ATC (extraer_hss_atc.py)
 CAMPOS = ['pagina_manual', 'pagina_pdf', 'referencia_excel', 'campos_pendientes', 'designacion_pulgadas', 'designacion_metrica_manual', 'fuente_completado',
           'familia', 'perfil_comercial', 'estado', 'masa_kg_m', 'd_ala_diametro_cm', 'bf_b_cm', 'tw_cm',
           'tf_t_cm', 'area_cm2', 'ix_cm4', 'iy_cm4', 'sx_cm3', 'sy_cm3', 'rx_cm', 'ry_cm', 'j_cm4', 'cw_cm6',
-          'zx_cm3', 'zy_cm3', 'ro_cm']
+          'zx_cm3', 'zy_cm3', 'ro_cm', 'seccion', 'alerta_catalogo', 'pagina_catalogo_atc', 'referencia_catalogo',
+          'fuente_propiedades']
 
 
 def leer(nombre):
@@ -68,6 +70,8 @@ def datos_texto():
     with open(FUENTE_GERDAU, encoding='utf-8') as f:
         perfiles = [p for p in json.load(f)['perfiles'] if p['familia'] not in FAMILIAS_ELIMINADAS]
     completar_desde_manual(perfiles)
+    with open(FUENTE_HSS, encoding='utf-8') as f:
+        perfiles += json.load(f)['perfiles']
     compacto = [{k: p.get(k) for k in CAMPOS} for p in perfiles]
     return json.dumps(json.dumps(compacto, ensure_ascii=False, separators=(',', ':')))
 
