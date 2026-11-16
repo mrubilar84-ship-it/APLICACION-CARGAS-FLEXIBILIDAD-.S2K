@@ -1,0 +1,5 @@
+casos con exacta < muestreo (error):  0
+error relativo maximo del muestreo de 401 puntos: 8.148e-06
+viga SS uniforme: exacta = 9000.0 | muestreo = 9000.000000000002 | esperado qL^2/8 = 9000.0
+sin carga, extremos desplazados: exacta 68000.0 muestreo 68000.0
+rc=0
