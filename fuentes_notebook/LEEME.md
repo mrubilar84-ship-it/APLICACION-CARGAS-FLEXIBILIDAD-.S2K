@@ -26,3 +26,7 @@ El segundo argumento es la plantilla que el notebook incrusta. Con la plantilla 
 - Las rutas de trabajo de la sesión original ya no se usan: el catálogo se lee de `datos/`.
 - Los 30 valores completados desde el manual están en `CORRECCIONES_MANUAL` de `build_soportes_planilla3.py`. Se verificaron contra la imagen de las páginas impresas 26 y 27 del manual (ver `auditoria_rev01/ADENDA_01.md`).
 - Si cambia una celda o un módulo, vuelva a reconstruir el notebook y revise el diff con `git diff`.
+
+## Perfiles macizos eliminados
+
+Los perfiles CS (cuadrado solido) y OS (redondo solido) se eliminan de la base del notebook al construirla (`FAMILIAS_ELIMINADAS` en `build_soportes_planilla3.py`) y no se diseñan. El catalogo `datos/perfiles_gerdau_mexico_rev04.json` se conserva completo, sin modificar, para trazabilidad. La base del notebook queda con 227 perfiles (IR 110, CE 7, LI 47, SOL 63).

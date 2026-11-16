@@ -602,7 +602,7 @@ def _fila_capacidad(c):
 
 GRUPOS_ELEMENTO = ['COLUMNA', 'VIGA', 'ARRIOSTRE', 'DIAGONAL']
 COMPRESION_GRUPOS = ('COLUMNA', 'ARRIOSTRE', 'DIAGONAL')
-FAMILIAS_CATALOGO = ('IR', 'CE', 'CS')
+FAMILIAS_CATALOGO = ('IR', 'CE')   # CS eliminado de la base (macizo)
 
 
 def _evaluar_perfil_grupo(nombre, fam, grupo, m, lx, ly, lb, kx, ky, nivel, filas_sint):

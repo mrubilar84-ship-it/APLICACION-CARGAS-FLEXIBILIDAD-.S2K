@@ -1,7 +1,7 @@
 """
 DISENO ASD SEGUN ANSI/AISC 360-22 (Specification for Structural Steel Buildings, 2022).
 Familias: IR (perfil I doblemente simetrico), CE (canal, eje x de simetria), LI (angulo de lados iguales).
-Fuera del diseno: CS (barras macizas) y LM (no se consideran por instruccion del usuario).
+Fuera del diseno: LM (no se considera por instruccion del usuario). Los perfiles macizos CS y OS se eliminaron de la base.
 Unidades: cm, kgf (fuerzas), kgf·cm (momentos). Demandas: ASD (combinaciones de servicio de COMBINACIONES).
 
 Referencias (capitulo y ecuacion del texto de AISC 360-22):
@@ -793,7 +793,7 @@ def matriz_fu_por_perfil(dib, materiales_filas, longitudes_df, demandas, id_barr
 def diseno_asd_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id_barra, ruta_salida):
     """Diseno ASD (AISC 360-22) de las barras IR, CE y LI con las combinaciones de servicio (COMBINACIONES).
     RESULTADOS: FU por verificacion (demanda/capacidad, <= 1 cumple), esbeltez local (B4.1) y global (KL/r <= 200).
-    Las barras CS (macizas) y otras familias quedan FUERA DE ALCANCE. Devuelve (capacidades, resultados, detalle)."""
+    Las familias fuera de IR, CE y LI quedan FUERA DE ALCANCE. Devuelve (capacidades, resultados, detalle)."""
     if materiales_filas is None:
         raise ErrorAsd('la planilla no tiene la hoja MATERIALES.')
     mat = {str(f[0]).strip(): dict(fy=_num(f[2]), fu=_num(f[3]), E=_num(f[4]), nu=_num(f[5])) for f in materiales_filas}
@@ -900,7 +900,7 @@ def diseno_asd_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id
                       ['FU', 'factor de utilizacion = demanda / capacidad ASD; cumple si FU <= 1.0'],
                       ['FU esbeltez local', 'lambda / lambda_r por elemento (B4.1a en compresion, B4.1b en flexion; angulo: pata)'],
                       ['FU esbeltez global', 'KL/r / 200 en elementos a compresion (2.3.2); vigas sin verificacion de KL/r'],
-                      ['Alcance', 'IR, CE y LI (angulos de lados iguales). CS (barras macizas) fuera del diseno; LM no incluido. '
+                      ['Alcance', 'IR, CE y LI (angulos de lados iguales). Perfiles macizos (CS, OS) eliminados de la base; LM no incluido. '
                                   'Ductilidad: 12.1.2 (IR y CE) y 12.1.3.1 (columnas)'],
                       ['Unidades', 'fuerzas kgf; momentos kgf·cm; longitudes cm']],
                      columns=['DATO', 'VALOR']).to_excel(w, sheet_name='RESUMEN', index=False)

@@ -5,7 +5,7 @@ from gerdau_datos import _DATOS_TEXTO
 _DATOS = json.loads(_DATOS_TEXTO)
 PERFILES = {p['perfil_comercial']: p for p in _DATOS}
 
-FAMILIA_ORDEN = ['IR', 'CE', 'LI', 'SOL', 'OS', 'CS']
+FAMILIA_ORDEN = ['IR', 'CE', 'LI', 'SOL']   # CS y OS (macizos) eliminados de la base
 
 
 def obtener_perfil(nombre):

@@ -60,9 +60,13 @@ def completar_desde_manual(perfiles):
     print('valores completados desde el manual Gerdau:', n)
 
 
+# Perfiles macizos (cuadrado solido CS y redondo solido OS): se eliminan de la base y del diseno (instruccion del usuario).
+FAMILIAS_ELIMINADAS = ('CS', 'OS')
+
+
 def datos_texto():
     with open(FUENTE_GERDAU, encoding='utf-8') as f:
-        perfiles = json.load(f)['perfiles']
+        perfiles = [p for p in json.load(f)['perfiles'] if p['familia'] not in FAMILIAS_ELIMINADAS]
     completar_desde_manual(perfiles)
     compacto = [{k: p.get(k) for k in CAMPOS} for p in perfiles]
     return json.dumps(json.dumps(compacto, ensure_ascii=False, separators=(',', ':')))
@@ -85,7 +89,7 @@ Notebook nuevo (no modifica el ejemplo `agente_estructural.ipynb`). El modelo se
 3. Súbala a Kaggle con **Add data**. El **bloque 7** la lee y valida.
 4. **Bloque 8**: dibuja planta, alzado y 3D (secciones y ejes fuertes) en el notebook y regenera la planilla como `planilla_con_vista.xlsx`, con las vistas en vivo de VISTA_VIVA. Vuelva a ejecutar este bloque después de cambiar la planilla.
 5. **Bloque 9**: análisis con OpenSees. Usa E y NU de MATERIALES, la sección de la base Gerdau, los apoyos y rótulas, las cargas por estado, el peso propio (ESTADOS: PESO PROPIO = SI) y las combinaciones de COMBINACIONES. Escribe `resultados_soportes.xlsx` con las barras, nodos y reacciones marcados REPORTAR = SI.
-6. **Bloque 10**: diseño por AISC 360-22 (ASD) de IR, CE y LI, con las combinaciones de servicio del bloque 9 (sin las que incluyen viento: para el diseño solo aplica el sismo) y las longitudes de LONGITUDES. Las barras CS (macizas) y LM quedan fuera del diseño. Escribe `diseno_asd.xlsx` (CAPACIDADES, RESULTADOS, DETALLE, LISTAS_GRUPO) y `planilla_con_diseno.xlsx`, con las listas desplegables de perfiles que cumplen por grupo.
+6. **Bloque 10**: diseño por AISC 360-22 (ASD) de IR, CE y LI, con las combinaciones de servicio del bloque 9 (sin las que incluyen viento: para el diseño solo aplica el sismo) y las longitudes de LONGITUDES. Los perfiles macizos (CS y OS) fueron eliminados de la base y no se diseñan; LM no se incluye. Escribe `diseno_asd.xlsx` (CAPACIDADES, RESULTADOS, DETALLE, LISTAS_GRUPO) y `planilla_con_diseno.xlsx`, con las listas desplegables de perfiles que cumplen por grupo.
 
 **Cambio de perfil por grupo (Excel):** en `planilla_con_diseno.xlsx`, la hoja **PERFIL_GRUPO** tiene un desplegable por grupo. Al elegir un perfil, se aplica a todas las barras de ese grupo (todas las columnas, todas las vigas...) y el FU y la esbeltez local y global se recalculan en la hoja **FU_BARRAS** sin volver a ejecutar nada. La hoja **FU_MATRIZ** guarda el FU de cada barra con cada perfil del catalogo. Si cambia ELEMENTO, longitudes o cargas, vuelva a ejecutar el bloque 10. Suba la planilla a Kaggle y ejecute el bloque 7: toma el perfil elegido por grupo. **Cada grupo tiene una sola sección:** si BARRAS trae perfiles distintos dentro de un grupo, el bloque 10 se detiene y lista cuáles son.
 
@@ -145,7 +149,7 @@ def construir():
     celdas.append(code(BLOQUE_9))
     celdas.append(md('## Bloque 9b. Deformada con escala editable\n\nCambie `ESCALA_DEFORMADA` y ejecute solo esta celda: no vuelve a resolver el análisis.'))
     celdas.append(code(BLOQUE_9B))
-    celdas.append(md('## Bloque 10. Diseño por AISC 360-22 (ASD)\n\nCapacidades de IR, CE y LI (tensión, compresión, flexión, cortante, interacción H1 o H2) con las combinaciones de servicio del bloque 9 (sin las que incluyen viento: para el diseño solo aplica el sismo) y las longitudes de la hoja LONGITUDES. Escribe `diseno_asd.xlsx` y `planilla_con_diseno.xlsx`. Las barras CS quedan fuera del diseño. Los resultados salen **por grupo**: elija la sección de cada grupo en su desplegable (ordenado por tipo y sección); la tabla se recalcula y el botón **Aplicar** actualiza el Excel por elemento y la planilla (hoja PERFIL_GRUPO).'))
+    celdas.append(md('## Bloque 10. Diseño por AISC 360-22 (ASD)\n\nCapacidades de IR, CE y LI (tensión, compresión, flexión, cortante, interacción H1 o H2) con las combinaciones de servicio del bloque 9 (sin las que incluyen viento: para el diseño solo aplica el sismo) y las longitudes de la hoja LONGITUDES. Escribe `diseno_asd.xlsx` y `planilla_con_diseno.xlsx`. Los perfiles macizos (CS y OS) fueron eliminados de la base y no se diseñan. Las barras CS quedan fuera del diseño. Los resultados salen **por grupo**: elija la sección de cada grupo en su desplegable (ordenado por tipo y sección); la tabla se recalcula y el botón **Aplicar** actualiza el Excel por elemento y la planilla (hoja PERFIL_GRUPO).'))
     celdas.append(code('%%writefile diseno_ntc.py\n' + leer('diseno_ntc.py')))
     celdas.append(code('%%writefile diseno_asd.py\n' + leer('diseno_asd.py')))
     celdas.append(code('%%writefile memoria_asd.py\n' + leer('memoria_asd.py')))
