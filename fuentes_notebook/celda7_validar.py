@@ -23,14 +23,28 @@ def _tipo(v):
 
 
 def buscar_planilla():
-    """Busca la planilla llenada en /kaggle/input (archivos .xlsx con 'soportes' en el nombre). Si hay mas de una se
-    detiene: no se elige una al azar (R-09). Si no hay ninguna, usa la plantilla de ejemplo."""
-    subidas = sorted(f for f in glob.glob('/kaggle/input/**/*.xlsx', recursive=True)
-                     if 'soportes' in os.path.basename(f).lower())
-    if len(subidas) > 1:
-        raise RuntimeError(f'Hay {len(subidas)} planillas con "soportes" en /kaggle/input: deje solo una. '
-                           + '; '.join(subidas))
-    return subidas[0] if subidas else RUTA_PLANTILLA
+    """Busca la planilla llenada en /kaggle/input: cualquier .xlsx que tenga las hojas NODOS y BARRAS (el nombre del
+    archivo no importa). Si hay mas de una se detiene: no se elige una al azar (R-09). Si hay .xlsx subidos que no son
+    planillas, se detiene. Si no hay ninguno, usa la plantilla de ejemplo y lo dice en voz alta: ese no es su modelo."""
+    xlsx = sorted(glob.glob('/kaggle/input/**/*.xlsx', recursive=True))
+    planillas = []
+    for f in xlsx:
+        try:
+            hojas = set(pd.ExcelFile(f).sheet_names)
+        except Exception:
+            hojas = set()
+        if {'NODOS', 'BARRAS'} <= hojas:
+            planillas.append(f)
+    if len(planillas) > 1:
+        raise RuntimeError(f'Hay {len(planillas)} planillas de soportes en /kaggle/input: deje solo una. '
+                           + '; '.join(planillas))
+    if planillas:
+        return planillas[0]
+    if xlsx:
+        raise RuntimeError('En /kaggle/input hay .xlsx que no son planillas de soportes (falta la hoja NODOS o BARRAS): '
+                           + '; '.join(xlsx))
+    print('ATENCION: no hay planilla subida en /kaggle/input. Se usa la plantilla de ejemplo: NO es su modelo.')
+    return RUTA_PLANTILLA
 
 
 def leer_perfil_grupo(ruta):
