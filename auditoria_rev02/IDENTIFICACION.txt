@@ -2,10 +2,11 @@ Auditoria de soportes: revision 02
 Fecha: 16 de noviembre de 2026
 Rama: claude/eloquent-turing-cwpcd8
 
-Commit de esta revision (paquete auditoria_rev02/, verificacion y notebook del mismo estado): 89c772b86fa35b2efc7255c72e75d4844b9dc0e7
+Commit de esta revision (paquete auditoria_rev02/ con el manifiesto corregido): f5cb2104aaf3916083901b533081d284fc999743
+Commit que introdujo el paquete (su manifiesto tenia dos lineas de cabecera sin #; ver el commit f5cb2104aaf3916083901b533081d284fc999743): 89c772b86fa35b2efc7255c72e75d4844b9dc0e7
 Commit del notebook y del generador usados para generar las salidas: 1816de477f5b3f4f6e8a6a5f3eda867ac6ff4946
 Commit de codigo de la revision 01 (base de la comparacion): f486b836b2bbd0da01742544846cd4f37a1c782f
-SHA-256 de manifiesto_sha256.txt: 0fcbe36e381b88929ae085e23e383e21ad65b18b2de74294e57e4b1be762b84f
+SHA-256 de manifiesto_sha256.txt: 3aab499fe8c63c39bfff9d327f501bc8d6cdbccd4318d24be9b3265f263f5331
 
 Contenido y verificacion: RESPUESTA_AUDITORIA_REV02.md. Cambios: CAMBIOS_REV02.md.
-Para verificar los archivos desde la raiz del repositorio: sha256sum -c con la lista de manifiesto_sha256.txt (sin las lineas de comentario).
+Verificar desde la raiz del repositorio: grep -v "^#" auditoria_rev02/manifiesto_sha256.txt | sha256sum -c
