@@ -30,7 +30,7 @@ Forma `HSS`: anchos planos sin radio de esquina, bp = B − 3t y hp = H − 3t (
 | Paredes esbeltas (E7) | E7-2, E7-3, E7-5; Tabla E7.1 caso (b) | be = b si λ ≤ λr·√(Fy/Fn); si no, be = b(1 − c1·r)·r ≤ b con r = √(Fel/Fn), Fel = (c2·λr/λ)²·Fy; c1 = 0.20, c2 = 1.38, λr = 1.40√(E/Fy). |
 | Flexión eje fuerte | F7-1, F7-2, F7-3 (F7-4), F7-6, F7-8, F7-9, F7-10, F7-11 | Mp = Fy·Zx. Patín: compacto, no compacto (F7-2) o esbelto (F7-3 con Se). Alma: no compacta (F7-6); alma esbelta se rechaza (AISC: no hay HSS con almas esbeltas). LTB con Lp y Lr. |
 | Flexión eje débil | F7-1, F7-2/F7-3, F7-6 | Igual, con las paredes verticales como patines. Sin LTB (nota de usuario de F7). |
-| Cortante | G2.1 con Aw = 2·h·t; G2.2 (kv = 5) | h = peralte plano (eje fuerte) o ancho plano (eje débil). Ωv = 1.67. |
+| Cortante | G4-1 con Aw = 2·h·t; Cv2 de G2.2 (G2-9 a G2-11) con kv = 5 | h = peralte plano (eje fuerte) o ancho plano (eje débil). Ωv = 1.67. Corregido: la versión anterior usaba G2.1 con kv = 5.34 y Cv1; en el catálogo el resultado numérico es el mismo porque h/t ≤ 61 < 61.76. |
 | Interacción | H1-1a/b | Igual que IR, CE y LI. |
 | Esbeltez local NTC | Tabla 3.2.1 (compresión), Tabla 3.2.2 (flexión) | Paredes: λr = 1.40 (compresión); patines 1.12/1.12/1.40; almas 2.42/5.70. |
 | Ductilidad NTC | Tabla 12.1.2, paredes de HSS rectangulares | λda = 0.55√(E/Fy) (alta), λdm = 0.64√(E/Fy) (media); se verifica la pared más esbelta. |
@@ -62,8 +62,13 @@ LI cambia (ver sección 4).
 - Planilla de prueba con HSS 8 × 8 × 1/2 en columnas y HSS 10 × 6 × 3/8 en vigas: el notebook corre completo
   (diseño, memoria y Excel). La viga no cumple la ductilidad media de la Tabla 12.1.2 (U = 1.47): sus paredes
   tienen b/t = 23.6, y el límite es 16.1.
-- Valores de referencia de tres secciones (`verificacion_posterior/hss/`): pendiente de la comprobación
-  independiente.
+- Comprobación independiente (cálculo separado con el texto de AISC 360-22, mismos supuestos K = 1, KL = Lb = 350 cm,
+  Cb = 1.0) en tres secciones: Pn/Ωc, Mn/Ωb (ambos ejes) y Vn/Ωv (ambos ejes) coinciden dentro de 0.2 %.
+  En 16×16×5/16 el eje fuerte da 2 814 396 con el modelo de Se de líneas medias (M3); el modelo con eje neutro
+  desplazado en el patín comprimido (M1) da 2 815 301 (+0.03 %). Ambos valores están en la prueba
+  `verificacion_posterior/hss/test_hss.py`.
+- Ix de 16×16×1/2 (alerta del catálogo): el diseño usa Sx, rx y ry impresos, no Ix. La alerta no cambia ningún
+  resultado de diseño. Si se usara S = I/c, Mn eje x bajaría 1.1 %.
 
 ## 5. Limitaciones y pendientes
 
@@ -73,6 +78,6 @@ LI cambia (ver sección 4).
   comprimidas. Por confirmar.
 - Grado de acero, Fy y Fu del A500 Gr C: por confirmar (dato de entrada).
 - Las 7 filas con alerta de catálogo: se mantienen como vienen. Por confirmar con ATC.
-- Modelo de Se (F7-3): líneas medias de las paredes, sin radios de esquina. Diferencia de 2 % frente a S del
-  catálogo en una sección compacta de referencia.
+- Modelo de Se (F7-3): líneas medias de las paredes, sin radios de esquina (M3). Diferencia de 2 % frente a S del
+  catálogo en una sección compacta de referencia; 0.03 % frente al modelo M1 en la sección esbelta.
 - Excel de escritorio: no probado (solo LibreOffice).

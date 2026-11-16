@@ -235,12 +235,12 @@ def _verificaciones(v):
         calc_vy = (f'Vn = 2·0.6·Fy·B·t·Cv2 = 2·0.6·{_v(fy, 1)}·{_v(p["B"], 2)}·{_v(p["t"], 3)}·{_v(dvy["Cv2"], 3)}; Ωv = 1.67')
         ecu_vy = '§G6: Vn = 2·0.6·Fy·B·t·Cv2 (dos patines, kv = 1.2). Ωv = 1.67'
     if familia == 'HSS':
-        calc_vx = (f'Vn = 0.6·Fy·Aw·Cv1 = 0.6·{_v(fy, 1)}·{_v(dvx["Aw"], 2)}·{_v(dvx["Cv1"], 3)}; '
+        calc_vx = (f'Vn = 0.6·Fy·Aw·Cv2 = 0.6·{_v(fy, 1)}·{_v(dvx["Aw"], 2)}·{_v(dvx["Cv2"], 3)}; '
                    f'Aw = 2·h·t, h/t = {_v(dvx["h_tw"], 2)}; Ωv = 1.67')
-        calc_vy = (f'Vn = 0.6·Fy·Aw·Cv1 = 0.6·{_v(fy, 1)}·{_v(dvy["Aw"], 2)}·{_v(dvy["Cv1"], 3)}; '
+        calc_vy = (f'Vn = 0.6·Fy·Aw·Cv2 = 0.6·{_v(fy, 1)}·{_v(dvy["Aw"], 2)}·{_v(dvy["Cv2"], 3)}; '
                    f'Aw = 2·h·t, h/t = {_v(dvy["h_tw"], 2)}; Ωv = 1.67')
-        ecu_vx = '§G2.1: G2-1 Vn = 0.6·Fy·Aw·Cv1 con Aw = 2·h·t (h = peralte plano). §G2.2: G2-3, G2-4 (kv = 5). Ωv = 1.67'
-        ecu_vy = '§G2.1: G2-1 con Aw = 2·h·t (h = ancho plano, paredes horizontales). Ωv = 1.67'
+        ecu_vx = '§G4: G4-1 Vn = 0.6·Fy·Aw·Cv2, Aw = 2·h·t (h = peralte plano). Cv2 de §G2.2: G2-9 a G2-11 con kv = 5. Ωv = 1.67'
+        ecu_vy = '§G4: G4-1 Vn = 0.6·Fy·Aw·Cv2, Aw = 2·h·t (h = ancho plano). Cv2 de §G2.2 con kv = 5. Ωv = 1.67'
     filas.append(('Cortante eje mayor', ecu_vx, calc_vx + f'; Va = {_v(res["Va_x"], 1)}', res['Va_x'],
                   d.get('Vr_x') if d else None, fu and fu['FU CORTANTE EJE MAYOR']))
     filas.append(('Cortante eje menor', ecu_vy, calc_vy + f'; Va = {_v(res["Va_y"], 1)}', res['Va_y'],
@@ -521,6 +521,7 @@ REF = {
     'F10.3': 'AISC 360-22 §F10.3 (pandeo local de pata), ecs. F10-6 a F10-8, pág. 16.1-69 y 16.1-70',
     'G2': 'AISC 360-22 §G2.1 y §G2.2, ecs. G2-1 a G2-4, pág. 16.1-75 y 16.1-76',
     'G3': 'AISC 360-22 §G3 (ángulo sencillo), ec. G3-1, pág. 16.1-80',
+    'G4': 'AISC 360-22 §G4 (HSS rectangulares y cajón), ec. G4-1 con Cv2 de §G2.2 (G2-9 a G2-11, kv = 5), pág. 16.1-80 y 16.1-77',
     'G6': 'AISC 360-22 §G6 (cortante en eje menor), pág. 16.1-81',
     'H1': 'AISC 360-22 §H1.1, ecs. H1-1a y H1-1b, pág. 16.1-82 y 16.1-83',
     'H2': 'AISC 360-22 §H2 (secciones no cubiertas por H1), ec. H2-1, pág. 16.1-84',
@@ -563,7 +564,7 @@ def _refs_verif(nombre, familia):
     }
     if familia == 'HSS':
         mapa = {'Tracción': ['D2'], 'Compresión': ['E3', 'E7'], 'Flexión eje mayor': ['F7'], 'Flexión eje menor': ['F7'],
-                'Cortante eje mayor': ['G2'], 'Cortante eje menor': ['G2'], 'Interacción': ['H1']}
+                'Cortante eje mayor': ['G4'], 'Cortante eje menor': ['G4'], 'Interacción': ['H1']}
     return ''.join(_ref_html(k) for k in mapa.get(nombre, []))
 
 

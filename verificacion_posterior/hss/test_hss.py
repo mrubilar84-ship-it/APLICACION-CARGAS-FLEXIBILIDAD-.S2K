@@ -1,4 +1,4 @@
-"""Pruebas del diseno de HSS (AISC 360-22 y NTC-Acero CDMX) contra valores calculados a mano.
+"""Pruebas del diseno de HSS (AISC 360-22 y NTC-Acero CDMX) contra valores calculados a mano y contra un calculo independiente.
 Uso: python3 test_hss.py   (sale con codigo 0 solo si todas las comprobaciones cumplen)
 No requiere el notebook: carga los modulos de fuentes_notebook/ con una base vacia (la base se usa solo para
 obtener_perfil, que aqui no se llama; los datos se toman de datos/hss_atc_catalogo.json)."""
@@ -83,6 +83,32 @@ esperadas = {'AISC_HSS_LP_PATIN': 1.12, 'AISC_HSS_LR_PATIN': 1.40, 'AISC_HSS_LP_
 valores = {c: v for (c, v, *_r) in NORMA}
 for k, v in esperadas.items():
     check(f'NORMA {k}', valores[k], v, 1e-12)
+
+# 6) comprobacion independiente (informe de un calculo separado con el texto de AISC 360-22, mismos supuestos:
+#    K = 1, KL = Lb = 350 cm, Cb = 1.0). Valores redondeados a kgf o kgf-cm.
+#    Eje fuerte de la seccion A: el informe da 2 815 301 con el modelo M1 (eje neutro desplazado en el patin
+#    comprimido). Este codigo usa el modelo M3 (lineas medias de las paredes), que da 2 814 396: diferencia 0.03 %.
+INDEP = {
+    'HSS 16 × 16 × 5/16': dict(Pn=192283, Mx=2814396, My=2814396, Vx=70566, Vy=70566),
+    'HSS 16 × 16 × 1/2': dict(Pn=367751, Mx=5600155, My=5600155, Vx=108695, Vy=108695),
+    'HSS 10 × 2 × 3/8': dict(Pn=17453, Mx=696597, My=202677, Vx=49897, Vy=4919),
+}
+for nombre, ref in INDEP.items():
+    p = p_de(nombre)
+    Lb = 350.0 if nombre != 'HSS 10 × 2 × 3/8' else 350.0
+    res = DA.resistencias_asd(p, 'HSS', FY, FU, E, 0.30, 350.0, 350.0, Lb, 1.0, 1.0, 350.0, Cb=1.0)
+    check(f'independiente {nombre}: Pn/Omega_c', res['Pa_c'], ref['Pn'], 2e-3)
+    check(f'independiente {nombre}: Mn/Omega_b eje x', res['Ma_x'], ref['Mx'], 2e-3)
+    check(f'independiente {nombre}: Mn/Omega_b eje y', res['Ma_y'], ref['My'], 2e-3)
+    check(f'independiente {nombre}: Vn/Omega_v eje x', res['Va_x'], ref['Vx'], 2e-3)
+    check(f'independiente {nombre}: Vn/Omega_v eje y', res['Va_y'], ref['Vy'], 2e-3)
+
+# 7) Cv2 de G2.2 con kv = 5 (G4-1): regimenes G2-9, G2-10 y G2-11
+lim1 = 1.10 * math.sqrt(5 * E / FY)
+lim2 = 1.37 * math.sqrt(5 * E / FY)
+check('Cv2 regimen G2-10 (h/t = 65)', DA._cv2_hss(65.0, E, FY), lim1 / 65.0)
+check('Cv2 regimen G2-11 (h/t = 100)', DA._cv2_hss(100.0, E, FY), 1.51 * 5 * E / (100.0 ** 2 * FY))
+check('Cv2 regimen G2-9 (h/t = 40)', DA._cv2_hss(40.0, E, FY), 1.0)
 
 print('RESULTADO:', 'OK' if not FALLOS else f'FALLAN: {FALLOS}')
 sys.exit(1 if FALLOS else 0)

@@ -20,6 +20,7 @@ Referencias (capitulo y ecuacion del texto de AISC 360-22):
        principal mayor, beta_w = 0 en lados iguales); F10.3 pandeo local de pata: F10-6, F10-7, F10-8 (lambda_p =
        0.54 sqrt(E/Fy), lambda_r = 0.91 sqrt(E/Fy); Table B4.1b caso 12).
   G2   Cortante de almas (I y canales): Vn = 0.6 Fy Aw Cv1 (G2-1); Ωv = 1.50 para I laminada (G2.1a), 1.67 si no.
+  G4   Cortante de HSS rectangulares: Vn = 0.6 Fy Aw Cv2 (G4-1), Aw = 2ht, Cv2 de G2.2 (G2-9 a G2-11) con kv = 5.
   G3   Angulo sencillo: Vn = 0.6 Fy b t Cv2 (G3-1), con h/tw = b/t y kv = 1.2 (una pata, conservador).
   H1   Flexocompresion H1-1a/b (Pr/Pc >= 0.2: 8/9); flexotraccion H1-1a/b con Pc = Pn/Ωt.
   H2   Angulos (no cubiertos por H1): H2-1 con momento resultante sobre cada eje principal (conservador).
@@ -46,6 +47,7 @@ KZ_TORSION = None
 AISC_HSS_LP_PATIN = AISC_HSS_LR_PATIN = AISC_HSS_LP_ALMA = AISC_HSS_LR_ALMA = AISC_HSS_LR_COMP = None
 AISC_HSS_C1 = AISC_HSS_C2 = NTC_HSS_LR_COMP = None
 NTC_HSS_FLEX = NTC_HSS_DUC = None
+AISC_KV_HSS = AISC_CV2_LIM2 = AISC_CV2_K = None
 
 
 def _req(valor, campo_nombre, barra=''):
@@ -64,6 +66,7 @@ def cargar_norma(v, kz):
     global NTC_LR_COMPRESION, NTC_LIMITES_FLEXION, NTC_KLR_COMPRESION, NTC_KLR_TENSION_REF, LIMITE_KLR
     global AISC_HSS_LP_PATIN, AISC_HSS_LR_PATIN, AISC_HSS_LP_ALMA, AISC_HSS_LR_ALMA, AISC_HSS_LR_COMP
     global AISC_HSS_C1, AISC_HSS_C2, NTC_HSS_LR_COMP, NTC_HSS_FLEX, NTC_HSS_DUC
+    global AISC_KV_HSS, AISC_CV2_LIM2, AISC_CV2_K
     try:
         OMEGA_T_FLU, OMEGA_T_FRA = v['AISC_OMEGA_TFLU'], v['AISC_OMEGA_TFRA']
         OMEGA_C, OMEGA_B, OMEGA_V = v['AISC_OMEGA_C'], v['AISC_OMEGA_B'], v['AISC_OMEGA_V']
@@ -89,6 +92,7 @@ def cargar_norma(v, kz):
         NTC_HSS_FLEX = {'patin': (v['NTC_HSS_LIM_PATIN_PL'], v['NTC_HSS_LIM_PATIN_P'], v['NTC_HSS_LIM_PATIN_R']),
                         'alma': (None, v['NTC_HSS_LIM_ALMA_P'], v['NTC_HSS_LIM_ALMA_R'])}
         NTC_HSS_DUC = {'ALTA': v['NTC_HSS_DUC_ALTA'], 'MEDIA': v['NTC_HSS_DUC_MEDIA']}
+        AISC_KV_HSS, AISC_CV2_LIM2, AISC_CV2_K = v['AISC_KV_HSS'], v['AISC_CV2_LIM2'], v['AISC_CV2_K']
     except KeyError as falta:
         raise ErrorAsd(f'falta el valor de norma {falta} en la hoja NORMA de la planilla')
 
@@ -363,14 +367,26 @@ def mn_hss(p, fy, E, eje, Lb=None, Cb=None):
     return mn, det
 
 
+def _cv2_hss(ht, E, fy):
+    """Cv2 de G2.2 con kv = 5 (G4): G2-9 (h/t <= 1.10 sqrt(kv E/Fy)), G2-10 (hasta 1.37) y G2-11."""
+    lim1 = AISC_CV_LIM * math.sqrt(AISC_KV_HSS * E / fy)
+    lim2 = AISC_CV2_LIM2 * math.sqrt(AISC_KV_HSS * E / fy)
+    if ht <= lim1:
+        return 1.0                                                 # G2-9
+    if ht <= lim2:
+        return lim1 / ht                                           # G2-10
+    return AISC_CV2_K * AISC_KV_HSS * E / (ht ** 2 * fy)           # G2-11
+
+
 def vn_hss(p, fy, E, eje):
-    """Cortante de HSS (G2.1 con Aw = 2 h t; h = ancho plano del alma). Omega_v = 1.67 (OMEGA_V, no la laminada)."""
+    """Cortante de HSS rectangular (G4-1): Vn = 0.6 Fy Aw Cv2, Aw = 2 h t, h = ancho plano (eje 'x': peralte plano
+    H - 3t; eje 'y': B - 3t). Omega_v = 1.67 (OMEGA_V)."""
     _, h = _hss_muros(p, eje)
     t = p['t']
     ht = h / t
-    cv = 1.0 if ht <= AISC_HTW_LAM * math.sqrt(E / fy) else _cv(ht, KV_I, E, fy)   # G2-3 / G2-4
+    cv2 = _cv2_hss(ht, E, fy)
     aw = 2.0 * h * t
-    return 0.6 * fy * aw * cv, OMEGA_V, dict(h_tw=ht, Cv1=cv, Cv2=cv, Aw=aw)
+    return 0.6 * fy * aw * cv2, OMEGA_V, dict(h_tw=ht, Cv1=cv2, Cv2=cv2, Aw=aw)
 
 
 # ---------------------------------------------------------------- angulos de lados iguales (LI)
