@@ -75,6 +75,19 @@ def ejemplo_filas():
     """Marco de ejemplo: 18 nodos, 26 barras, 6 apoyos empotrados."""
     ejemplo = DibujoModelo(ruta='ejemplo')
     ejemplo.marco_grilla([0, 5, 10], [0, 4], [0, 3.5, 7], 'IR 10 × 49', 'IR 12 × 16', 'IR 12 × 16')
+    # Eje fuerte explicito de cada barra (queda en la hoja BARRAS): la direccion que daba la regla anterior por
+    # defecto (columnas: eje fuerte hacia Y global; vigas y diagonales: peralte vertical). Con este valor el modelo
+    # es el mismo que antes y ya no depende de una regla oculta.
+    import numpy as np
+    for i, b in enumerate(ejemplo.barras):
+        p1, p2 = ejemplo.nodos[b['n1']], ejemplo.nodos[b['n2']]
+        x = np.array(p2, float) - np.array(p1, float); x = x / np.linalg.norm(x)
+        if abs(x[2]) > 0.9:
+            vecxz = np.array([1.0, 0.0, 0.0])
+        else:
+            vx = np.cross(x, np.array([0.0, 0.0, 1.0])); vecxz = vx / np.linalg.norm(vx)
+        y = np.cross(vecxz, x); y = y / np.linalg.norm(y)
+        ejemplo.eje_fuerte(i, tuple(float(c) for c in y))
     for i, q in enumerate(ejemplo.nodos):
         if abs(q[2]) < 1e-9:
             ejemplo.apoyo(i, 'empotrado')
@@ -82,7 +95,7 @@ def ejemplo_filas():
     for i, (x, y, z) in enumerate(ejemplo.nodos):
         restr = ejemplo.apoyos.get(i, (False,) * 6)
         nodos.append([i + 1, x, y, z, *['SI' if v else None for v in restr], None, 'SI'])
-    barras = [[k + 1, b['n1'] + 1, b['n2'] + 1, b['elemento'], b['perfil'], None, None, None,
+    barras = [[k + 1, b['n1'] + 1, b['n2'] + 1, b['elemento'], b['perfil'], *(b['eje_fuerte'] or (None, None, None)),
                b['conexion_i'], b['conexion_j'], (b.get('material') or 'A-572 G 50'), None, 'SI',
                ('MEDIA' if b['elemento'] in ('COLUMNA', 'VIGA') else None)]
               for k, b in enumerate(ejemplo.barras)]
@@ -1079,7 +1092,7 @@ def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas
         'DUCTILIDAD: ALTA o MEDIA (lista). Vacio = no se verifica la Tabla 12.1.2 de la NTC para esta barra.',
         'PERFIL: nombre Gerdau rev04 (lista ordenada por familia y seccion).',
         'MATERIAL: elija la calidad de la lista (base de datos de la hoja MATERIALES). Es obligatorio: vacio da error.',
-        'EJE_FUERTE_X, _Y, _Z: vector libre del eje fuerte (direccion del peralte) en coordenadas globales.',
+        'EJE_FUERTE_X, _Y, _Z: direccion del eje fuerte (peralte) en coordenadas globales. OBLIGATORIA en cada barra: no hay valor por defecto.',
         '   Vacio = direccion por defecto del motor. Basta una componente (las vacias valen 0). No puede ser paralelo a la barra.',
         'CONEXION_I y CONEXION_J: empotrado o rotulado en cada extremo de la barra. Vacio = empotrado.',
         'Ver la hoja CONEXIONES para el significado de cada tipo.',

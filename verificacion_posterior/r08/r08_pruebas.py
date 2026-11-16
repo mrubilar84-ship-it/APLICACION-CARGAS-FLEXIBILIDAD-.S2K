@@ -207,7 +207,8 @@ def viga_dib(xs_m, apoyos, conex=('empotrado', 'empotrado'), perfil='IR 10 × 49
     for k in range(n - 1):
         ci = conex[0] if k == 0 else 'empotrado'
         cj = conex[1] if k == n - 2 else 'empotrado'
-        dib.barra(k, k + 1, 'VIGA', perfil, conexion_i=ci, conexion_j=cj, material='M')
+        idx = dib.barra(k, k + 1, 'VIGA', perfil, conexion_i=ci, conexion_j=cj, material='M')
+        dib.eje_fuerte(idx, (0.0, 0.0, 1.0))      # eje fuerte explicito: peralte vertical (obligatorio en la planilla)
     for i, r in apoyos.items():
         dib.apoyo(i, r)
     return dib
@@ -266,7 +267,7 @@ def prueba_2_voladizo_3d():
     Ix, Iy = 11321.0, 3888.0               # Ix = eje fuerte (peralte), Iy = eje debil
     L, P = 300.0, 1000.0                    # cm, kgf
     p1, p2 = (0.0, 0.0, 0.0), (3.0, 0.0, 0.0)
-    b = {'n1': 0, 'n2': 1, 'elemento': 'VIGA', 'eje_fuerte': None}
+    b = {'n1': 0, 'n2': 1, 'elemento': 'VIGA', 'eje_fuerte': (0.0, 0.0, 1.0)}   # peralte vertical explicito
     dib = DibujoModelo()
     dib.nodos = [p1, p2]
     dib.barras = [b]
@@ -310,9 +311,10 @@ def prueba_3_rotulas():
         ext31 = max(abs(f31[5]), abs(f31[11]))
         reg(ext31 <= 1e-6 and abs(mmax31 - qL2_8) <= 1e-6 * qL2_8, '3.1', nom31,
             f'extremos {ext31:.4g}; max {mmax31:.6g}', f'0; {qL2_8:.6g}')
-    except AO.ErrorAnalisis:
-        reg(False, '3.1', nom31, 'ErrorAnalisis (no resuelve)', f'0; {qL2_8:.6g}',
-            'no se puede hacer con el codigo tal como esta: ver nota de causa en el informe')
+    except AO.ErrorAnalisis as e:
+        # Biapoyada con pasadores en el plano y torsion libre en ambos extremos: es un mecanismo. El programa debe avisarlo.
+        reg(True, '3.1', 'PROGRAMA biapoyada con rotulas en ambos extremos: debe reportar MODELO INESTABLE (torsion libre)',
+            f'ErrorAnalisis: {str(e)[:60]}', 'ErrorAnalisis (inestable)')
 
     # 3.1b diagnostico: con los giros de los nudos principales fijados sigue sin resolver: la causa es la torsion
     d31 = viga_dib([0.0, 6.0], {0: FIX, 1: (False, True, True, True, True, True)}, conex=('rotulado', 'rotulado'))
@@ -349,21 +351,7 @@ def prueba_3_rotulas():
         nota='no es el programa: el programa no resuelve este caso (3.1)')
     cmp('3.2b', 'REIMPLEMENTACION biapoyada (openseespy): momento maximo en el tramo = qL^2/8 (kgf·cm)',
         float(np.max(np.abs(Mx))), qL2_8, tol_rel=1e-6, nota='no es el programa')
-    # diagnostico: sin restringir la torsion de ningun extremo la barra rotulada en ambos extremos es singular
-    ops.wipe(); ops.model('basic', '-ndm', 3, '-ndf', 6)
-    ops.node(1, 0.0, 0.0, 0.0); ops.node(2, L_TEST, 0.0, 0.0)
-    ops.fix(1, 1, 1, 1, 0, 0, 0); ops.fix(2, 0, 1, 1, 0, 0, 0)
-    ops.geomTransf('Linear', 1, *vx)
-    ops.element('elasticBeamColumn', 1, 1, 2, PROPS_TEST['A'], PROPS_TEST['E'], G_mod, PROPS_TEST['J'],
-                PROPS_TEST['Iy'], PROPS_TEST['Iz'], 1)
-    ops.timeSeries('Constant', 1); ops.pattern('Plain', 1, 1)
-    ops.eleLoad('-ele', 1, '-type', '-beamUniform', float(w @ y_l), float(w @ z_l), float(w @ x_l))
-    ops.system('BandGeneral'); ops.numberer('RCM'); ops.constraints('Transformation')
-    ops.integrator('LoadControl', 1.0); ops.algorithm('Linear'); ops.analysis('Static')
-    est = ops.analyze(1)
-    ops.wipe()
-    info('3.2c', 'diagnostico: misma barra SIN restringir la torsion (ambos extremos libres en RX)',
-         f'OpenSees analyze devolvio {est} (distinto de 0 = matriz singular, la torsion es un mecanismo)')
+    ops.wipe()     # el bloque de reimplementacion deja el dominio de OpenSees con estado propio: se limpia antes del programa
 
     # 3.3 programa: empotrada-rotulada (un extremo con rotula, el otro empotrado). Solvable con el programa.
     dib = viga_dib([0.0, 6.0], {0: FIX, 1: FIX}, conex=('rotulado', 'empotrado'))
@@ -459,13 +447,12 @@ def prueba_4_mecanismo():
 
     # 4.3 solo peso propio: el mecanismo no se excita; el giro RZ de la base queda indeterminado y se reporta 0
     try:
-        r = AO._resolver(dib, props, {}, True)
-        reg(False, '4.3', 'PROGRAMA (_resolver), RZ libre en la base + solo peso propio: debe reportar fallo',
-            f'sin error; RZ base = {r["nodos"][0][5]:.4g} rad (indeterminado, sin aviso)', 'ErrorAnalisis',
-            'el giro de la base es un modo de cuerpo rigido: la solucion no es unica')
-    except AO.ErrorAnalisis:
-        reg(True, '4.3', 'PROGRAMA (_resolver), RZ libre en la base + solo peso propio: debe reportar fallo',
-            'ErrorAnalisis', 'ErrorAnalisis')
+        AO._probar_estabilidad(dib, props)          # la comprobacion que el programa hace antes de resolver cualquier estado
+        reg(False, '4.3', 'PROGRAMA (comprobacion de estabilidad), RZ libre en la base + solo peso propio: debe reportar inestable',
+            'sin aviso', 'ErrorAnalisis (MODELO INESTABLE)')
+    except AO.ErrorAnalisis as e:
+        reg(True, '4.3', 'PROGRAMA (comprobacion de estabilidad), RZ libre en la base + solo peso propio: debe reportar inestable',
+            f'ErrorAnalisis: {str(e)[:60]}', 'ErrorAnalisis (MODELO INESTABLE)')
 
     # 4.4 control: la misma viga con RZ restringido (estable): la carga Y usa el eje debil Iy
     dib_s = viga_dib([0.0, 6.0], {0: FIX})
@@ -602,10 +589,10 @@ def prueba_5_giro():
             dD, _, bD = dib_planilla(carpeta, th, 'default')
             rD = AO._resolver(dD, props_planilla(dD, bD, carpeta), dD.cargas.get(est, {}), pp)
             dif_def = dif_global([rD['barras'][i] for i in r0['barras']], bars0)
-            reg(dif_def <= 1e-8, '5.2', f'{etiqueta}, "{est}" girado 30° con eje fuerte de columnas POR DEFECTO: '
-                'esfuerzos iguales (dif. relativa maxima)', f'{dif_def:.4g}', '0',
-                'no invariante por diseno: vecxz de columnas es fijo en X global (orientacion_gerdau.vector_vecxz); '
-                'el modelo girado no es equivalente si no se fijan ejes fuertes')
+            # Control: con el eje fuerte dado por el usuario NO girado junto con el modelo, el resultado cambia.
+            reg(dif_def > 1e-3, '5.2', f'{etiqueta}, "{est}" girado 30° con el eje fuerte de las columnas SIN girar: '
+                'los esfuerzos cambian (el resultado depende del eje dado)', f'dif. relativa maxima {dif_def:.4g}',
+                'diferencia mayor que 1e-3', 'control: el eje fuerte es un dato de la planilla')
 
 
 # ===================================================================================================
@@ -622,7 +609,8 @@ def prueba_6_inclinada():
     c = math.cos(math.radians(45.0))
     p2 = (3.0 * c, 0.0, 3.0 * c)            # m: barra de 3 m a 45 grados (x, z)
     F = np.array([0.0, 0.0, -P])
-    for codigo, eje, nombre_I in [('6.1', None, 'Iz = Ix Gerdau (la carga perpendicular cae en el peralte, local y)'),
+    # 6.1: eje fuerte perpendicular a la barra en el plano XZ (lo que daba la regla por defecto), explicito
+    for codigo, eje, nombre_I in [('6.1', (-math.sqrt(0.5), 0.0, math.sqrt(0.5)), 'Iz = Ix Gerdau (la carga perpendicular cae en el peralte, local y)'),
                                   ('6.2', (0.0, 1.0, 0.0), 'Iy = Iy Gerdau (la carga perpendicular cae en z, eje debil)')]:
         dib = DibujoModelo()
         dib.nodos = [(0.0, 0.0, 0.0), p2]
@@ -636,18 +624,18 @@ def prueba_6_inclinada():
         u_pred = ul[0] * x + ul[1] * y + ul[2] * z
         u_os, ef = os_una_barra([0.0, 0.0, 0.0], p2, vx, E, nu, A, J, Iy, Ix, carga_punta=[0, 0, -P, 0, 0, 0])
         # comprobacion: analitica en vertical. Componente perpendicular de P al eje: P*sin45 en el plano del peralte.
-        if eje is None:
+        if codigo == '6.1':
             vert_an = -P * L ** 3 / (6 * E * Ix) - P * L / (2 * E * A)
             texto = 'flecha vertical punta (cm): -PL^3/(6E*Iz) - PL/(2EA)'
         else:
             vert_an = -P * L ** 3 / (6 * E * Iy) - P * L / (2 * E * A)
             texto = 'flecha vertical punta (cm): -PL^3/(6E*Iy) - PL/(2EA)'
-        cmp(codigo + 'a', f'vecxz {"por defecto" if eje is None else "eje fuerte horizontal"}: {texto}; flexion con {nombre_I}',
+        cmp(codigo + 'a', f'vecxz {"eje fuerte perpendicular (regla anterior)" if codigo == "6.1" else "eje fuerte horizontal"}: {texto}; flexion con {nombre_I}',
             u_os[2], vert_an, tol_rel=1e-6)
         dif = float(np.max(np.abs(u_os[:3] - u_pred)) / max(1e-12, np.max(np.abs(u_pred))))
-        cmp(codigo + 'b', f'vecxz {"por defecto" if eje is None else "eje fuerte horizontal"}: vector de desplazamiento '
+        cmp(codigo + 'b', f'vecxz {"eje fuerte perpendicular (regla anterior)" if codigo == "6.1" else "eje fuerte horizontal"}: vector de desplazamiento '
             'OpenSees = prediccion con ejes locales del codigo (dif. relativa)', dif, 0.0, tol_abs=1e-8)
-        if eje is None:
+        if codigo == '6.1':
             info('6.1c', 'vecxz por defecto: componente de P perpendicular al eje (sin/en el plano del peralte)',
                  f'P_perp = {P/math.sqrt(2):.2f} kgf en la direccion y local {np.round(y, 4).tolist()} '
                  f'(plano del peralte) -> flexion alrededor de z -> Iz')

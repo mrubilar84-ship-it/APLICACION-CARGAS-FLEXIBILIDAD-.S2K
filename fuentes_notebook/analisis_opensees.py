@@ -17,6 +17,7 @@ Convencion de ejes (verificada en OpenSees 3.8 con una viga de prueba):
 """
 import math
 import os
+import tempfile
 import numpy as np
 import pandas as pd
 import openseespy.opensees as ops
@@ -113,6 +114,67 @@ def _verificar_conectividad(dib):
                             'Quitelos de NODOS o conectelos.')
 
 
+ALFA_PENALIZACION = 1e12   # con rotulas, las igualdades se imponen por penalizacion (error relativo ~1e-7)
+
+
+def _restricciones(dib):
+    """Transformacion exacta, salvo que una barra rotulada sea oblicua al sistema global: su restriccion de giro
+    es lineal y se impone por penalizacion (error relativo ~1e-7)."""
+    oblicua = False
+    for b in dib.barras:
+        if b.get('conexion_i') == 'rotulado' or b.get('conexion_j') == 'rotulado':
+            p1, p2 = np.array(dib.nodos[b['n1']], float), np.array(dib.nodos[b['n2']], float)
+            e = (p2 - p1) / np.linalg.norm(p2 - p1)
+            oblicua = oblicua or abs(e).max() < 1.0 - 1e-9
+    if oblicua:
+        ops.constraints('Penalty', ALFA_PENALIZACION, ALFA_PENALIZACION)
+    else:
+        ops.constraints('Transformation')
+
+
+def _analizar():
+    """Analisis con captura del aviso del solver. OpenSees devuelve 0 aunque la factorizacion falle con matriz
+    singular: el aviso sale por la salida de error y se lee aqui."""
+    with tempfile.TemporaryFile(mode='w+b') as aviso_f:
+        guardado = os.dup(2)
+        os.dup2(aviso_f.fileno(), 2)
+        try:
+            rc = ops.analyze(1)
+        finally:
+            os.dup2(guardado, 2)
+            os.close(guardado)
+        aviso_f.seek(0)
+        aviso = aviso_f.read().decode('utf-8', 'replace')
+    return rc, aviso
+
+
+def _hay_singular(aviso):
+    return 'singular' in aviso.lower() or 'failed' in aviso.lower()
+
+
+def _nudos_rotulados(dib):
+    """Conteo de conexiones por nudo y eje de cada barra rotulada. Devuelve (directas, rotulas, e_rotula, fijos).
+    fijos: giros en el plano de nudos con una sola barra rotulada y ninguna otra conexion. Esos giros no pueden
+    definirse (no hay elemento que los sujete): se fijan, salvo el giro alrededor de la barra."""
+    directas, rotulas, e_rotula = {}, {}, {}
+    for b in dib.barras:
+        p1, p2 = np.array(dib.nodos[b['n1']], float), np.array(dib.nodos[b['n2']], float)
+        e = (p2 - p1) / np.linalg.norm(p2 - p1)
+        for clave, nodo in (('conexion_i', b['n1']), ('conexion_j', b['n2'])):
+            if b.get(clave) == 'rotulado':
+                rotulas[nodo] = rotulas.get(nodo, 0) + 1
+                e_rotula[nodo] = e
+            else:
+                directas[nodo] = directas.get(nodo, 0) + 1
+    fijos = {}
+    for nodo, e in e_rotula.items():
+        apo = dib.apoyos.get(nodo, (False,) * 6)
+        if nodo not in directas and rotulas.get(nodo) == 1 and not any(apo[3:]):
+            k = int(np.argmax(np.abs(e)))
+            fijos[nodo] = [3 + j for j in range(3) if j != k and abs(e[j]) < 1e-12]
+    return directas, rotulas, e_rotula, fijos
+
+
 def _modelo(dib, props, cargas_nodales, pp):
     """Construye el modelo OpenSees del caso: nodos, apoyos, barras (con rotulas), cargas nodales y peso propio."""
     ops.wipe()
@@ -121,37 +183,67 @@ def _modelo(dib, props, cargas_nodales, pp):
     coords = [tuple(float(c) * 100.0 for c in p) for p in dib.nodos]          # m -> cm
     for i, (x, y, z) in enumerate(coords):
         ops.node(i + 1, x, y, z)
-    for i, restr in dib.apoyos.items():            # restr = (UX, UY, UZ, RX, RY, RZ) de la hoja NODOS
+    directas, rotulas, e_rotula, fijos = _nudos_rotulados(dib)
+    for i in sorted(set(dib.apoyos) | set(fijos)):     # restr = (UX, UY, UZ, RX, RY, RZ) de la hoja NODOS
+        restr = list(dib.apoyos.get(i, (False,) * 6))
+        for d in fijos.get(i, []):                     # giros en el plano de un nudo sin otra conexion
+            restr[d] = True
         ops.fix(i + 1, *[int(v) for v in restr])
     siguiente = len(coords) + 1
     reac_aux = {}          # nodo de la planilla -> etiquetas de extremos articulados apoyados en ese nodo
-
-    def extremo_rotulado(nodo_orig):
-        """Extremo de barra articulado: nodo auxiliar con los giros libres. Las traslaciones restringidas del nodo
-        se aplican al auxiliar (su reaccion se suma a la del nodo); las libres siguen al nodo."""
+    def extremo_rotulado(nodo_orig, e):
+        """Extremo de barra articulado (rotula en el plano): nodo auxiliar. Las traslaciones siguen al nudo (las
+        restringidas del nudo se aplican al auxiliar; su reaccion se suma a la del nudo). El giro alrededor de la barra
+        se transmite del nudo al auxiliar; los giros en el plano quedan libres. Barra alineada con un eje global: el
+        giro se liga por igualdad (exacto). Barra oblicua: restriccion lineal (penalizacion, ver _restricciones)."""
         nonlocal siguiente
         ops.node(siguiente, *coords[nodo_orig])
         tr = dib.apoyos[nodo_orig][:3] if nodo_orig in dib.apoyos else (False, False, False)
-        libres = [d + 1 for d in range(3) if not tr[d]]          # traslaciones que siguen al nodo
-        if libres:
-            ops.equalDOF(nodo_orig + 1, siguiente, *libres)
-        if any(tr):                                              # traslaciones restringidas: apoyo directo
-            ops.fix(siguiente, *[int(v) for v in tr], 0, 0, 0)
+        libres = [d + 1 for d in range(3) if not tr[d]]          # traslaciones que siguen al nudo
+        k = int(np.argmax(np.abs(e)))
+        alineada = abs(e[k]) >= 1.0 - 1e-9
+        ligados = libres + ([4 + k] if alineada else [])
+        if ligados:
+            ops.equalDOF(nodo_orig + 1, siguiente, *ligados)
+        flags = [int(v) for v in tr] + [0, 0, 0]
+        if not alineada:
+            # (giro auxiliar . e) - (giro del nudo . e) = 0 escrito sobre el giro k; los giros del nudo fijados valen cero
+            fijo = dib.apoyos.get(nodo_orig, (False,) * 6)[3:]
+            termina = [(siguiente, 4 + j, float(e[j] / e[k])) for j in range(3) if j != k and abs(e[j]) >= 1e-12]
+            termina += [(nodo_orig + 1, 4 + j, -float(e[j] / e[k])) for j in range(3)
+                        if abs(e[j]) >= 1e-12 and not fijo[j]]
+            if termina:
+                ops.equationConstraint(siguiente, 4 + k, 1.0, *[v for t in termina for v in t])
+            else:                                                # el giro alrededor de la barra lo fija el apoyo
+                flags[3 + k] = 1
+        if any(flags):
+            ops.fix(siguiente, *flags)
+        if any(tr):
             reac_aux.setdefault(nodo_orig, []).append(siguiente)
         siguiente += 1
         return siguiente - 1
 
     for i, b in enumerate(dib.barras):
+        p1, p2 = np.array(dib.nodos[b['n1']], float), np.array(dib.nodos[b['n2']], float)
+        e = (p2 - p1) / np.linalg.norm(p2 - p1)
         ni, nj = b['n1'] + 1, b['n2'] + 1
         if b.get('conexion_i') == 'rotulado':
-            ni = extremo_rotulado(b['n1'])
+            ni = extremo_rotulado(b['n1'], e)
+            e_rotula[b['n1']] = e
         if b.get('conexion_j') == 'rotulado':
-            nj = extremo_rotulado(b['n2'])
+            nj = extremo_rotulado(b['n2'], e)
+            e_rotula[b['n2']] = e
         p = props[i]
         G_mod = p['E'] / (2.0 * (1.0 + p['nu']))
         ops.geomTransf('Linear', i + 1, *vecxz_de_barra(dib.nodos, b))
         ops.element('elasticBeamColumn', i + 1, ni, nj, float(p['A']), float(p['E']), float(G_mod),
                     float(p['J']), float(p['Iy']), float(p['Iz']), i + 1)
+    for nodo, e in e_rotula.items():                       # giro en el plano de un nudo sin otra conexion
+        if nodo in fijos:
+            k = int(np.argmax(np.abs(e)))
+            for j in range(3):
+                if j != k and abs(e[j]) >= 1e-12:
+                    ops.equationConstraint(nodo + 1, 4 + j, 1.0, nodo + 1, 4 + k, -float(e[j] / e[k]))
     ops.timeSeries('Constant', 1)
     ops.pattern('Plain', 1, 1)
     for idx, v in cargas_nodales.items():
@@ -166,18 +258,50 @@ def _modelo(dib, props, cargas_nodales, pp):
     return reac_aux
 
 
+LIMITE_INESTABLE = 1e4   # cm o rad: con una carga de prueba de ~1 kgf, un desplazamiento mayor indica un mecanismo
+GDL_NOMBRE = ['UX', 'UY', 'UZ', 'RX', 'RY', 'RZ']
+
+
+def _probar_estabilidad(dib, props):
+    """Un mecanismo o un grado de libertad sin rigidez puede dar numeros sin error en OpenSees (la matriz queda casi
+    singular y el pivote no es exactamente cero). Se aplica una carga de prueba fija en cada nudo: si el modelo es
+    estable, los desplazamientos son pequenos; si no, son enormes. Lanza ErrorAnalisis con el nudo y el GDL."""
+    rng = np.random.default_rng(20261116)
+    cargas = {i: tuple(float(v) for v in rng.standard_normal(6)) for i in range(len(dib.nodos))}
+    _modelo(dib, props, cargas, False)
+    ops.system('BandGeneral')
+    ops.numberer('RCM')
+    _restricciones(dib)
+    ops.integrator('LoadControl', 1.0)
+    ops.algorithm('Linear')
+    ops.analysis('Static')
+    rc, aviso = _analizar()
+    desp = {i: np.array(ops.nodeDisp(i + 1), float) for i in range(len(dib.nodos))}
+    ops.wipe()
+    if rc != 0 or _hay_singular(aviso) or any(not np.all(np.isfinite(v)) for v in desp.values()):
+        raise ErrorAnalisis('MODELO INESTABLE: OpenSees no resuelve la estructura (mecanismo o grado de libertad sin '
+                            'rigidez). Revise apoyos, rotulas y conexiones de los nudos.')
+    mayor, nudo, gdl = max((abs(v[d]), i, d) for i, v in desp.items() for d in range(6))
+    if mayor > LIMITE_INESTABLE:
+        raise ErrorAnalisis(f'MODELO INESTABLE: la carga de prueba produce un desplazamiento de {mayor:.3g} en el nudo '
+                            f'{nudo + 1} (GDL {GDL_NOMBRE[gdl]}). Hay un mecanismo o un grado de libertad sin rigidez: '
+                            'revise apoyos y rotulas. Un pasador en el plano no restringe el giro alrededor de la barra.')
+
+
 def _resolver(dib, props, cargas_nodales, pp):
     """Un caso (estado): desplazamientos de nodos, fuerzas en extremos de barras y reacciones (cm, kgf)."""
     reac_aux = _modelo(dib, props, cargas_nodales, pp)
     ops.system('BandGeneral')
     ops.numberer('RCM')
-    ops.constraints('Transformation')
+    _restricciones(dib)
     ops.integrator('LoadControl', 1.0)
     ops.algorithm('Linear')
     ops.analysis('Static')
-    if ops.analyze(1) != 0:
+    rc, aviso = _analizar()
+    if rc != 0 or _hay_singular(aviso):
         ops.wipe()
-        raise ErrorAnalisis('OpenSees no pudo resolver el caso. Revise apoyos y rotulas (un mecanismo no se resuelve).')
+        raise ErrorAnalisis('OpenSees no pudo resolver el caso: matriz singular (mecanismo o grado de libertad sin rigidez). '
+                            'Revise apoyos, rotulas y conexiones.')
     ops.reactions()
     reac = {}
     for i in dib.apoyos:
@@ -562,6 +686,8 @@ def correr(dib, materiales, estados, rep_barras, rep_nodos, id_barra, id_de_indi
     clase_todas = {n: clase_combinacion(n, combinaciones, tipos) for n in combinaciones}
     combinaciones = {n: f for n, f in combinaciones.items() if clase_todas[n] != 'viento'}
     resultados, equilibrio, casos, resumen = {}, [], [], []
+    if estados:
+        _probar_estabilidad(dib, props)     # una vez por modelo, antes de resolver cualquier estado
     for nombre, pp in estados:
         cn = cargas.get(nombre, {})
         resultados[nombre] = _resolver(dib, props, cn, pp)

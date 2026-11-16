@@ -77,7 +77,7 @@ Notebook nuevo (no modifica el ejemplo `agente_estructural.ipynb`). El modelo se
 1. **Bloque 6**: carga la plantilla `plantilla_soportes.xlsx` (incrustada) y muestra sus hojas. Descárguela desde la pestaña Output.
 2. Llénela en Excel:
    - **NODOS**: ID, X, Y, Z (m) y UX, UY, UZ, RX, RY, RZ (`SI` = grado restringido; vacío o NO = libre). Empotrado = los 6 en SI; rotulado = UX, UY, UZ.
-   - **BARRAS**: ID, NODO_I, NODO_J, ELEMENTO, PERFIL (lista Gerdau), EJE_FUERTE_X/Y/Z (vector libre del peralte; vacío = por defecto), CONEXION_I y CONEXION_J (`empotrado` o `rotulado` en cada extremo) y DUCTILIDAD (ALTA o MEDIA, lista; vacío = no verifica la Tabla 12.1.2).
+   - **BARRAS**: ID, NODO_I, NODO_J, ELEMENTO, PERFIL (lista Gerdau), EJE_FUERTE_X/Y/Z (direccion del peralte; OBLIGATORIO en cada barra, no tiene valor por defecto), CONEXION_I y CONEXION_J (`empotrado` o `rotulado` en cada extremo) y DUCTILIDAD (ALTA o MEDIA, lista; vacío = no verifica la Tabla 12.1.2).
    - **VISTA_VIVA**: planta y alzado que cambian al editar NODOS o BARRAS. Puede elegir el nivel Z (C3) y la cota Y (C4).
    - **LONGITUDES**: por barra, LX y LY (m) longitud no arriostrada en X e Y, KX y KY (factor K), LB (m) para pandeo lateral y CB. Vacío = supuesto, y queda marcado en el diseño.
    - **Ángulos (LI)**: en LONGITUDES, marque SI en las cuatro columnas E5 solo si la barra las cumple; si no, el diseño usa K·L/rz y H2. LI CONEXION (UNA PATA o DOS PATAS) y LI LONGITUD CONEXION (m) fijan el factor U de tracción.

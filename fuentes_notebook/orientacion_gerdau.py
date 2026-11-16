@@ -43,14 +43,16 @@ def vecxz_desde_direccion(p1, p2, s):
 
 
 def vecxz_de_barra(nodos, b):
-    """vecxz de una barra: usa 'eje_fuerte' si existe, si no el default por tipo de elemento."""
+    """vecxz de una barra a partir de su eje fuerte, que es obligatorio (hoja BARRAS: EJE_FUERTE_X/Y/Z).
+    Sin valor por defecto: el modelo depende de este dato, y un valor implicito lo ocultaria."""
     p1 = nodos[b['n1']]; p2 = nodos[b['n2']]
     s = b.get('eje_fuerte')
-    if s:
-        v = vecxz_desde_direccion(p1, p2, s)
-        if v is not None:
-            return v
-    return vector_vecxz(p1, p2, b.get('elemento'))
+    if not s:
+        raise ValueError('barra sin eje fuerte: indique EJE_FUERTE_X/Y/Z en la hoja BARRAS (direccion del peralte)')
+    v = vecxz_desde_direccion(p1, p2, s)
+    if v is None:
+        raise ValueError('el eje fuerte de la barra es paralelo a la barra: indique una direccion perpendicular')
+    return v
 
 
 def ejes_locales(dib, i):

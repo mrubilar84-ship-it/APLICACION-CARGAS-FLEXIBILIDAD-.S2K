@@ -226,6 +226,9 @@ def construir_modelo(nodos, barras):
         vec = [_col(r, c) for c in EJE_COLS]
         if idx is not None:
             id_barra[idx] = int(float(r['ID']))
+        if idx is not None and not any(not _vacio(v) for v in vec):
+            msgs.append(('BARRAS', int(float(r['ID'])), 'ERROR',
+                         'falta el EJE FUERTE: indique EJE_FUERTE_X/Y/Z (direccion del peralte) en esta barra'))
         if idx is not None and any(not _vacio(v) for v in vec):
             try:
                 dib.eje_fuerte(idx, tuple(0.0 if _vacio(v) else float(v) for v in vec))
