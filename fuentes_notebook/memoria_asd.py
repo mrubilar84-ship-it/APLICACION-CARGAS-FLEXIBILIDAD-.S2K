@@ -105,6 +105,8 @@ def _evaluar(dib, i, id_barra, lon, mat, comb):
     if not dem:
         out.update(estado='SIN COMBINACIONES', fu_res=None)
         return out
+    if familia != 'HSS' and any(d.get('Tr', 0.0) > 0 for d in dem):              # H3: solo HSS
+        supuestos.append('torsión de la barra (T) no verificada: H3 aplica solo a HSS en esta versión')
     pares = list(zip(ev['filas'], casos))
     fu = DA._resumen_fu(ev, pares)
     out.update(fu_res=fu, estado='CUMPLE' if fu['FU MAXIMO'] <= 1.0 else 'NO CUMPLE')
@@ -253,6 +255,20 @@ def _verificaciones(v):
     else:
         ecu_i = '§H1.1: H1-1a Pr/Pc + 8/9·(Mrx/Mcx + Mry/Mcy) ≤ 1 (Pr/Pc ≥ 0.2); H1-1b Pr/(2Pc) + (Mrx/Mcx + Mry/Mcy) ≤ 1 (Pr/Pc < 0.2)'
         calc_i = f'Pc = {_v(res["Pa_c"], 1)} (compresión) o Pt = {_v(res["Pa_t"], 1)} (tracción)'
+    if familia == 'HSS' and res.get('Tc') is not None:                           # H3: torsion y H3.2
+        dt = res['detalle_t']
+        tr = d.get('Tr', 0.0) if d else 0.0
+        calc_t = (f'h = {_v(dt["h"], 3)} cm (lado plano mayor), h/t = {_v(dt["ht"], 2)}, {dt["reg"]}: '
+                  f'Fcr = {_v(dt["Fcr"], 1)} kgf/cm²; C = {_v(dt["C"], 2)} cm³; Tn = Fcr·C = {_v(dt["Tn"], 0)} kgf·cm; '
+                  f'Tc = Tn/ΩT = {_v(res["Tc"], 0)} kgf·cm')
+        filas.append(('Torsión', '§H3.1: H3-1 Tn = Fcr·C; H3-3, H3-4 o H3-5 para Fcr; C = 2(B−t)(H−t)t − 4.5(4−π)t³ '
+                      '(nota de usuario). ΩT = 1.67', calc_t, res['Tc'], tr, fu and fu['FU TORSION (H3.1)']))
+        activa = tr > 0.2 * res['Tc']
+        ecu_i = ('§H3.2: si Tr ≤ 0.2·Tc, interacción H1 y la torsión se descarta. Si Tr > 0.2·Tc: '
+                 'H3-6 Pr/Pc + Mrx/Mcx + Mry/Mcy + (Vr/Vc + Tr/Tc)² ≤ 1.0')
+        calc_i = (f'Tr/Tc = {_v(tr / res["Tc"], 3)}: ' + ('aplica H3-6' if activa else 'aplica H1 (torsión descartada)')
+                  + (f'; H3-6 = {_v(d["Pr_c"] / res["Pa_c"] if d.get("Pr_c", 0) > 0 else 0.0, 3)} (P) + {_v(d["Mr_x"] / res["Ma_x"], 3)} (Mx) + '
+                     f'{_v(d["Mr_y"] / res["Ma_y"], 3)} (My) + ...' if activa and d else ''))
     filas.append(('Interacción', ecu_i, calc_i, None, None, fu and fu['FU INTERACCION (H1/H2)']))
     return filas
 
@@ -525,6 +541,7 @@ REF = {
     'G6': 'AISC 360-22 §G6 (cortante en eje menor), pág. 16.1-81',
     'H1': 'AISC 360-22 §H1.1, ecs. H1-1a y H1-1b, pág. 16.1-82 y 16.1-83',
     'H2': 'AISC 360-22 §H2 (secciones no cubiertas por H1), ec. H2-1, pág. 16.1-84',
+    'H3': 'AISC 360-22 §H3.1 (ecs. H3-1 a H3-5) y §H3.2 (ec. H3-6), pág. 16.1-85 a 16.1-87',
     'NTC_2_3_1': 'NTC-Acero CDMX 2020, §2.3.1 (relación de esbeltez K L/r), pág. 40',
     'NTC_2_3_2': 'NTC-Acero CDMX 2020, §2.3.2 (relaciones de esbeltez máximas), pág. 41',
     'NTC_3_2_1_1': 'NTC-Acero CDMX 2020, §3.2.1.1 y Tabla 3.2.1 (compresión), pág. 56 y 57',
@@ -564,7 +581,7 @@ def _refs_verif(nombre, familia):
     }
     if familia == 'HSS':
         mapa = {'Tracción': ['D2'], 'Compresión': ['E3', 'E7'], 'Flexión eje mayor': ['F7'], 'Flexión eje menor': ['F7'],
-                'Cortante eje mayor': ['G4'], 'Cortante eje menor': ['G4'], 'Interacción': ['H1']}
+                'Cortante eje mayor': ['G4'], 'Cortante eje menor': ['G4'], 'Torsión': ['H3'], 'Interacción': ['H1', 'H3']}
     return ''.join(_ref_html(k) for k in mapa.get(nombre, []))
 
 

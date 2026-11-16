@@ -31,7 +31,8 @@ Forma `HSS`: anchos planos sin radio de esquina, bp = B − 3t y hp = H − 3t (
 | Flexión eje fuerte | F7-1, F7-2, F7-3 (F7-4), F7-6, F7-8, F7-9, F7-10, F7-11 | Mp = Fy·Zx. Patín: compacto, no compacto (F7-2) o esbelto (F7-3 con Se). Alma: no compacta (F7-6); alma esbelta se rechaza (AISC: no hay HSS con almas esbeltas). LTB con Lp y Lr. |
 | Flexión eje débil | F7-1, F7-2/F7-3, F7-6 | Igual, con las paredes verticales como patines. Sin LTB (nota de usuario de F7). |
 | Cortante | G4-1 con Aw = 2·h·t; Cv2 de G2.2 (G2-9 a G2-11) con kv = 5 | h = peralte plano (eje fuerte) o ancho plano (eje débil). Ωv = 1.67. Corregido: la versión anterior usaba G2.1 con kv = 5.34 y Cv1; en el catálogo el resultado numérico es el mismo porque h/t ≤ 61 < 61.76. |
-| Interacción | H1-1a/b | Igual que IR, CE y LI. |
+| Torsión | H3.1 (H3-1, H3-3, H3-4, H3-5); ΩT = 1.67 | Tn = Fcr·C, C = 2(B−t)(H−t)t − 4.5(4−π)t³ (nota de usuario de H3.1). Fcr según h/t, con h = lado plano mayor. Demanda Tr = máximo de |T| en los extremos de la barra (BARRAS, kgf·m → kgf·cm). Utilización Tr/Tc. |
+| Interacción | H1-1a/b; H3-6 (H3.2) | Si Tr ≤ 0.2·Tc: H1 (la torsión se descarta, H3.2). Si Tr > 0.2·Tc: H3-6 = Pr/Pc + Mrx/Mcx + Mry/Mcy + (Vr/Vc + Tr/Tc)² ≤ 1, con Vr/Vc el mayor de x o y. |
 | Esbeltez local NTC | Tabla 3.2.1 (compresión), Tabla 3.2.2 (flexión) | Paredes: λr = 1.40 (compresión); patines 1.12/1.12/1.40; almas 2.42/5.70. |
 | Ductilidad NTC | Tabla 12.1.2, paredes de HSS rectangulares | λda = 0.55√(E/Fy) (alta), λdm = 0.64√(E/Fy) (media); se verifica la pared más esbelta. |
 
@@ -72,8 +73,10 @@ LI cambia (ver sección 4).
 
 ## 5. Limitaciones y pendientes
 
-- Torsión (T de BARRAS): no se verifica en HSS, igual que en IR, CE y LI. Los tubos resisten torsión y es
-  probable que sea gobernante en algunas barras. Requiere decisión: incorporar H3 o declarar el alcance.
+- Torsión en IR, CE y LI: no se verifica, como antes. Si una barra de esos perfiles tiene T distinto de cero, la
+  memoria lo indica en los supuestos de la barra.
+- Torsión en HSS: la demanda es el máximo de los extremos, sin verificar la torsión a lo largo de la barra (la
+  torsión uniforme podría variar en el tramo). Se usa la C de la nota de usuario, que AISC indica como conservadora.
 - Nota [c] de la Tabla 12.1.2 (1.12√(E/Fy)): se interpreta como límite de patines de vigas. No se aplica a paredes
   comprimidas. Por confirmar.
 - Grado de acero, Fy y Fu del A500 Gr C: por confirmar (dato de entrada).
@@ -81,3 +84,17 @@ LI cambia (ver sección 4).
 - Modelo de Se (F7-3): líneas medias de las paredes, sin radios de esquina (M3). Diferencia de 2 % frente a S del
   catálogo en una sección compacta de referencia; 0.03 % frente al modelo M1 en la sección esbelta.
 - Excel de escritorio: no probado (solo LibreOffice).
+
+## 6. Torsión (H3) en HSS: verificación
+
+- Pruebas unitarias en `verificacion_posterior/hss/test_hss.py`: Tc de 8×8×1/2 (H3-3) contra cálculo a mano;
+  regímenes H3-4 (h/t = 70) y H3-5 (h/t = 100); H3-6 con Tr = 0.5·Tc y H1 con Tr = 0.1·Tc.
+- Caso de extremo a extremo `verificacion_posterior/hss/planilla_torsion_ENTRADA.xlsx`: un momento de 70 000 kgf·m
+  alrededor de X en el nodo 8 (estado Sobrecarga, combinación ASD2). La viga 13 (HSS 10 × 6 × 3/8) tiene
+  Tr = 191 112 kgf·cm, Tc = 769 266 kgf·cm, Tr/Tc = 0.248 (usa H3-6). El H3-6 se recalculó a mano con las
+  demandas de BARRAS y da 0.1769, igual que el notebook.
+- Regresión: ejemplo gravitacional y caso sísmico sin cambios en IR, CE ni LI (solo el texto de alcance de RESUMEN).
+  Las columnas nuevas (utilización de torsión y H3-6) van al final de DETALLE y RESULTADOS.
+- Valores normativos en la hoja NORMA: AISC_OMEGA_T_HSS, AISC_H3_LIM1, AISC_H3_LIM2, AISC_H3_LIM3, AISC_H3_K,
+  AISC_H3_FCR_Y y AISC_H3_20PCT, con su cláusula.
+

@@ -22,6 +22,7 @@ Referencias (capitulo y ecuacion del texto de AISC 360-22):
   G2   Cortante de almas (I y canales): Vn = 0.6 Fy Aw Cv1 (G2-1); Ωv = 1.50 para I laminada (G2.1a), 1.67 si no.
   G4   Cortante de HSS rectangulares: Vn = 0.6 Fy Aw Cv2 (G4-1), Aw = 2ht, Cv2 de G2.2 (G2-9 a G2-11) con kv = 5.
   G3   Angulo sencillo: Vn = 0.6 Fy b t Cv2 (G3-1), con h/tw = b/t y kv = 1.2 (una pata, conservador).
+  H3   HSS: torsion H3.1 (Tn = Fcr C, ΩT = 1.67, C de la nota de usuario); H3.2: H3-6 si Tr > 0.2 Tc, si no H1.
   H1   Flexocompresion H1-1a/b (Pr/Pc >= 0.2: 8/9); flexotraccion H1-1a/b con Pc = Pn/Ωt.
   H2   Angulos (no cubiertos por H1): H2-1 con momento resultante sobre cada eje principal (conservador).
 
@@ -48,6 +49,7 @@ AISC_HSS_LP_PATIN = AISC_HSS_LR_PATIN = AISC_HSS_LP_ALMA = AISC_HSS_LR_ALMA = AI
 AISC_HSS_C1 = AISC_HSS_C2 = NTC_HSS_LR_COMP = None
 NTC_HSS_FLEX = NTC_HSS_DUC = None
 AISC_KV_HSS = AISC_CV2_LIM2 = AISC_CV2_K = None
+AISC_OMEGA_T_HSS = AISC_H3_LIM1 = AISC_H3_LIM2 = AISC_H3_LIM3 = AISC_H3_K = AISC_H3_FCR_Y = AISC_H3_20PCT = None
 
 
 def _req(valor, campo_nombre, barra=''):
@@ -67,6 +69,7 @@ def cargar_norma(v, kz):
     global AISC_HSS_LP_PATIN, AISC_HSS_LR_PATIN, AISC_HSS_LP_ALMA, AISC_HSS_LR_ALMA, AISC_HSS_LR_COMP
     global AISC_HSS_C1, AISC_HSS_C2, NTC_HSS_LR_COMP, NTC_HSS_FLEX, NTC_HSS_DUC
     global AISC_KV_HSS, AISC_CV2_LIM2, AISC_CV2_K
+    global AISC_OMEGA_T_HSS, AISC_H3_LIM1, AISC_H3_LIM2, AISC_H3_LIM3, AISC_H3_K, AISC_H3_FCR_Y, AISC_H3_20PCT
     try:
         OMEGA_T_FLU, OMEGA_T_FRA = v['AISC_OMEGA_TFLU'], v['AISC_OMEGA_TFRA']
         OMEGA_C, OMEGA_B, OMEGA_V = v['AISC_OMEGA_C'], v['AISC_OMEGA_B'], v['AISC_OMEGA_V']
@@ -93,6 +96,9 @@ def cargar_norma(v, kz):
                         'alma': (None, v['NTC_HSS_LIM_ALMA_P'], v['NTC_HSS_LIM_ALMA_R'])}
         NTC_HSS_DUC = {'ALTA': v['NTC_HSS_DUC_ALTA'], 'MEDIA': v['NTC_HSS_DUC_MEDIA']}
         AISC_KV_HSS, AISC_CV2_LIM2, AISC_CV2_K = v['AISC_KV_HSS'], v['AISC_CV2_LIM2'], v['AISC_CV2_K']
+        AISC_OMEGA_T_HSS = v['AISC_OMEGA_T_HSS']
+        AISC_H3_LIM1, AISC_H3_LIM2, AISC_H3_LIM3 = v['AISC_H3_LIM1'], v['AISC_H3_LIM2'], v['AISC_H3_LIM3']
+        AISC_H3_K, AISC_H3_FCR_Y, AISC_H3_20PCT = v['AISC_H3_K'], v['AISC_H3_FCR_Y'], v['AISC_H3_20PCT']
     except KeyError as falta:
         raise ErrorAsd(f'falta el valor de norma {falta} en la hoja NORMA de la planilla')
 
@@ -367,6 +373,28 @@ def mn_hss(p, fy, E, eje, Lb=None, Cb=None):
     return mn, det
 
 
+def torsion_hss(p, fy, E):
+    """Resistencia a torsion de HSS rectangular (AISC 360-22 H3.1): Tn = Fcr C (H3-1), con
+    C = 2(B-t)(H-t)t - 4.5(4-pi)t^3 (nota de usuario de H3.1) y Fcr segun h/t (H3-3, H3-4, H3-5), donde
+    h = lado plano mas largo (B4.1b(d)). Devuelve (Tn en kgf·cm, detalle)."""
+    bp, hp = _hss_planos(p)
+    t = p['t']
+    h = max(bp, hp)
+    ht = h / t
+    sq = math.sqrt(E / fy)
+    if ht <= AISC_H3_LIM1 * sq:
+        fcr, reg = AISC_H3_FCR_Y * fy, 'H3-3'
+    elif ht <= AISC_H3_LIM2 * sq:
+        fcr, reg = AISC_H3_FCR_Y * fy * (AISC_H3_LIM1 * sq) / ht, 'H3-4'
+    elif ht <= AISC_H3_LIM3:
+        fcr, reg = AISC_H3_K * math.pi ** 2 * E / ht ** 2, 'H3-5'
+    else:
+        raise ErrorAsd('HSS con h/t mayor que 260: fuera de H3.1 (torsion)')
+    C = 2.0 * (p['B'] - t) * (p['H'] - t) * t - 4.5 * (4.0 - math.pi) * t ** 3
+    tn = fcr * C
+    return tn, dict(h=h, ht=ht, reg=reg, Fcr=fcr, C=C, Tn=tn)
+
+
 def _cv2_hss(ht, E, fy):
     """Cv2 de G2.2 con kv = 5 (G4): G2-9 (h/t <= 1.10 sqrt(kv E/Fy)), G2-10 (hasta 1.37) y G2-11."""
     lim1 = AISC_CV_LIM * math.sqrt(AISC_KV_HSS * E / fy)
@@ -542,14 +570,19 @@ def resistencias_asd(p, familia, fy, fu, E, nu, Lx, Ly, Lb, Kx, Ky, Lz, Cb=None,
     vn_y, om_y, det_vy = vn_debil(p, familia, fy, E)
     out['Va_y'] = vn_y / om_y
     out['detalle_vy'] = det_vy
+    if familia == 'HSS':
+        tn, det_t = torsion_hss(p, fy, E)                              # H3.1: Tc = Tn / ΩT
+        out['Tc'] = tn / AISC_OMEGA_T_HSS
+        out['detalle_t'] = det_t
     out['KLr_fuerte'] = Kx * Lx / p['rx']
     out['KLr_debil'] = Ky * Ly / p['ry']
     out['klr'] = max(out['KLr_fuerte'], out['KLr_debil'])
     return out
 
 
-def utilizacion_asd(res, Pr_t, Pr_c, Mr_x, Mr_y, Vr_x, Vr_y):
-    """Utilizaciones ASD (<= 1 cumple): tension, compresion, flexion eje mayor y menor, cortante, H1 o H2."""
+def utilizacion_asd(res, Pr_t, Pr_c, Mr_x, Mr_y, Vr_x, Vr_y, Tr=0.0):
+    """Utilizaciones ASD (<= 1 cumple): tension, compresion, flexion eje mayor y menor, cortante, H1 o H2.
+    HSS (H3): utilizacion de torsion Tr/Tc; si Tr > 0.2 Tc, la interaccion es H3-6 en lugar de H1 (H3.2)."""
     if res.get('angulo'):
         return _utilizacion_angulo(res, Pr_t, Pr_c, Mr_x, Mr_y, Vr_x, Vr_y)
     u = {}
@@ -561,6 +594,20 @@ def utilizacion_asd(res, Pr_t, Pr_c, Mr_x, Mr_y, Vr_x, Vr_y):
     u['V cortante eje menor'] = Vr_y / res['Va_y'] if Vr_y > 0 else 0.0
     mx = Mr_x / res['Ma_x']
     my = Mr_y / res['Ma_y']
+    if res.get('Tc') is not None:                                             # HSS: H3
+        u['T torsion (H3.1)'] = Tr / res['Tc'] if Tr > 0 else 0.0
+        if Tr > AISC_H3_20PCT * res['Tc']:                                    # H3.2: H3-6 reemplaza a H1
+            if Pr_c > 0:
+                ratio_p = Pr_c / res['Pa_c']
+            elif Pr_t > 0:
+                ratio_p = Pr_t / res['Pa_t']
+            else:
+                ratio_p = 0.0
+            cand_v = [v for v in (Vr_x / res['Va_x'] if Vr_x > 0 else None,
+                                  Vr_y / res['Va_y'] if Vr_y > 0 else None) if v is not None]
+            vr = max(cand_v) if cand_v else 0.0                               # Vr/Vc: el mayor de x o y
+            u['H3 interaccion (H3-6)'] = ratio_p + mx + my + (vr + Tr / res['Tc']) ** 2
+            return u
     if Pr_c > 0:                                                              # H1-1a/b, compresion
         pc = res['Pa_c']
         ratio = Pr_c / pc
@@ -697,6 +744,7 @@ def _demanda_fila(fila):
                 Mr_y=max(abs(_num(fila['My I (kgf·m)'], 0.0)), abs(_num(fila['My J (kgf·m)'], 0.0)),
                          abs(fila['MY MAX EN EL TRAMO (kgf·m)'])) * 100.0,
                 Vr_x=max(abs(_num(fila['Vy I (kgf)'], 0.0)), abs(_num(fila['Vy J (kgf)'], 0.0))),
+                Tr=max(abs(_num(fila['T I (kgf·m)'], 0.0)), abs(_num(fila['T J (kgf·m)'], 0.0))) * 100.0,
                 Vr_y=max(abs(_num(fila['Vz I (kgf)'], 0.0)), abs(_num(fila['Vz J (kgf)'], 0.0))))
 
 
@@ -705,21 +753,23 @@ GRUPOS_ELEMENTO = ['COLUMNA', 'VIGA', 'ARRIOSTRE', 'DIAGONAL']
 COMPRESION_GRUPOS = ('COLUMNA', 'ARRIOSTRE', 'DIAGONAL')
 FAMILIAS_ASD = ('IR', 'CE', 'LI', 'HSS')
 FAMILIA_ORDEN = ['IR', 'CE', 'LI', 'HSS']
-CHEQUEOS_DEMANDA = ['T traccion', 'C compresion', 'F flexion eje mayor', 'F flexion eje menor',
-                    'V cortante eje mayor', 'V cortante eje menor', 'H1 flexocompresion', 'H1 flexotension',
-                    'H2 angulo (H2-1)']
-INTERACCION = ('H1 flexocompresion', 'H1 flexotension', 'H2 angulo (H2-1)')
+CHEQUEOS_DEMANDA_BASE = ['T traccion', 'C compresion', 'F flexion eje mayor', 'F flexion eje menor',
+                         'V cortante eje mayor', 'V cortante eje menor', 'H1 flexocompresion', 'H1 flexotension',
+                         'H2 angulo (H2-1)']
+CHEQUEOS_TORSION = ['T torsion (H3.1)', 'H3 interaccion (H3-6)']      # solo HSS (H3)
+CHEQUEOS_DEMANDA = CHEQUEOS_DEMANDA_BASE + CHEQUEOS_TORSION
+INTERACCION = ('H1 flexocompresion', 'H1 flexotension', 'H2 angulo (H2-1)', 'H3 interaccion (H3-6)')
 CHEQUEO_EL = 'EL esbeltez local (B4.1)'
 CHEQUEO_EG = 'EG KL/r <= 200 (2.3.2)'
 CHEQUEO_D60 = 'D columna ductil KL/r <= 60 (12.1.3.1)'
 CHEQUEO_D12 = 'D tabla 12.1.2 ancho/grueso'
 CHEQUEOS_ESBELTEZ = [CHEQUEO_EL, CHEQUEO_EG, CHEQUEO_D60, CHEQUEO_D12]
-CHEQUEOS_ASD = CHEQUEOS_DEMANDA + CHEQUEOS_ESBELTEZ
+CHEQUEOS_ASD = CHEQUEOS_DEMANDA_BASE + CHEQUEOS_ESBELTEZ
 COLS_RESULTADOS = ['ID', 'PERFIL', 'MATERIAL', 'GRUPO', 'CASO QUE GOBIERNA', 'FU TRACCION', 'FU COMPRESION',
                    'FU FLEXION EJE MAYOR', 'FU FLEXION EJE MENOR', 'FU CORTANTE EJE MAYOR', 'FU CORTANTE EJE MENOR',
                    'FU INTERACCION (H1/H2)', 'FU ESBELTEZ LOCAL (B4.1)', 'FU ESBELTEZ GLOBAL (KL/r<=200)',
                    'FU DUCTILIDAD (12.1.2, 12.1.3.1)', 'FU MAXIMO', 'KL/r EJE FUERTE', 'KL/r EJE DEBIL',
-                   'ESTADO', 'NOTAS']
+                   'ESTADO', 'NOTAS', 'FU TORSION (H3.1)']
 
 
 def _valores_designacion(nombre):
@@ -800,7 +850,7 @@ def _chequear(p, familia, fy, fu, E, nu, Lx, Ly, Lb, kx, ky, grupo, nivel, deman
     if res.get('motivo') and any(d['Pr_c'] > 0 for d in demandas_list):
         return out
     for d in demandas_list:
-        u = utilizacion_asd(res, d['Pr_t'], d['Pr_c'], d['Mr_x'], d['Mr_y'], d['Vr_x'], d['Vr_y'])
+        u = utilizacion_asd(res, d['Pr_t'], d['Pr_c'], d['Mr_x'], d['Mr_y'], d['Vr_x'], d['Vr_y'], d.get('Tr', 0.0))
         u.update(const)
         out['filas'].append(u)
     return out
@@ -831,6 +881,7 @@ def _resumen_fu(ev, pares):
             'FU ESBELTEZ LOCAL (B4.1)': ev['const'].get(CHEQUEO_EL),
             'FU ESBELTEZ GLOBAL (KL/r<=200)': ev['const'].get(CHEQUEO_EG),
             'FU DUCTILIDAD (12.1.2, 12.1.3.1)': max(duct) if duct else None,
+            'FU TORSION (H3.1)': val('T torsion (H3.1)'),
             'FU MAXIMO': fu_max}
 
 
@@ -906,7 +957,7 @@ def perfil_por_grupo(dib):
 COLS_MATRIZ = ['CLAVE', 'ID', 'PERFIL', 'ELEMENTO DISENO', 'FU MAXIMO', 'FU DEMANDA', 'FU ESBELTEZ LOCAL (B4.1)',
                'FU ESBELTEZ GLOBAL (KL/r<=200)', 'FU DUCTILIDAD (12.1.2, 12.1.3.1)', 'CASO QUE GOBIERNA', 'ESTADO']
 FU_DEMANDA_CLAVES = ['FU TRACCION', 'FU COMPRESION', 'FU FLEXION EJE MAYOR', 'FU FLEXION EJE MENOR',
-                     'FU CORTANTE EJE MAYOR', 'FU CORTANTE EJE MENOR', 'FU INTERACCION (H1/H2)']
+                     'FU CORTANTE EJE MAYOR', 'FU CORTANTE EJE MENOR', 'FU INTERACCION (H1/H2)', 'FU TORSION (H3.1)']
 
 
 def matriz_fu_por_perfil(dib, materiales_filas, longitudes_df, demandas, id_barra, familias=FAMILIAS_ASD):
@@ -1051,7 +1102,8 @@ def diseno_asd_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id
         pares = list(zip(ev['filas'], casos))
         for u, caso in pares:
             det_filas.append([id_, perfil, caso] + [u.get(c) for c in CHEQUEOS_ASD]
-                             + [max(v for v in u.values() if v is not None)])
+                             + [max(v for v in u.values() if v is not None)]
+                             + [u.get(c) for c in CHEQUEOS_TORSION])
         if not pares:
             fu = {c: None for c in COLS_RESULTADOS if c.startswith('FU')}
             fu.update({'CASO QUE GOBIERNA': None, 'FU ESBELTEZ LOCAL (B4.1)': ev['const'][CHEQUEO_EL],
@@ -1064,7 +1116,7 @@ def diseno_asd_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id
                               **{'KL/r EJE FUERTE': res['KLr_fuerte'], 'KL/r EJE DEBIL': res['KLr_debil']},
                               ESTADO=estado, NOTAS=cap['NOTAS']))
     resultados = pd.DataFrame(res_filas, columns=COLS_RESULTADOS)
-    detalle = pd.DataFrame(det_filas, columns=['ID', 'PERFIL', 'CASO'] + CHEQUEOS_ASD + ['MAXIMO'])
+    detalle = pd.DataFrame(det_filas, columns=['ID', 'PERFIL', 'CASO'] + CHEQUEOS_ASD + ['MAXIMO'] + CHEQUEOS_TORSION)
     capacidades = pd.DataFrame(caps)
     with pd.ExcelWriter(ruta_salida, engine='openpyxl') as w:
         pd.DataFrame([['Metodo', 'ASD con ANSI/AISC 360-22 (Omega: traccion 1.67/2.00, compresion y flexion 1.67, cortante 1.50 o 1.67)'],
