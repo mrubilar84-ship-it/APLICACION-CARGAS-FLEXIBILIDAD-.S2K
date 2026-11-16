@@ -197,6 +197,11 @@ def _resolver(dib, props, cargas_nodales, pp):
         for v in grupo.values():
             if not np.all(np.isfinite(v)):
                 raise ErrorAnalisis('resultado no finito: revise el modelo (mecanismo o nodo mal apoyado)')
+    # Un mecanismo puede dar numeros sin error en OpenSees: las reacciones deben equilibrar las cargas.
+    escala = max(1.0, float(np.linalg.norm(_fuerza_aplicada(dib, props, cargas_nodales, pp))))
+    if _residuo(dib, props, cargas_nodales, pp, res) > 1e-6 * escala:
+        raise ErrorAnalisis('el modelo no equilibra las cargas (residuo de fuerzas mayor que 1e-6 de la carga): '
+                            'revise apoyos y rotulas; es un mecanismo o un nodo mal apoyado.')
     return res
 
 
@@ -213,8 +218,8 @@ def _combinar(partes):
     return out
 
 
-def _residuo(dib, props, cargas_nodales, pp, res):
-    """Equilibrio global de fuerzas: suma de reacciones + cargas aplicadas + peso propio (debe ser ~0)."""
+def _fuerza_aplicada(dib, props, cargas_nodales, pp):
+    """Suma de las cargas nodales y del peso propio (kgf), vector de 3 componentes."""
     F = np.zeros(3)
     for v in cargas_nodales.values():
         F += np.array(v[:3], float)
@@ -222,6 +227,12 @@ def _residuo(dib, props, cargas_nodales, pp, res):
         L = [np.linalg.norm(np.array(dib.nodos[b['n2']]) - np.array(dib.nodos[b['n1']])) * 100.0
              for b in dib.barras]
         F += sum(props[i]['masa'] / 100.0 * L[i] for i in range(len(L))) * GRAVEDAD
+    return F
+
+
+def _residuo(dib, props, cargas_nodales, pp, res):
+    """Equilibrio global de fuerzas: suma de reacciones + cargas aplicadas + peso propio (debe ser ~0)."""
+    F = _fuerza_aplicada(dib, props, cargas_nodales, pp)
     R = np.zeros(3)
     for v in res['reac'].values():
         R += v[:3]
