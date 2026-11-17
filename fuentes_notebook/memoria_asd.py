@@ -762,7 +762,7 @@ def _seccion_sismo(dib, casos, id_barra, proyecto):
     f_el = cf['qp'] * R                                       # LDNE y OI
     f_sv = cf['Q'] * R                                        # Seguridad de Vida (multiplicador QR' de 1.7)
     ks, g_ldne, g_oi, g_sv = cf['ks'], cf['gLDNE'], cf['gOI'], cf['gSV']
-    filas, drift_piso = [], {}
+    filas, filas_comp, drift_piso = [], [], {}
     for idb, bot, top, h_cm in cols:
         dG = sum((_rel(estados[g], bot, top) for g in gravedad), np.zeros(2))
         mejor = None
@@ -771,6 +771,17 @@ def _seccion_sismo(dib, casos, id_barra, proyecto):
             if mejor is None or db > mejor[0]:
                 mejor = (db, e)
         db, e = mejor
+        # Componentes de la deformacion horizontal relativa (cm -> mm) que forman el total de esta columna
+        dE = _rel(estados[e], bot, top)
+        dD = sum((_rel(estados[g], bot, top) for g in gravedad if tipos.get(g) == 'D'), np.zeros(2))
+        dLc = sum((_rel(estados[g], bot, top) for g in gravedad if tipos.get(g) == 'L'), np.zeros(2))
+        filas_comp.append(
+            f'<tr><td class="num">{idb}</td><td>{html.escape(str(e))}</td>'
+            f'<td class="num">{_v(float(np.linalg.norm(dE)) * 10.0, 2)}</td>'
+            f'<td class="num">{_v(f_el * float(np.linalg.norm(dE)) * 10.0, 2)}</td>'
+            f'<td class="num">{_v(float(np.linalg.norm(dD)) * 10.0, 2)}</td>'
+            f'<td class="num">{_v(float(np.linalg.norm(dLc)) * 10.0, 2)}</td>'
+            f'<td class="num">{_v(db * h_cm * 10.0, 2)}</td></tr>')
         dl = max(_dcol(dG, _rel(estados[e2], bot, top), ks * f_el, h_cm) for e2 in sismos)
         dsv = max(_dcol(dG, _rel(estados[e2], bot, top), f_sv, h_cm) for e2 in sismos)
         zb = round(float(dib.nodos[bot][2]), 3)
@@ -784,6 +795,11 @@ def _seccion_sismo(dib, casos, id_barra, proyecto):
     tabla_ldne = ('<table><tr><th>Columna</th><th>Estado sísmico que controla</th><th>h (cm)</th>'
                   '<th>δ elástica (mm)</th><th>δ/h</th><th>LDNE</th><th>Ocupación Inmediata</th>'
                   '<th>Seguridad de Vida</th></tr>' + ''.join(filas) + '</table>')
+    tabla_comp = ('<table><tr><th>Columna</th><th>Estado sísmico que controla</th>'
+                  '<th>Δ sísmica del modelo (mm)</th><th>f·Δ sísmica (mm)</th><th>Δ gravedad D (mm)</th>'
+                  '<th>Δ gravedad L (mm)</th><th>δ total (mm)</th></tr>' + ''.join(filas_comp) + '</table>'
+                  '<p class="nota">Δ = desplazamiento horizontal relativo entre los extremos de la columna (módulo del vector XY). '
+                  'δ total = máximo de |Δ gravedad ± f·Δ sísmica| (el sismo es reversible). Gravedad con factor 1.</p>')
     filas_t = ''.join(
         f'<tr><td>{html.escape(str(e))}</td><td class="num">{"—" if periodos[e] is None else f"{periodos[e]:.3f}"}</td></tr>'
         for e in sismos)
@@ -837,6 +853,8 @@ def _seccion_sismo(dib, casos, id_barra, proyecto):
             f'{html.escape(cf["ks_txt"])}, y gravedad D y L con factor 1, sin factores de carga. Límite γ<sub>LDNE</sub> = '
             f'{g_ldne:.3f} ({deform}).</p>'
             f'{tabla_ldne}'
+            f'<p><b>Origen de la deformación elástica</b> (cada componente de la columna que controla):</p>'
+            f'{tabla_comp}'
             f'<p><b>Periodo aproximado (§6.4.1)</b>: T = 2π√(ΣW·X²/(g·ΣF·X)), con fuerzas y desplazamientos del estado '
             f'sísmico, g = {cf["g"]:g} m/s². Se usa el periodo menor para k<sub>2</sub>.</p>'
             f'{tabla_t}'
