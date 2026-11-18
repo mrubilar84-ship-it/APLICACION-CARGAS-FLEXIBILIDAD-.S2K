@@ -75,7 +75,7 @@ def _evaluar(dib, i, id_barra, lon, mat, comb):
     e = DA._entrada_barra(dib, i, id_barra, lon, mat)
     m = e['m']
     out.update(L=e['L'], lx=e['lx'], ly=e['ly'], lb=e['lb'], kx=e['kx'], ky=e['ky'], cb=e['cb'],
-               nivel=e['nivel'], e5=e['e5'], conexion=e['conexion'], l_li=e['l_li'])
+               e5=e['e5'], conexion=e['conexion'], l_li=e['l_li'])
     supuestos = list(e['supuestos'])
     if m is None or m['fy'] is None or m['E'] is None or m['nu'] is None:
         out.update(estado='NO REVISADO', motivo='material sin fy, E o nu en MATERIALES', supuestos=supuestos)
@@ -96,7 +96,7 @@ def _evaluar(dib, i, id_barra, lon, mat, comb):
     dem = [DA._demanda_fila(x) for _, x in f.iterrows()]
     casos = [x['CASO'] for _, x in f.iterrows()]
     ev = DA._chequear(p, familia, m['fy'], m['fu'], m['E'], m['nu'], e['lx'] * 100.0, e['ly'] * 100.0,
-                      e['lb'] * 100.0, e['kx'], e['ky'], b['elemento'], e['nivel'], dem, cb=e['cb'],
+                      e['lb'] * 100.0, e['kx'], e['ky'], b['elemento'], dem, cb=e['cb'],
                       e5=e5_b, u_t=u_b)
     if ev['motivo'] and any(d['Pr_c'] > 0 for d in dem):
         out.update(estado='NO REVISADO', motivo='NO REVISADO: ' + ev['motivo'])
@@ -290,49 +290,28 @@ def _tabla_verif(v):
     ev = v['ev']
     for nombre, (lam, lr) in ev['el_det'].items():
         cuerpo.append(f'<tr><td>Esbeltez local: {html.escape(nombre)}{_ref_local(v)}</td>'
-                      f'<td class="ec">NTC Tabla 3.2.1 (compresión) / Tabla 3.2.2 (flexión): λ ≤ λr</td>'
+                      f'<td class="ec">AISC 360-22 Tabla B4.1a (compresión) / B4.1b (flexión): λ ≤ λr</td>'
                       f'<td class="ec">λ = {_v(lam, 2)}; λr = {_v(lr, 2)}</td>'
                       f'<td class="num">{_v(lr, 2)}</td><td class="num">{_v(lam, 2)}</td>'
                       f'<td class="num">{_estado_txt(lam <= lr)}</td></tr>')
     if v['grupo'] in DA.COMPRESION_GRUPOS:
-        lim = 60.0 if (v['grupo'] == 'COLUMNA' and v['nivel'] in ('ALTA', 'MEDIA')) else 200.0
-        ecu_g = 'NTC 2.3.2: KL/r ≤ 200 (§E2 recomienda 200)' + ('; columna dúctil 12.1.3.1: KL/r ≤ 60' if lim == 60.0 else '')
-        cuerpo.append(f'<tr><td>Esbeltez global{_ref_html("NTC_2_3_2")}'
-                      + (_ref_html('NTC_12_1_3_1') if lim == 60.0 else '') + f'</td><td class="ec">{ecu_g}</td>'
+        lim = DA.LIMITE_KLR
+        cuerpo.append(f'<tr><td>Esbeltez global{_ref_html("PROY_KLR")}</td>'
+                      f'<td class="ec">IMCA cap. E: KL/r ≤ {lim:.0f}</td>'
                       f'<td class="ec">KL/r máx = {_v(v["klr"], 1)}</td><td class="num">{_v(lim, 0)}</td>'
                       f'<td class="num">{_v(v["klr"], 1)}</td><td class="num">{_estado_txt(v["klr"] <= lim)}</td></tr>')
     else:
-        cuerpo.append('<tr><td>Esbeltez global</td><td class="ec">NTC 2.3.2: KL/r ≤ 200 (§E2)</td>'
+        cuerpo.append('<tr><td>Esbeltez global</td><td class="ec">IMCA cap. E: KL/r ≤ 200</td>'
                       '<td class="ec">no aplica: elemento sin compresión</td><td class="num">—</td>'
                       '<td class="num">—</td><td class="num">—</td></tr>')
-    if (v.get('fu_res') or {}).get('FU TRACCION'):
-        lim_t = 300.0 if v['grupo'] in ('ARRIOSTRE', 'DIAGONAL') else 240.0
-        lmax = max(v['lx'], v['ly']) * 100.0
-        rmin = v['p']['rz'] if v['familia'] == 'LI' else min(v['p']['rx'], v['p']['ry'])
-        est_t = ('<span class="cumple">dentro de la referencia</span>' if lmax / rmin <= lim_t
-                 else '<span class="nocumple">supera la referencia</span>')
-        cuerpo.append(f'<tr><td>Esbeltez en tensión (referencia){_ref_html("NTC_2_3_2")}{_ref_html("NTC_4_4")}</td>'
-                      f'<td class="ec">NTC 2.3.2: límite de referencia {lim_t:.0f} ({"miembros principales" if lim_t == 240.0 else "contraventeos y secundarios"}); NTC 4.4: sin límite obligatorio</td>'
-                      f'<td class="ec">L/r = {_v(lmax, 1)} / {_v(rmin, 2)}</td><td class="num">{lim_t:.0f}</td>'
-                      f'<td class="num">{_v(lmax / rmin, 1)}</td><td class="num">{est_t}</td></tr>')
-    dd = ev.get('dd')
-    if dd is not None and v['nivel']:
-        if v['familia'] == 'LI':
-            lam_d, lim_d = dd['lambda'], dd['limite']
-        else:
-            lam_d = dd['lf']
-            lim_d = dd['lda_f'] if v['nivel'] == 'ALTA' else dd['ldm_f']
-        cuerpo.append(f'<tr><td>Ductilidad ({v["nivel"]}){_ref_html("NTC_12_1_2")}</td><td class="ec">NTC Tabla 12.1.2: ancho/grueso</td>'
-                      f'<td class="ec">b/t = {_v(lam_d, 2)}</td><td class="num">{_v(lim_d, 2)}</td>'
-                      f'<td class="num">{_v(lam_d, 2)}</td><td class="num">{_estado_txt(lam_d <= lim_d)}</td></tr>')
     cabecera = ('<tr><th>Verificación</th><th>Ecuación</th><th>Cálculo</th><th>Límite / capacidad</th>'
                 '<th>Calculado / demanda</th><th>FU o estado</th></tr>')
     return f'<table>{cabecera}{"".join(cuerpo)}</table>'
 
 
 COLS_GRUPO = ['ID', 'PERFIL', 'FU ESFUERZOS', 'ESFUERZO QUE GOBIERNA', 'FU ESBELTEZ', 'ESBELTEZ QUE GOBIERNA',
-              'ELEM. LOCAL CRÍTICO', 'CLASIF. NTC (3.2)', 'λ LOCAL CALC', 'λ LOCAL LÍMITE', 'KL/r CALC', 'KL/r LÍMITE',
-              'λ DUCT CALC', 'λ DUCT LÍMITE', 'ESTADO', 'NOTA']
+              'ELEM. LOCAL CRÍTICO', 'CLASIF. AISC (B4.1)', 'λ LOCAL CALC', 'λ LOCAL LÍMITE', 'KL/r CALC', 'KL/r LÍMITE',
+              'ESTADO', 'NOTA']
 
 
 def _interaccion(v):
@@ -351,34 +330,27 @@ def _interaccion(v):
 
 
 def _fila_grupo(v):
-    """Una fila de la tabla por grupo: FU de interaccion, esbeltez local y global (calculado y limite) y estado."""
+    """Una fila de la tabla por grupo: FU de esfuerzos y de esbeltez (local y KL/r), valores calculados y limites, estado."""
     if 'res' not in v or not v.get('fu_res'):
-        return [v['id'], v['perfil']] + [None] * 12 + [v['estado'], v.get('motivo', '')]
+        return [v['id'], v['perfil']] + [None] * 10 + [v['estado'], v.get('motivo', '')]
     ev = v['ev']
-    inter = _interaccion(v)
     crit, lam_c, lam_l = max(((n, l, r) for n, (l, r) in ev['el_det'].items()), key=lambda t: t[1] / t[2])
     klr_c = klr_l = None
     if v['grupo'] in DA.COMPRESION_GRUPOS:
         klr_c = round(v['klr'], 2)
-        klr_l = 60.0 if (v['grupo'] == 'COLUMNA' and v['nivel'] in ('ALTA', 'MEDIA')) else 200.0
-    dd = ev.get('dd')
-    lam_d_c = lam_d_l = None
-    if dd is not None and v['nivel']:
-        lam_d_c = dd['lambda'] if v['familia'] == 'LI' else dd['lf']
-        lam_d_l = dd['limite'] if v['familia'] == 'LI' else (dd['lda_f'] if v['nivel'] == 'ALTA' else dd['ldm_f'])
-        lam_d_c, lam_d_l = round(lam_d_c, 2), round(lam_d_l, 2)
+        klr_l = DA.LIMITE_KLR
     nota = []
     if v['familia'] == 'LI' and not v['e5_b'] and v['grupo'] in DA.COMPRESION_GRUPOS:
         nota.append('E5 no verificado: K L/rz y H2')
     if v['grupo'] not in DA.COMPRESION_GRUPOS:
         nota.append('sin compresión: KL/r no aplica')
-    clasif = (f'tipo {DA.tipo_seccion_flexion(v["p"], v["familia"], v["fy"], v["E"])}' if v['grupo'] == 'VIGA'
+    clasif = (DA.clasificacion_flexion(v['p'], v['familia'], v['fy'], v['E']) if v['grupo'] == 'VIGA'
               else DA.clasificacion_compresion(v['p'], v['familia'], v['fy'], v['E']))
     fr = v['fu_res']
     return [v['id'], v['perfil'], round(fr['FU ESFUERZOS'], 3) if fr.get('FU ESFUERZOS') is not None else None,
             fr.get('ESFUERZO QUE GOBIERNA'), round(fr['FU ESBELTEZ'], 3) if fr.get('FU ESBELTEZ') is not None else None,
             fr.get('ESBELTEZ QUE GOBIERNA'), crit, clasif, round(lam_c, 2), round(lam_l, 2), klr_c, klr_l,
-            lam_d_c, lam_d_l, v['estado'], '; '.join(nota)]
+            v['estado'], '; '.join(nota)]
 
 
 def resultados_grupo(dib, grupo, perfil, materiales_filas, longitudes_df, demandas, id_barra):
@@ -460,8 +432,7 @@ def _bloque_barra(v):
              f'ν = {_v(v["nu"], 2)}</td></tr>'
              f'<tr><td><b>Longitudes</b>: L = {_v(v["L"], 1)} cm · LX = {_v(v["lx"] * 100, 1)} cm · '
              f'LY = {_v(v["ly"] * 100, 1)} cm · LB = {_v(v["lb"] * 100, 1)} cm · KX = {_v(v["kx"], 2)} · '
-             f'KY = {_v(v["ky"], 2)} · Cb = {_v(v["cb"], 2)} · Ductilidad (BARRAS): '
-             f'{html.escape(v["nivel"] or "no marcada")}</td></tr>'
+             f'KY = {_v(v["ky"], 2)} · Cb = {_v(v["cb"], 2)}</td></tr>'
              + ('<tr><td><b>Ángulo</b>: E5 ' + ('verificado (LONGITUDES)' if v['e5_b'] else
                                                   'no verificado: se usa K L/rz y H2')
                 + f' · conexión {html.escape(v["conexion"])} · U = {_v(v["U"], 3)} · l = {_v(v["l_li"], 1)} cm</td></tr>'
@@ -476,9 +447,9 @@ def _bloque_barra(v):
             f'<h3>Combinaciones de servicio de la barra</h3>'
             f'<p class="nota">Cada combinación se revisa con sus propias demandas. Resaltada: la que controla '
             f'(<b>{html.escape(str(v.get("caso_dem")))}</b>).</p>{_tabla_combinaciones(v)}'
-            f'<h3>Verificaciones (AISC 360-22 ASD y NTC), combinación que controla</h3>'
+            f'<h3>Verificaciones (AISC 360-22 ASD), combinación que controla</h3>'
             f'<p class="nota">Capacidad = resistencia admisible; demanda = la de la combinación que controla. '
-            f'FU = demanda / capacidad (cumple si FU ≤ 1.0). Las filas de esbeltez comparan λ calculado con λ límite (NTC).</p>'
+            f'FU = demanda / capacidad (cumple si FU ≤ 1.0). Las filas de esbeltez comparan λ calculado con λ límite (AISC B4.1).</p>'
             f'{_tabla_verif(v)}'
             + (f'<h3>Supuestos de esta barra</h3><ul class="nota">{sup}</ul>' if sup else '')
             + '</section>')
@@ -532,7 +503,7 @@ def _png_deformada(dib, res, titulo):
     return base64.b64encode(buf.getvalue()).decode('ascii'), escala
 
 
-# Referencias de las verificaciones: apartado y pagina del documento (NTC-Acero CDMX 2020 y AISC 360-22).
+# Referencias de las verificaciones: apartado y pagina del documento (AISC 360-22 y criterio del proyecto).
 REF = {
     'D2': 'AISC 360-22 §D2, ecs. D2-1 y D2-2, pág. 16.1-32 y 16.1-33',
     'D3': 'AISC 360-22 §D3, Tabla D3.1 (factor U), pág. 16.1-34',
@@ -552,23 +523,11 @@ REF = {
     'H1': 'AISC 360-22 §H1.1, ecs. H1-1a y H1-1b, pág. 16.1-82 y 16.1-83',
     'H2': 'AISC 360-22 §H2 (secciones no cubiertas por H1), ec. H2-1, pág. 16.1-84',
     'H3': 'AISC 360-22 §H3.1 (ecs. H3-1 a H3-5) y §H3.2 (ec. H3-6), pág. 16.1-85 a 16.1-87',
-    'NTC_2_3_1': 'NTC-Acero CDMX 2020, §2.3.1 (relación de esbeltez K L/r), pág. 40',
-    'NTC_2_3_2': 'NTC-Acero CDMX 2020, §2.3.2 (relaciones de esbeltez máximas), pág. 41',
-    'NTC_3_2_1_1': 'NTC-Acero CDMX 2020, §3.2.1.1 y Tabla 3.2.1 (compresión), pág. 56 y 57',
-    'NTC_3_2_1_2': 'NTC-Acero CDMX 2020, §3.2.1.2 y Tabla 3.2.2 (flexión), pág. 56 y 58',
-    'NTC_3_2_5': 'NTC-Acero CDMX 2020, §3.2.5 (anchos efectivos; no aplicados), pág. 61',
-    'NTC_4_4': 'NTC-Acero CDMX 2020, §4.4 (relaciones de esbeltez en tensión), pág. 65 y 66',
-    'NTC_12_1_2': 'NTC-Acero CDMX 2020, Tabla 12.1.2 (ancho/grueso, ductilidad), pág. 212',
-    'NTC_12_1_2_HSS': 'NTC-Acero CDMX 2020, Tabla 12.1.2 (paredes de HSS rectangulares), pág. 212',
-    'NTC_3_2_1_HSS': 'NTC-Acero CDMX 2020, Tabla 3.2.1 (paredes de HSS, λr), pág. 58',
-    'NTC_3_2_2_HSS': 'NTC-Acero CDMX 2020, Tabla 3.2.2 (patines y almas de HSS), pág. 59',
     'F7': 'AISC 360-22 §F7 (HSS cuadradas y rectangulares), ecs. F7-1 a F7-11, pág. 16.1-63 a 16.1-65',
-    'NTC_12_1_3_1': 'NTC-Acero CDMX 2020, §12.1.3.1 (columnas dúctiles, KL/r ≤ 60), pág. 207',
-    'NTC_CA_4_1_1': 'NTC Criterios y Acciones CDMX, §4.1.1 b), pág. 8',
-    'NTC_CA_4_1_1_A': 'NTC Criterios y Acciones CDMX, §4.1.1 a), pág. 8',
-    'NTC_11_4': 'NTC-Acero CDMX 2020, §11.4 (deflexiones: remite a las NTC de Criterios y Acciones), pp. 197 y 198',
-    'NTC_11_6': 'NTC-Acero CDMX 2020, §11.6 (desplazamientos laterales: remite al Art. 149 del Reglamento y al Capítulo 1 '
-                'de las NTC de Diseño por Sismo), pp. 201 y 202',
+    'B4_1A': 'AISC 360-22 Tabla B4.1a (esbeltez local de elementos comprimidos), con E7 para anchos efectivos',
+    'B4_1B': 'AISC 360-22 Tabla B4.1b (esbeltez local de elementos en flexión)',
+    'PROY_KLR': 'IMCA 5ta ed., cap. E (pág. 185 aprox.; verificar en la imagen): KL/r ≤ 200',
+    'L2_FLECHA': 'AISC 360-22 Comentario L2, pág. 16.1-543 (límites de flecha)',
 }
 
 
@@ -596,277 +555,51 @@ def _refs_verif(nombre, familia):
 
 
 def _ref_local(v):
-    """Referencia NTC de la esbeltez local: Tabla 3.2.1 en compresion, Tabla 3.2.2 en flexion."""
-    if v.get('familia') == 'HSS':
-        return _ref_html('NTC_3_2_1_HSS' if v['grupo'] in DA.COMPRESION_GRUPOS else 'NTC_3_2_2_HSS')
-    return _ref_html('NTC_3_2_1_1' if v['grupo'] in DA.COMPRESION_GRUPOS else 'NTC_3_2_1_2')
+    """Referencia AISC de la esbeltez local: Tabla B4.1a en compresion, Tabla B4.1b en flexion."""
+    return _ref_html('B4_1A' if v['grupo'] in DA.COMPRESION_GRUPOS else 'B4_1B')
 
 
 def _nota_normativa():
-    """Nota de la memoria: el diseno es AISC 360-22 ASD y las esbelteces se verifican con la NTC-Acero CDMX."""
+    """Nota de la memoria: diseno AISC 360-22 ASD. No se aplica la NTC-Acero ni la NTC de sismo (criterio del revisor)."""
     filas = [
-        ('Esbeltez global en compresión (obligatorio)', REF['NTC_2_3_2'], 'KL/r ≤ 200',
+        ('Esbeltez global en compresión (IMCA cap. E)', REF['PROY_KLR'], 'KL/r ≤ 200',
          'COLUMNA, ARRIOSTRE, DIAGONAL'),
-        ('Columna dúctil', REF['NTC_12_1_3_1'], 'KL/r ≤ 60', 'COLUMNA con DUCTILIDAD ALTA o MEDIA'),
-        ('Esbeltez local en compresión: patín', REF['NTC_3_2_1_1'],
+        ('Esbeltez local en compresión: patín', REF['B4_1A'],
          'b/t ≤ 0.56·√(E/Fy) (I y canal); ala de ángulo b/t ≤ 0.45·√(E/Fy)', 'COLUMNA, ARRIOSTRE, DIAGONAL'),
-        ('Esbeltez local en compresión: alma', REF['NTC_3_2_1_1'], 'h/t ≤ 1.49·√(E/Fy)',
+        ('Esbeltez local en compresión: alma', REF['B4_1A'], 'h/t ≤ 1.49·√(E/Fy)',
          'COLUMNA, ARRIOSTRE, DIAGONAL'),
-        ('Esbeltez local en flexión: patín', REF['NTC_3_2_1_2'],
-         'b/t ≤ 1.00·√(E/Fy) (tipo 3); 0.38 (tipo 2); 0.30 (tipo 1)', 'VIGA'),
-        ('Esbeltez local en flexión: alma', REF['NTC_3_2_1_2'],
-         'h/t ≤ 5.70·√(E/Fy) (tipo 3); 3.76 (tipo 2); 2.45 (tipo 1)', 'VIGA'),
-        ('Esbeltez local en flexión: ala de ángulo', REF['NTC_3_2_1_2'],
-         'b/t ≤ 0.91·√(E/Fy) (tipo 3); 0.54 (tipo 2)', 'VIGA (LI)'),
-        ('Tipo de sección en flexión', REF['NTC_3_2_1_2'],
-         'tipo 1, 2 o 3 si λ ≤ λr; tipo 4 queda fuera del diseño', 'VIGA'),
-        ('Límite de esbeltez en tensión', REF['NTC_2_3_2'] + '. Sin límite obligatorio: ' + REF['NTC_4_4'],
-         'L/r ≤ 240 en miembros principales; L/r ≤ 300 en contraventeos y secundarios',
-         'barras con tensión'),
-        ('Ductilidad: patines y alas', REF['NTC_12_1_2'],
-         'b/t ≤ 0.30·√(E/Fy) (alta) o 0.38·√(E/Fy) (media)', 'barras con DUCTILIDAD marcada'),
+        ('Esbeltez local en flexión: patín', REF['B4_1B'],
+         'b/t ≤ 1.00·√(E/Fy) (λr); 0.38·√(E/Fy) (λp)', 'VIGA'),
+        ('Esbeltez local en flexión: alma', REF['B4_1B'],
+         'h/t ≤ 5.70·√(E/Fy) (λr); 3.76·√(E/Fy) (λp)', 'VIGA'),
+        ('Esbeltez local en flexión: ala de ángulo', REF['B4_1B'],
+         'b/t ≤ 0.91·√(E/Fy) (λr); 0.54·√(E/Fy) (λp)', 'VIGA (LI)'),
+        ('Clasificación de la sección en flexión', REF['B4_1B'],
+         'compacta si λ ≤ λp; no compacta si λ ≤ λr; esbelta si λ > λr', 'VIGA'),
     ]
     cuerpo = ''.join(f'<tr><td>{a}</td><td>{b}</td><td>{c}</td><td>{d}</td></tr>' for a, b, c, d in filas)
-    return ('<h2>Nota normativa: esbelteces con la NTC-Acero CDMX</h2>'
-            '<p>Proyecto en México. El diseño de resistencia (tracción, compresión, flexión, cortante e interacción) '
-            'se hace con AISC 360-22 (ASD). Las verificaciones de esbeltez local y global se hacen con la '
-            'NTC-Acero CDMX (Gaceta Oficial, 7 de julio de 2020), que son obligatorias para este proyecto. Cada límite '
-            'indica el apartado y la página del documento.</p>'
+    return ('<h2>Nota normativa: diseño AISC 360-22 (ASD)</h2>'
+            '<p>El diseño de resistencia (tracción, compresión, flexión, cortante e interacción) y la esbeltez local se hacen '
+            'con AISC 360-22 (ASD). No se aplica la NTC-Acero CDMX ni la NTC de diseño por sismo (criterio del revisor). '
+            'El límite KL/r ≤ 200 proviene del capítulo E del IMCA 5ta ed. (texto OCR; verificar en la imagen de la página). '
+            'Cada límite indica el apartado y la página del documento.</p>'
             '<table><tr><th>Verificación</th><th>Referencia (documento, apartado y página)</th><th>Límite</th>'
             '<th>Aplica a</th></tr>' + cuerpo + '</table>'
             '<ul class="nota">'
-            '<li>Un elemento con λ &gt; λr se considera esbelto (sección tipo 4) y su perfil no se usa. La NTC permite '
-            'anchos efectivos (3.2.5); no se aplican, por criterio conservador.</li>'
+            '<li>Elementos esbeltos en compresión: anchos efectivos de AISC E7.</li>'
             '<li>λ = b/t en patines y alas (b = B/2 en patines de I; b = B en canales); h/t en almas, con h = H − 2t.</li>'
-            '<li>Tensión: la NTC 4.4 no fija límite obligatorio; los valores 240 y 300 de la NTC 2.3.2 se reportan '
-            'como límite de referencia y su cumplimiento es informativo.</li>'
             '</ul>')
 
 
-_ETIQUETA_CLASE = {'gravitacional': 'Solo D y L', 'sismo': 'Incluye E (sismo)',
-                   'viento': 'Incluye W (viento: no aplica al proyecto)', 'otra': 'TIPO no reconocido en ESTADOS'}
-
-
-def _distorsiones(dib, casos, id_barra):
-    """Distorsion horizontal de entrepiso (NTC-CA 4.1.1 b): desplazamiento horizontal relativo entre los extremos de cada
-    columna (barra casi vertical) dividido entre su altura. dib.nodos en m; res['nodos'] en cm.
-    Devuelve [(combinacion, distorsion_max, columna_que_controla, h_cm, delta_mm)]."""
-    cols = []
-    for i, b in enumerate(dib.barras):
-        p1, p2 = np.array(dib.nodos[b['n1']], float), np.array(dib.nodos[b['n2']], float)
-        largo = float(np.linalg.norm(p2 - p1))
-        dz = abs(p2[2] - p1[2])
-        if largo > 0 and dz >= 0.9 * largo:
-            bot, top = (b['n1'], b['n2']) if p1[2] < p2[2] else (b['n2'], b['n1'])
-            cols.append((id_barra.get(i, i), bot, top, dz * 100.0))
-    filas = []
-    for nombre, tipo, res in casos:
-        if tipo != 'COMBINACION' or not cols:
-            continue
-        mejor = None
-        for idb, bot, top, h_cm in cols:
-            ub = np.array(res['nodos'][bot][:2], float)
-            ut = np.array(res['nodos'][top][:2], float)
-            d_cm = float(np.linalg.norm(ut - ub))
-            if mejor is None or d_cm / h_cm > mejor[1]:
-                mejor = (nombre, d_cm / h_cm, idb, h_cm, d_cm * 10.0)
-        filas.append(mejor)
-    return filas
 
 
 def _cumple_html(ok):
     return f'<span class="{"cumple" if ok else "nocumple"}">{"CUMPLE" if ok else "NO CUMPLE"}</span>'
 
 
-def _distorsion_texto(rel):
-    return '0' if rel <= 0 else f'1 / {1.0 / rel:,.0f}'
-
-
-def _columnas(dib, id_barra):
-    """Columnas (barras casi verticales): [(id, nodo_inferior, nodo_superior, h_cm)]."""
-    cols = []
-    for i, b in enumerate(dib.barras):
-        p1, p2 = np.array(dib.nodos[b['n1']], float), np.array(dib.nodos[b['n2']], float)
-        largo = float(np.linalg.norm(p2 - p1))
-        dz = abs(p2[2] - p1[2])
-        if largo > 0 and dz >= 0.9 * largo:
-            bot, top = (b['n1'], b['n2']) if p1[2] < p2[2] else (b['n2'], b['n1'])
-            cols.append((id_barra.get(i, i), bot, top, dz * 100.0))
-    return cols
-
-
-def _rel(res, bot, top):
-    """Desplazamiento horizontal relativo (cm, vector XY) entre los nodos superior e inferior de una columna."""
-    return np.array(res['nodos'][top][:2], float) - np.array(res['nodos'][bot][:2], float)
-
-
-def _dcol(dG, dE, fac, h_cm):
-    """Desplazamiento de entrepiso / h de una columna: gravedad dG mas +-fac*dE (la accion sismica es reversible)."""
-    return max(float(np.linalg.norm(dG + sg * fac * dE)) for sg in (1.0, -1.0)) / h_cm
-
-
-def _periodo(dib, cargas, estados, sismos, D_estados, g=9.81):
-    """Periodo fundamental aproximado, NTC 6.4.1: T = 2*pi*sqrt(sum(W X^2) / (g*sum(F X))), sumando todos los niveles.
-    W de cada nivel: carga D nodal mas la mitad del peso de cada barra en sus extremos. F: fuerza horizontal del nivel
-    en la direccion de la fuerza horizontal total del estado sismico. X: desplazamiento medio del nivel en esa direccion (m)."""
-    z_niv = sorted({round(float(p[2]), 3) for p in dib.nodos})[1:]
-    W_nodo = np.zeros(len(dib.nodos))
-    for n in D_estados:
-        for idx, v in cargas.get(n, {}).items():
-            W_nodo[idx] += -float(v[2])
-    for b in dib.barras:
-        m = (G.obtener_perfil(b['perfil']) or {}).get('masa') or 0.0
-        L = float(np.linalg.norm(np.array(dib.nodos[b['n1']], float) - np.array(dib.nodos[b['n2']], float)))
-        W_nodo[b['n1']] += m * L / 2.0
-        W_nodo[b['n2']] += m * L / 2.0
-    resultado = {}
-    for e in sismos:
-        cg = cargas.get(e, {})
-        H = sum((np.array(v[:2], float) for v in cg.values()), np.zeros(2))
-        if np.linalg.norm(H) == 0.0:
-            resultado[e] = None
-            continue
-        Hh = H / np.linalg.norm(H)
-        num = den = 0.0
-        for z in z_niv:
-            nodos_nivel = [i for i, p in enumerate(dib.nodos) if round(float(p[2]), 3) == z]
-            F_i = sum((float(np.array(cg[i][:2], float) @ Hh) for i in nodos_nivel if i in cg), 0.0)
-            X_i = float(np.mean([np.array(estados[e]['nodos'][i][:2], float) @ Hh for i in nodos_nivel])) / 100.0
-            num += float(W_nodo[nodos_nivel].sum()) * X_i ** 2
-            den += F_i * X_i
-        resultado[e] = 2.0 * np.pi * np.sqrt(num / (g * den)) if den > 0 else None
-    return resultado
-
-
-def _seccion_sismo(dib, casos, id_barra, proyecto):
-    """6.3 Distorsion por sismo, metodo estatico (NTC Diseno por Sismo 2023). Todos los valores vienen de la
-    configuracion de la planilla (hojas PARAMETROS y NORMA, ver 3.1)."""
-    cf = proyecto['conf']
-    tipos = getattr(dib, 'estados_tipo', {}) or {}
-    estados = {n: res for n, t, res in casos if t == 'ESTADO'}
-    sismos = [n for n in estados if tipos.get(n) == 'E']
-    if not sismos:
-        return ('<h3>6.3 Distorsión por sismo</h3><p class="nota">La planilla no tiene estados sísmicos (TIPO E): '
-                'no hay distorsión sísmica que revisar.</p>')
-    gravedad = [n for n in estados if tipos.get(n) in ('D', 'L')]
-    D_estados = [n for n in estados if tipos.get(n) == 'D']
-    cargas = getattr(dib, 'cargas', {}) or {}
-    cols = _columnas(dib, id_barra)
-    periodos = _periodo(dib, cargas, estados, sismos, D_estados, g=cf['g'])
-    T_list = [t for t in periodos.values() if t is not None]
-    # DECISION D8 (abierta): k2 con el periodo menor de los estados sismicos (conservador); T segun 6.4.1 con las fuerzas del estado.
-    T_ctrl = min(T_list) if T_list else None                  # el periodo menor da el k2 mayor (conservador)
-    k2 = 0.0 if (T_ctrl is None or T_ctrl >= cf['ta']) else cf['k2_coef'] * (1.0 - (T_ctrl / cf['ta']) ** cf['k2_exp'])
-    R = cf['k1'] * cf['R0'] + k2
-    # DECISION D5 (abierta): la carga de la planilla se toma como diseno SV reducido por Q'R'. Distorsion elastica = f * planilla.
-    f_el = cf['qp'] * R                                       # LDNE y OI
-    f_sv = cf['Q'] * R                                        # Seguridad de Vida (multiplicador QR' de 1.7)
-    ks, g_ldne, g_oi, g_sv = cf['ks'], cf['gLDNE'], cf['gOI'], cf['gSV']
-    filas, filas_comp, drift_piso = [], [], {}
-    for idb, bot, top, h_cm in cols:
-        dG = sum((_rel(estados[g], bot, top) for g in gravedad), np.zeros(2))
-        mejor = None
-        for e in sismos:
-            db = _dcol(dG, _rel(estados[e], bot, top), f_el, h_cm)
-            if mejor is None or db > mejor[0]:
-                mejor = (db, e)
-        db, e = mejor
-        # Componentes de la deformacion horizontal relativa (cm -> mm) que forman el total de esta columna
-        dE = _rel(estados[e], bot, top)
-        dD = sum((_rel(estados[g], bot, top) for g in gravedad if tipos.get(g) == 'D'), np.zeros(2))
-        dLc = sum((_rel(estados[g], bot, top) for g in gravedad if tipos.get(g) == 'L'), np.zeros(2))
-        filas_comp.append(
-            f'<tr><td class="num">{idb}</td><td>{html.escape(str(e))}</td>'
-            f'<td class="num">{_v(float(np.linalg.norm(dE)) * 10.0, 2)}</td>'
-            f'<td class="num">{_v(f_el * float(np.linalg.norm(dE)) * 10.0, 2)}</td>'
-            f'<td class="num">{_v(float(np.linalg.norm(dD)) * 10.0, 2)}</td>'
-            f'<td class="num">{_v(float(np.linalg.norm(dLc)) * 10.0, 2)}</td>'
-            f'<td class="num">{_v(db * h_cm * 10.0, 2)}</td></tr>')
-        dl = max(_dcol(dG, _rel(estados[e2], bot, top), ks * f_el, h_cm) for e2 in sismos)
-        dsv = max(_dcol(dG, _rel(estados[e2], bot, top), f_sv, h_cm) for e2 in sismos)
-        zb = round(float(dib.nodos[bot][2]), 3)
-        drift_piso[zb] = max(drift_piso.get(zb, 0.0), db, dsv)
-        marca = lambda ok, g: f'{_cumple_html(ok)} <span class="nota">(γ {g:.4f})</span>'
-        filas.append(
-            f'<tr><td class="num">{idb}</td><td>{html.escape(str(e))}</td><td class="num">{_v(h_cm, 1)}</td>'
-            f'<td class="num">{_v(db * h_cm * 10.0, 2)}</td><td class="num">{"0" if db <= 0 else f"1 / {1.0 / db:,.0f}"}</td>'
-            f'<td>{marca(ks * db <= g_ldne, g_ldne)}<br><span class="nota">Ks·δ/h = {ks * db:.5f}</span></td>'
-            f'<td>{marca(db <= g_oi, g_oi)}</td><td>{marca(dsv <= g_sv, g_sv)}</td></tr>')
-    tabla_ldne = ('<table><tr><th>Columna</th><th>Estado sísmico que controla</th><th>h (cm)</th>'
-                  '<th>δ elástica (mm)</th><th>δ/h</th><th>LDNE</th><th>Ocupación Inmediata</th>'
-                  '<th>Seguridad de Vida</th></tr>' + ''.join(filas) + '</table>')
-    tabla_comp = ('<table><tr><th>Columna</th><th>Estado sísmico que controla</th>'
-                  '<th>Δ sísmica del modelo (mm)</th><th>f·Δ sísmica (mm)</th><th>Δ gravedad D (mm)</th>'
-                  '<th>Δ gravedad L (mm)</th><th>δ total (mm)</th></tr>' + ''.join(filas_comp) + '</table>'
-                  '<p class="nota">Δ = desplazamiento horizontal relativo entre los extremos de la columna (módulo del vector XY). '
-                  'δ total = máximo de |Δ gravedad ± f·Δ sísmica| (el sismo es reversible). Gravedad con factor 1.</p>')
-    filas_t = ''.join(
-        f'<tr><td>{html.escape(str(e))}</td><td class="num">{"—" if periodos[e] is None else f"{periodos[e]:.3f}"}</td></tr>'
-        for e in sismos)
-    tabla_t = ('<table><tr><th>Estado sísmico</th><th>T aproximado (s), §6.4.1</th></tr>' + filas_t + '</table>')
-
-    zs = sorted({round(float(p[2]), 3) for p in dib.nodos})
-    filas2 = []
-    for k in range(len(zs) - 1):
-        zb, zt = zs[k], zs[k + 1]
-        arriba = {i for i, p in enumerate(dib.nodos) if round(float(p[2]), 3) >= zt - 1e-6}
-        V = max((float(np.linalg.norm(sum((np.array(v[:2], float) for idx, v in cargas.get(e, {}).items()
-                                           if idx in arriba), np.zeros(2)))) for e in sismos), default=0.0)
-        W = sum(-float(v[2]) for n in D_estados for idx, v in cargas.get(n, {}).items() if idx in arriba)
-        for b in dib.barras:
-            if b['n1'] in arriba and b['n2'] in arriba:
-                pb = np.array(dib.nodos[b['n1']], float) - np.array(dib.nodos[b['n2']], float)
-                masa = (G.obtener_perfil(b['perfil']) or {}).get('masa') or 0.0
-                W += masa * float(np.linalg.norm(pb))                          # kgf: kg/m por m
-        # DECISION D9 (abierta): V = cortante del sismo; W = carga D sin factor mas peso propio encima; se compara con la mayor distorsion elastica o SV.
-        lim = cf['seg2'] * V / W if W > 0 else None
-        dmax_piso = drift_piso.get(zb)
-        if lim is None or dmax_piso is None:
-            estado = '<span class="nota">sin datos</span>'
-        else:
-            estado = ('<span class="cumple">se pueden despreciar</span>' if dmax_piso <= lim
-                      else '<span class="nocumple">requiere análisis de segundo orden</span>')
-        filas2.append(
-            f'<tr><td>{zb:.2f} a {zt:.2f}</td><td class="num">{_v(V, 1)}</td><td class="num">{_v(W, 1)}</td>'
-            f'<td class="num">{"—" if lim is None else f"{lim:.4f}"}</td>'
-            f'<td class="num">{"—" if dmax_piso is None else f"{dmax_piso:.4f}"}</td><td>{estado}</td></tr>')
-    tabla_2 = ('<table><tr><th>Entrepiso z (m)</th><th>V sismo (kgf)</th><th>W encima (kgf, sin factor)</th>'
-               f'<th>{cf["seg2"]:g}·V/W</th><th>δ/h máx (elástica o SV)</th><th>Efectos de 2º orden (2.4.1)</th></tr>'
-               + ''.join(filas2) + '</table>') if filas2 else ''
-
-    deform = ('elementos no estructurales deformables o separados: límite 0.004'
-              if cf['deformables'] else 'elementos no estructurales no deformables: límite 0.002')
-    return (f'<h3>6.3 Distorsión por sismo, método estático (NTC Diseño por Sismo, §1.7, §2.4, §3.2, §3.3, §6.3, §6.4)</h3>'
-            f'<p><b>Sistema</b>: {html.escape(cf["sistema"])}. Tabla 4.3.2 (pág. 53): Q = {cf["Q"]:g}, γ<sub>SV</sub> = '
-            f'{g_sv:.3f}, γ<sub>OI</sub> = {g_oi:.4f}. R<sub>0</sub> = {cf["R0"]:g} (§3.3.1a).</p>'
-            f'<p><b>Factor de sobre-resistencia</b>: k<sub>1</sub> = {cf["k1"]:g} (tres o más crujías resistentes en las dos '
-            f'direcciones: {"SÍ" if cf["crujias_ambas"] else "NO"}; §3.3.1a). k<sub>2</sub> = 0.5(1 − (T/Ta)²) si T &lt; Ta, '
-            f'0 si T ≥ Ta (§3.3.1b) con T = {"—" if T_ctrl is None else f"{T_ctrl:.3f}"} s y Ta = {cf["ta"]:g} s '
-            f'→ k<sub>2</sub> = {k2:.4f}. R = k<sub>1</sub>·R<sub>0</sub> + k<sub>2</sub> = {R:.4f}.</p>'
-            f'<p><b>Factores de reducción</b>: Q′ = 1 + (Q − 1)/k = 1 + ({cf["Q"]:g} − 1)/{cf["k_sasid"]:g} = {cf["qp"]:.4f} '
-            f'(§3.2, eq. 3.2.1, rama Ta–Tb; k del SASID). Para LDNE y OI: f = Q′·R = {f_el:.4f}. Para Seguridad de Vida: '
-            f'f = Q·R = {f_sv:.4f} (§1.7).</p>'
-            f'<p><b>Sismo de diseño</b>: el estado sísmico de la planilla es la fuerza de diseño V<sub>0</sub> = c·W<sub>0</sub>/(Q′R′) '
-            f'(§6.3, eq. 6.3.1) con c = {cf["c_sasid"]:g}. Por eso la distorsión elástica, sin reducir, es f veces la de la '
-            f'planilla.</p>'
-            f'<p><b>Limitación de Daño No Estructural (LDNE)</b>: §1.7, pág. 26 y tabla 3.1.1. Usa la intensidad frecuente: '
-            f'{html.escape(cf["ks_txt"])}, y gravedad D y L con factor 1, sin factores de carga. Límite γ<sub>LDNE</sub> = '
-            f'{g_ldne:.3f} ({deform}).</p>'
-            f'{tabla_ldne}'
-            f'<p><b>Origen de la deformación elástica</b> (cada componente de la columna que controla):</p>'
-            f'{tabla_comp}'
-            f'<p><b>Periodo aproximado (§6.4.1)</b>: T = 2π√(ΣW·X²/(g·ΣF·X)), con fuerzas y desplazamientos del estado '
-            f'sísmico, g = {cf["g"]:g} m/s². Se usa el periodo menor para k<sub>2</sub>.</p>'
-            f'{tabla_t}'
-            f'<p><b>Efectos de segundo orden</b>: §2.4, pág. 32. Se pueden despreciar en un entrepiso si la distorsión no '
-            f'excede {cf["seg2"]:g}·V<sub>i</sub>/W<sub>pi</sub> (eq. 2.4.1), con V la cortante del sismo y W el peso encima del '
-            f'entrepiso sin factor de carga. Se compara con la mayor distorsión elástica o de SV del entrepiso.</p>'
-            f'{tabla_2}')
-
-
 def _seccion_desplazamientos(dib, casos, id_de_indice, id_barra, clase, proyecto):
-    """Seccion 6: desplazamientos por combinacion y deformada de la que controla (6.1); distorsion de entrepiso con
-    NTC-CA 4.1.1 b (6.2); distorsion por sismo (6.3) y flecha vertical de vigas (6.4). Valores de la hoja PARAMETROS y NORMA."""
+    """Seccion 6: desplazamientos por combinacion y deformada de la que controla (6.1); flecha vertical de vigas con
+    el limite L/divisor de AISC 360-22 Comentario L2 (6.2). Valores de la hoja PARAMETROS y NORMA."""
     cf = proyecto['conf']
     tabla, mejor = _desplazamientos(dib, casos, id_de_indice)
     if tabla.empty:
@@ -879,34 +612,7 @@ def _seccion_desplazamientos(dib, casos, id_de_indice, id_barra, clase, proyecto
     fila_max, res_ctrl = mejor
     png, escala = _png_deformada(dib, res_ctrl, f'Deformada: combinación que controla {fila_max["combinacion"]}')
 
-    # DECISION D3 (abierta): h/250 sin elementos frageles unidos (NTC-CA 4.1.1 b); distorsion por columna que controla; solo gravitacionales.
-    lim_h = cf['lim_h']
-    if cf['fragiles']:
-        criterio = (f'Límite h/{lim_h:g}: hay elementos no estructurales frágiles unidos a la estructura '
-                    f'({REF["NTC_CA_4_1_1"]}).')
-    else:
-        criterio = (f'Límite h/{lim_h:g}: no hay elementos no estructurales frágiles unidos a la estructura, por lo que '
-                    f'aplica el caso de "en otros casos" de {REF["NTC_CA_4_1_1"]}.')
-    filas_d = []
-    for nombre, rel, idb, h_cm, delta_mm in _distorsiones(dib, casos, id_barra):
-        k = clase.get(nombre, 'otra')
-        if k == 'gravitacional':
-            celda = _cumple_html(rel <= 1.0 / lim_h)
-        else:
-            celda = '<span class="nota">no evaluada (ver 6.3)</span>'
-        filas_d.append(
-            f'<tr><td>{html.escape(str(nombre))}</td><td>{_ETIQUETA_CLASE.get(k, k)}</td>'
-            f'<td class="num">{_distorsion_texto(rel)}</td><td class="num">{idb}</td>'
-            f'<td class="num">{_v(h_cm, 1)}</td><td class="num">{_v(delta_mm, 2)}</td>'
-            f'<td class="num">{_v(h_cm / lim_h * 10.0, 2)}</td><td>{celda}</td></tr>')
-    if filas_d:
-        tabla_dist = ('<table><tr><th>Combinación</th><th>Acciones</th><th>Distorsión máx. δ/h</th><th>Columna</th>'
-                      '<th>h (cm)</th><th>δ (mm)</th>' f'<th>Límite h/{lim_h:g} (mm)</th><th>Estado</th></tr>'
-                      + ''.join(filas_d) + '</table>')
-    else:
-        tabla_dist = '<p class="nota">No hay columnas verticales en el modelo para revisar la distorsión.</p>'
-
-    # DECISION D1 (abierta): L/300 justificado con AISC 360-22 Comentario L2 (pag. 16.1-543); la NTC no fija numero. Alternativas: L/240, L/360.
+    # DECISION (cerrada por el revisor): el limite de flecha es el de AISC Comentario L2 (L/360 para pisos).
     divisor = cf['flecha_divisor']
     filas_f = []
     for i, r in sorted((getattr(dib, 'flechas', {}) or {}).items()):
@@ -931,22 +637,10 @@ def _seccion_desplazamientos(dib, casos, id_de_indice, id_barra, clase, proyecto
             f'<img src="data:image/png;base64,{png}" alt="Deformada" style="max-width:100%">'
             f'<p class="nota">Deformada de la combinación que controla, escala ×{escala:.3g} (el máximo mide 10 % '
             f'de la dimensión del modelo). Gris: sin carga; azul: deformada.</p>'
-            f'<h3>6.2 Distorsión horizontal de entrepiso</h3>'
-            f'<p>{REF["NTC_CA_4_1_1"]}: el desplazamiento horizontal relativo entre dos niveles sucesivos no debe exceder '
-            f'la altura del entrepiso entre 500 (con elementos no estructurales frágiles unidos) o entre 250 (en otros casos). '
-            f'Se revisa cada columna: δ es el desplazamiento horizontal relativo entre sus extremos y h su altura; se reporta '
-            f'la columna que controla.</p>'
-            f'<p><b>Criterio</b>: {criterio}</p>'
-            f'{tabla_dist}'
-            f'<p class="nota">Solo las combinaciones gravitacionales (D y L) se comparan con este límite. Las combinaciones '
-            f'con sismo (E) se revisan en 6.3.</p>'
-            f'{_seccion_sismo(dib, casos, id_barra, proyecto)}'
-            f'<h3>6.4 Flecha vertical de vigas</h3>'
+            f'<h3>6.2 Flecha vertical de vigas</h3>'
             f'<p><b>Límite L/{divisor:g}</b>. Justificación: AISC 360-22, Comentario L2 (pág. 16.1-543): la flecha de '
             f'alrededor de 1/300 del claro es visible y puede causar daño arquitectónico; el comentario indica que los límites '
-            f'dependen de la estructura (1/360 para pisos y 1/240 para cubiertas son los usuales). La NTC-Acero no fija un '
-            f'número: §11.4 (pp. 197 y 198) remite a las NTC de Criterios y Acciones, y {REF["NTC_CA_4_1_1_A"]} remite a las '
-            f'normas del material.</p>'
+            f'dependen de la estructura (1/360 para pisos y 1/240 para cubiertas son los usuales).</p>'
             f'<p>La flecha es la desviación vertical máxima de la viga respecto a la cuerda entre sus extremos, en las '
             f'combinaciones gravitacionales (D y L), sin el movimiento de cuerpo rígido de los apoyos. Se calcula con la '
             f'solución exacta de Euler-Bernoulli entre extremos, a partir de los giros de extremo del modelo y del peso '
@@ -961,8 +655,7 @@ def _encabezado_doc(proyecto, dib):
             ('Fecha', proyecto.get('fecha', '')),
             ('Versión', proyecto.get('version', '(completar)')),
             ('Modelo', f'{len(dib.nodos)} nodos y {len(dib.barras)} barras'),
-            ('Método', 'Diseño de resistencia: ASD, ANSI/AISC 360-22. Esbelteces local y global: NTC-Acero CDMX '
-                       '(Gaceta Oficial, 7 de julio de 2020).'),
+            ('Método', 'Diseño ASD, ANSI/AISC 360-22: resistencia y esbeltez local (B4.1). KL/r ≤ 200 según IMCA cap. E.'),
             ('Unidades', 'fuerzas kgf; momentos kgf·cm; longitudes cm; esfuerzos kgf/cm²')]
     filas = ''.join(f'<tr><td><b>{a}</b></td><td>{html.escape(str(b))}</td></tr>' for a, b in meta)
     revision = [('Elaboró', 'elaboro'), ('Revisó', 'reviso'), ('Aprobó', 'aprobo')]
@@ -980,17 +673,16 @@ def _criterios_html():
         'primer orden: no incluye efectos P-Δ. Cada barra se revisa con todas sus combinaciones.',
         'Una sola sección por grupo (COLUMNA, VIGA, ARRIOSTRE, DIAGONAL): todas las barras de un grupo usan el mismo '
         'perfil. Cada barra se revisa con sus propias demandas.',
-        'Criterio de aceptación: FU ≤ 1.0 en todas las verificaciones; λ ≤ λr (NTC 3.2); KL/r ≤ 200 (NTC 2.3.2); '
-        'ductilidad si está marcada (NTC 12.1.2).',
-        'Elementos con λ &gt; λr (sección tipo 4) quedan fuera de la lista de perfiles. La NTC permite anchos efectivos '
-        '(3.2.5); no se aplican, por criterio conservador.',
+        'Criterio de aceptación: FU ≤ 1.0 en todas las verificaciones; λ ≤ λr (AISC B4.1); KL/r ≤ 200 (criterio del '
+        'proyecto, hasta la lista del IMCA).',
+        'Elementos esbeltos en compresión: anchos efectivos de AISC E7. Elementos con λ &gt; λr en flexión quedan fuera '
+        'de la lista de perfiles.',
         'Perfiles macizos (CS, OS, SOL) eliminados de la base; LM no se incluye.',
         'Fu: de la hoja MATERIALES de la planilla. Un material sin Fu deja sus barras como NO REVISADO.',
         f'Ángulos (LI): E5 solo si LONGITUDES marca las cuatro condiciones ({REF["E5"]}). Si no, K·L/rz y H2 '
         f'({REF["H2"]}). Tracción con Ae = U·Ag, U de D3 ({REF["D3"]}): una pata U = 1 − x̄/l; dos patas U = 1.0.',
         'Estimaciones: IR con Zx, Zy o Cw faltantes se estiman por geometría; LI con propiedades geométricas. Cada '
         'barra lista sus supuestos.',
-        'Ductilidad: marcada por barra en BARRAS (ALTA o MEDIA). Vacío = no se verifica la Tabla 12.1.2 ni KL/r ≤ 60.',
         f'Interacción: H1-1 para I y canal ({REF["H1"]}); H2-1 para ángulos ({REF["H2"]}), con el momento resultante '
         'sobre cada eje principal (criterio conservador).',
     ]
@@ -1009,17 +701,8 @@ def _parametros_html(cf):
         for (k, v, u, r) in cf.get('nor_filas', []))
     resultantes = (
         '<table><tr><th>Valor resultante</th><th>Valor</th><th>Cómo se obtiene</th></tr>'
-        f'<tr><td>Sistema sísmico</td><td>{html.escape(cf["sistema"])}</td><td>NORMA, tabla 4.3.2</td></tr>'
-        f'<tr><td>Q</td><td class="num">{cf["Q"]:g}</td><td>Tabla 4.3.2</td></tr>'
-        f'<tr><td>R0</td><td class="num">{cf["R0"]:g}</td><td>§3.3.1a (2.0 con Q ≥ 3; 1.75 con Q &lt; 3)</td></tr>'
-        f'<tr><td>k1</td><td class="num">{cf["k1"]:g}</td><td>§3.3.1a, según crujías: {"SÍ" if cf["crujias_ambas"] else "NO"}</td></tr>'
-        f'<tr><td>Q′</td><td class="num">{cf["qp"]:.4f}</td><td>1 + (Q − 1)/k, con k = {cf["k_sasid"]:g} (SASID)</td></tr>'
-        f'<tr><td>Ks (LDNE)</td><td class="num">{cf["ks"]:.4f}</td><td>{html.escape(cf["ks_txt"])}</td></tr>'
-        f'<tr><td>γ LDNE</td><td class="num">{cf["gLDNE"]:.3f}</td><td>§1.7: 0.004 con elementos deformables o separados; '
-        f'0.002 en otro caso</td></tr>'
-        f'<tr><td>Límite de distorsión NTC-CA</td><td class="num">h/{cf["lim_h"]:g}</td><td>§4.1.1 b): 500 con elementos frágiles '
-        f'unidos; 250 en otro caso</td></tr>'
-        f'<tr><td>Límite de flecha de vigas</td><td class="num">L/{cf["flecha_divisor"]:g}</td><td>AISC 360-22, Comentario L2</td></tr>'
+        f'<tr><td>Límite de flecha de vigas</td><td class="num">L/{cf["flecha_divisor"]:g}</td><td>AISC 360-22, Comentario L2 (pisos: L/360)</td></tr>'
+        f'<tr><td>Límite KL/r en compresión</td><td class="num">{cf["klr_limite"]:g}</td><td>IMCA 5ta ed., cap. E (verificar en la imagen)</td></tr>'
         f'<tr><td>Kz (pandeo torsional)</td><td class="num">{cf["kz"]:g}</td><td>AISC 360-22, E4: elegido en PARAMETROS</td></tr>'
         f'<tr><td>Viento en el diseño</td><td>{html.escape(cf["viento"])}</td><td>Esta versión no considera viento</td></tr>'
         '</table>')
@@ -1054,7 +737,6 @@ def _datos_entrada_html(dib, materiales_filas, id_barra, lon, mat, equilibrio):
         ents = [DA._entrada_barra(dib, i, id_barra, lon, mat) for i in idx]
         perfiles = sorted({dib.barras[i]['perfil'] for i in idx})
         mats = sorted({str(dib.barras[i].get('material') or '') for i in idx})
-        duct = sorted({e['nivel'] or '—' for e in ents})
         filas_g.append(
             f'<tr><td>{g}</td><td>{len(idx)}</td><td>{html.escape(", ".join(perfiles))}</td>'
             f'<td>{html.escape(", ".join(mats))}</td>'
@@ -1062,10 +744,10 @@ def _datos_entrada_html(dib, materiales_filas, id_barra, lon, mat, equilibrio):
             f'<td class="num">{_v(max(e["ly"] for e in ents) * 100, 1)}</td>'
             f'<td class="num">{_v(max(e["lb"] for e in ents) * 100, 1)}</td>'
             f'<td class="num">{_v(max(e["kx"] for e in ents), 2)} / {_v(max(e["ky"] for e in ents), 2)}</td>'
-            f'<td class="num">{_v(max(e["cb"] for e in ents), 2)}</td><td>{html.escape(", ".join(duct))}</td></tr>')
+            f'<td class="num">{_v(max(e["cb"] for e in ents), 2)}</td></tr>')
     grupos = ('<table><tr><th>Grupo</th><th>Barras</th><th>Perfil (una sección)</th><th>Material</th>'
               '<th>LX máx (cm)</th><th>LY máx (cm)</th><th>LB máx (cm)</th><th>KX / KY</th><th>Cb</th>'
-              '<th>Ductilidad</th></tr>' + ''.join(filas_g) + '</table>')
+              '</tr>' + ''.join(filas_g) + '</table>')
     combs = getattr(dib, 'combinaciones', {}) or {}
     cls = getattr(dib, 'clase_combinacion', {}) or {}
     filas_c = ''.join(
@@ -1080,7 +762,7 @@ def _datos_entrada_html(dib, materiales_filas, id_barra, lon, mat, equilibrio):
                       + '. El viento no se considera en esta versión.</p>')
     estados = ', '.join(html.escape(str(n)) for n, _ in (equilibrio or []))
     return (f'<h3>Materiales</h3>{materiales}'
-            f'<h3>Perfil, longitudes y ductilidad por grupo</h3>{grupos}'
+            f'<h3>Perfil y longitudes por grupo</h3>{grupos}'
             f'<h3>Combinaciones de servicio (ASD)</h3>{combinaciones}'
             f'<h3>Estados de carga</h3><p>{estados or "—"}</p>')
 
@@ -1119,14 +801,8 @@ def _pendientes_html(evals, materiales_filas, proyecto, dib=None):
     if li_no:
         items.append(f'Ángulos sin E5 verificado ({", ".join(li_no)}): se usa K·L/rz y H2. Marque las cuatro '
                      f'condiciones de E5 en LONGITUDES si las cumplen.')
-    sin_duct = [str(v['id']) for v in evals if 'res' in v and not v.get('nivel')]
-    if sin_duct:
-        items.append(f'Barras sin DUCTILIDAD marcada en BARRAS ({len(sin_duct)}): no se verifica la Tabla 12.1.2 '
-                     f'de la NTC ni la columna dúctil.')
     if dib is not None and not any(t == 'E' for t in (getattr(dib, 'estados_tipo', {}) or {}).values()):
         items.append('La planilla no tiene estado sísmico (TIPO E): el diseño usa solo combinaciones gravitacionales.')
-    items.append("Confirme que el estado sísmico de la planilla se calculó con V<sub>0</sub> = c·W<sub>0</sub>/(Q′R′) "
-                 "del método estático (6.3), con el mismo Q, R y c de la sección 3.1.")
     items.append('No se verifican conexiones, placas, soldaduras ni pernos.')
     items.append('Ángulos: el pandeo flexotorsional (E4) no está implementado; si b/t &gt; 0.71·√(E/Fy) la barra queda '
                  'como NO REVISADO.')
@@ -1143,7 +819,7 @@ def _simbologia_html():
              ('Mp, My, Mn, Mcr', 'Momento plástico, de fluencia, nominal y de pandeo lateral-torsional'),
              ('Zx, Zy, Sx, Sy', 'Módulos plástico y elástico de la sección'),
              ('Cb', 'Factor de gradiente de momento (AISC F1)'),
-             ('λ, λr, λp, λpl', 'Relación ancho/grueso del elemento y sus límites (NTC Tablas 3.2.1 y 3.2.2)'),
+             ('λ, λr, λp, λpl', 'Relación ancho/grueso del elemento y sus límites (AISC Tablas B4.1a y B4.1b)'),
              ('Pr, Mr, Vr', 'Demandas ASD: carga axial, momento y cortante de la combinación'),
              ('FU', 'Factor de utilización: demanda / capacidad (cumple si FU ≤ 1.0)')]
     cuerpo = ''.join(f'<tr><td>{a}</td><td>{b}</td></tr>' for a, b in filas)
@@ -1192,9 +868,7 @@ el detalle completo de cada elemento está en diseno_asd.xlsx (RESULTADOS).</p>
 <h2>3. Datos de entrada</h2>{_parametros_html(proyecto['conf'])}{_datos_entrada_html(dib, materiales_filas, id_barra, lon, mat, equilibrio)}
 <h2>4. Modelo de análisis</h2>{_modelo_html(dib, equilibrio)}
 <h2>5. Resultados por grupo</h2>
-<p class="nota">Por grupo: FU de esfuerzos (resistencia, incluida la interacción H1/H2 y la torsión H3) y FU de esbeltez (local, KL/r y ductilidad) por separado, con sus valores calculado y límite; clasificación NTC; λ calculado y λ límite del elemento
-que gobierna (esbeltez local, NTC); KL/r calculado y límite (200; 60 en columna dúctil); ductilidad y estado global
-(todas las verificaciones).</p>
+<p class="nota">Por grupo: FU de esfuerzos (resistencia, incluida la interacción H1/H2 y la torsión H3) y FU de esbeltez (local y KL/r) por separado, con sus valores calculado y límite; la verificación que gobierna y el estado global (todas las verificaciones).</p>
 {('<p>' + resumen_txt + '</p>') if resumen_txt else ''}
 {resumen_html}
 <h2>6. Desplazamientos máximos por combinación</h2>

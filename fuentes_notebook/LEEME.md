@@ -8,7 +8,7 @@ Esta carpeta contiene el generador que escribe el notebook del repositorio. El n
 |---|---|
 | `build_soportes_planilla3.py` | Escribe el notebook. Lee las fuentes de esta carpeta y el catálogo de `datos/`. |
 | `celda6_plantilla.py` … `celda11_memoria.py`, `celda9b_deformada.py` | Celdas de código del notebook (plantilla, validación, dibujo, análisis, diseño, memoria). |
-| `analisis_opensees.py`, `diseno_asd.py`, `diseno_ntc.py`, `memoria_asd.py`, `parametros.py`, `orientacion_gerdau.py`, `perfiles_gerdau_nb.py` (el notebook lo escribe como `perfiles_gerdau.py`), `dibujo_directo.py`, `vista3d_plotly.py` | Módulos que el notebook escribe con `%%writefile`. |
+| `analisis_opensees.py`, `diseno_asd.py`, `memoria_asd.py`, `parametros.py`, `orientacion_gerdau.py`, `perfiles_gerdau_nb.py` (el notebook lo escribe como `perfiles_gerdau.py`), `dibujo_directo.py`, `vista3d_plotly.py` | Módulos que el notebook escribe con `%%writefile`. |
 | `datos/hss_atc_catalogo.json` | HSS del catálogo ATC (116 secciones), generado por `datos/extraer_hss_atc.py` a partir del PDF. Ver `CAMBIOS_HSS.md`. |
 | `datos/extraer_hss_atc.py` | Extrae las HSS del PDF del catálogo ATC (páginas 08 a 10) y verifica su SHA-256. |
 | `generar_plantilla.py` | Regenera `plantilla_soportes.xlsx` desde las fuentes de esta carpeta (base, LISTAS, NORMA). |
@@ -26,7 +26,7 @@ El segundo argumento es la plantilla que el notebook incrusta. Para regenerar la
 
 ## Diseño de HSS
 
-Las HSS del catálogo ATC se diseñan con AISC 360-22 (E3/E7, F7, G2, H1) y la NTC (esbeltez local, Tabla 12.1.2).
+Las HSS del catálogo ATC se diseñan con AISC 360-22 (E3/E7, F7, G2, H1) y esbeltez local AISC B4.1. No se aplica la NTC-Acero ni la NTC de sismo; la esbeltez global KL/r ≤ 200 proviene del IMCA 5ta ed., cap. E.
 Los detalles, la corrección de E7-2 y las limitaciones (torsión sin verificar, nota [c], A500 por confirmar) están en `CAMBIOS_HSS.md`.
 
 ## Advertencias

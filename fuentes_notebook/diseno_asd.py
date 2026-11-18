@@ -35,19 +35,19 @@ import re
 import numpy as np
 import pandas as pd
 import perfiles_gerdau as G
-# DECISION D18 (abierta): resistencia por AISC 360-22 ASD; la NTC-Acero se usa para esbelteces y ductilidad (requisito del proyecto).
+# DECISION D18 (cerrada por el revisor): el diseno usa solo AISC 360-22 (ASD) y los requisitos del IMCA. No se aplica la
+# Esbelteces: local con AISC B4.1; KL/r <= 200 como criterio del proyecto (hasta la lista del IMCA). Sin ductilidad.
 
-# Valores de norma (AISC 360-22 y NTC-Acero CDMX): se leen de la hoja NORMA de la planilla con cargar_norma().
+# Valores de norma (AISC 360-22): se leen de la hoja NORMA de la planilla con cargar_norma().
 # Este modulo no trae valores de norma ni supuestos: si falta un valor, el calculo se detiene.
 OMEGA_T_FLU = OMEGA_T_FRA = OMEGA_C = OMEGA_B = OMEGA_V = OMEGA_V_LAMINADA = None
 KV_I = KV_ANGULO = CB_MAX_ANGULO = None
 AISC_LP_PATIN = AISC_LR_PATIN = AISC_CV_LIM = AISC_HTW_LAM = AISC_LIM_ANG_E4 = AISC_E5_RAT_LIM = None
-AISC_B41A = NTC_LR_COMPRESION = NTC_LIMITES_FLEXION = None
-NTC_KLR_COMPRESION = NTC_KLR_TENSION_REF = LIMITE_KLR = None
+AISC_B41A = AISC_LR_COMP = AISC_LIMITES_FLEXION = None
+LIMITE_KLR = None                         # KL/r maximo en compresion: criterio del proyecto (200), hasta la lista del IMCA
 KZ_TORSION = None
 AISC_HSS_LP_PATIN = AISC_HSS_LR_PATIN = AISC_HSS_LP_ALMA = AISC_HSS_LR_ALMA = AISC_HSS_LR_COMP = None
-AISC_HSS_C1 = AISC_HSS_C2 = NTC_HSS_LR_COMP = None
-NTC_HSS_FLEX = NTC_HSS_DUC = None
+AISC_HSS_C1 = AISC_HSS_C2 = AISC_HSS_FLEX = None
 AISC_KV_HSS = AISC_CV2_LIM2 = AISC_CV2_K = None
 AISC_OMEGA_T_HSS = AISC_H3_LIM1 = AISC_H3_LIM2 = AISC_H3_LIM3 = AISC_H3_K = AISC_H3_FCR_Y = AISC_H3_20PCT = None
 
@@ -65,9 +65,9 @@ def cargar_norma(v, kz):
     KZ_TORSION = kz
     global OMEGA_T_FLU, OMEGA_T_FRA, OMEGA_C, OMEGA_B, OMEGA_V, OMEGA_V_LAMINADA, KV_I, KV_ANGULO, CB_MAX_ANGULO
     global AISC_LP_PATIN, AISC_LR_PATIN, AISC_CV_LIM, AISC_HTW_LAM, AISC_LIM_ANG_E4, AISC_E5_RAT_LIM, AISC_B41A
-    global NTC_LR_COMPRESION, NTC_LIMITES_FLEXION, NTC_KLR_COMPRESION, NTC_KLR_TENSION_REF, LIMITE_KLR
+    global AISC_LR_COMP, AISC_LIMITES_FLEXION, LIMITE_KLR
     global AISC_HSS_LP_PATIN, AISC_HSS_LR_PATIN, AISC_HSS_LP_ALMA, AISC_HSS_LR_ALMA, AISC_HSS_LR_COMP
-    global AISC_HSS_C1, AISC_HSS_C2, NTC_HSS_LR_COMP, NTC_HSS_FLEX, NTC_HSS_DUC
+    global AISC_HSS_C1, AISC_HSS_C2, AISC_HSS_FLEX
     global AISC_KV_HSS, AISC_CV2_LIM2, AISC_CV2_K
     global AISC_OMEGA_T_HSS, AISC_H3_LIM1, AISC_H3_LIM2, AISC_H3_LIM3, AISC_H3_K, AISC_H3_FCR_Y, AISC_H3_20PCT
     try:
@@ -81,20 +81,16 @@ def cargar_norma(v, kz):
         AISC_B41A = {'alma': (v['AISC_B41A_C1_ALMA'], v['AISC_B41A_C2_ALMA']),
                      'patin': (v['AISC_B41A_C1_PATA'], v['AISC_B41A_C2_PATA']),
                      'lr_pata': v['AISC_LR_PATA_B41A']}
-        NTC_LR_COMPRESION = {'patin': v['NTC_LR_PATIN'], 'alma': v['NTC_LR_ALMA'], 'pata': v['NTC_LR_PATA']}
-        NTC_LIMITES_FLEXION = {'patin': (v['NTC_LIM_PATIN_PL'], v['NTC_LIM_PATIN_P'], v['NTC_LIM_PATIN_R']),
-                               'alma': (v['NTC_LIM_ALMA_PL'], v['NTC_LIM_ALMA_P'], v['NTC_LIM_ALMA_R']),
-                               'pata': (None, v['NTC_LIM_PATA_P'], v['NTC_LIM_PATA_R'])}
-        NTC_KLR_COMPRESION = v['NTC_KLR_COMP']
-        NTC_KLR_TENSION_REF = {'principal': v['NTC_KLR_REF_PRINC'], 'contraventeo': v['NTC_KLR_REF_CONTR']}
-        LIMITE_KLR = v['NTC_KLR_COMP']
+        AISC_LR_COMP = {'patin': v['AISC_LR_PATIN_COMP'], 'alma': v['AISC_LR_ALMA_COMP'], 'pata': v['AISC_LR_PATA_B41A']}
+        AISC_LIMITES_FLEXION = {'patin': (None, v['AISC_LP_PATIN'], v['AISC_LR_PATIN']),
+                                'alma': (None, v['AISC_LP_ALMA_FLEX'], v['AISC_LR_ALMA_FLEX']),
+                                'pata': (None, v['AISC_LP_PATA_FLEX'], v['AISC_LR_PATA_FLEX'])}
         AISC_HSS_LP_PATIN, AISC_HSS_LR_PATIN = v['AISC_HSS_LP_PATIN'], v['AISC_HSS_LR_PATIN']
         AISC_HSS_LP_ALMA, AISC_HSS_LR_ALMA = v['AISC_HSS_LP_ALMA'], v['AISC_HSS_LR_ALMA']
         AISC_HSS_LR_COMP, AISC_HSS_C1, AISC_HSS_C2 = v['AISC_HSS_LR_COMP'], v['AISC_HSS_C1'], v['AISC_HSS_C2']
-        NTC_HSS_LR_COMP = v['NTC_HSS_LR_COMP']
-        NTC_HSS_FLEX = {'patin': (v['NTC_HSS_LIM_PATIN_PL'], v['NTC_HSS_LIM_PATIN_P'], v['NTC_HSS_LIM_PATIN_R']),
-                        'alma': (None, v['NTC_HSS_LIM_ALMA_P'], v['NTC_HSS_LIM_ALMA_R'])}
-        NTC_HSS_DUC = {'ALTA': v['NTC_HSS_DUC_ALTA'], 'MEDIA': v['NTC_HSS_DUC_MEDIA']}
+        AISC_HSS_FLEX = {'patin': (None, AISC_HSS_LP_PATIN, AISC_HSS_LR_PATIN),
+                         'alma': (None, AISC_HSS_LP_ALMA, AISC_HSS_LR_ALMA)}
+        LIMITE_KLR = v['PROY_KLR_COMP']
         AISC_KV_HSS, AISC_CV2_LIM2, AISC_CV2_K = v['AISC_KV_HSS'], v['AISC_CV2_LIM2'], v['AISC_CV2_K']
         AISC_OMEGA_T_HSS = v['AISC_OMEGA_T_HSS']
         AISC_H3_LIM1, AISC_H3_LIM2, AISC_H3_LIM3 = v['AISC_H3_LIM1'], v['AISC_H3_LIM2'], v['AISC_H3_LIM3']
@@ -120,14 +116,14 @@ def _elementos_E7(p, forma, fy, E, fn):
     if forma == 'I':
         b_alma = p['H'] - 2.0 * p['t']
         b_pat = p['B'] / 2.0
-        elems = [(b_alma, p['e'], NTC_LR_COMPRESION['alma'] * sq, AISC_B41A['alma'][0], AISC_B41A['alma'][1], 'alma'),
-                 (b_pat, p['t'], NTC_LR_COMPRESION['patin'] * sq, AISC_B41A['patin'][0], AISC_B41A['patin'][1], 'patin'),
-                 (b_pat, p['t'], NTC_LR_COMPRESION['patin'] * sq, AISC_B41A['patin'][0], AISC_B41A['patin'][1], 'patin')]
+        elems = [(b_alma, p['e'], AISC_LR_COMP['alma'] * sq, AISC_B41A['alma'][0], AISC_B41A['alma'][1], 'alma'),
+                 (b_pat, p['t'], AISC_LR_COMP['patin'] * sq, AISC_B41A['patin'][0], AISC_B41A['patin'][1], 'patin'),
+                 (b_pat, p['t'], AISC_LR_COMP['patin'] * sq, AISC_B41A['patin'][0], AISC_B41A['patin'][1], 'patin')]
     else:
         b_alma = p['H'] - 2.0 * p['t']
-        elems = [(b_alma, p['e'], NTC_LR_COMPRESION['alma'] * sq, AISC_B41A['alma'][0], AISC_B41A['alma'][1], 'alma'),
-                 (p['B'], p['t'], NTC_LR_COMPRESION['patin'] * sq, AISC_B41A['patin'][0], AISC_B41A['patin'][1], 'patin'),
-                 (p['B'], p['t'], NTC_LR_COMPRESION['patin'] * sq, AISC_B41A['patin'][0], AISC_B41A['patin'][1], 'patin')]
+        elems = [(b_alma, p['e'], AISC_LR_COMP['alma'] * sq, AISC_B41A['alma'][0], AISC_B41A['alma'][1], 'alma'),
+                 (p['B'], p['t'], AISC_LR_COMP['patin'] * sq, AISC_B41A['patin'][0], AISC_B41A['patin'][1], 'patin'),
+                 (p['B'], p['t'], AISC_LR_COMP['patin'] * sq, AISC_B41A['patin'][0], AISC_B41A['patin'][1], 'patin')]
     Ae = Ag
     det = []
     for b, t, lr, c1, c2, nombre in elems:
@@ -619,22 +615,20 @@ def utilizacion_asd(res, Pr_t, Pr_c, Mr_x, Mr_y, Vr_x, Vr_y, Tr=0.0):
     return u
 
 
-# NTC-Acero CDMX (Gaceta Oficial 7-jul-2020). El diseno de resistencia es AISC 360-22 (ASD); las esbelteces local
-# y global se verifican con la NTC (requisito del proyecto en Mexico).
-# (los limites NTC-Acero se cargan con cargar_norma(): tablas 3.2.1, 3.2.2 y 2.3.2)
+# Esbeltez local segun AISC 360-22 Tabla B4.1 (compresion: a/t; flexion: B4.1b). El limite KL/r se toma de la hoja NORMA.
 
 
 def esbeltez_local(p, familia, fy, E, compresion):
-    """Esbeltez local por elemento segun NTC: lambda / lambda_r (<= 1 cumple). Compresion: Tabla 3.2.1;
-    flexion: Tabla 3.2.2 (lambda_r = limite de seccion tipo 3). Devuelve (FU, {elemento: (lambda, lambda_r)})."""
+    """Esbeltez local por elemento segun AISC B4.1: lambda / lambda_r (<= 1 cumple). Compresion: B4.1a;
+    flexion: B4.1b (lambda_r = limite de seccion esbelta). Devuelve (FU, {elemento: (lambda, lambda_r)})."""
     sq = math.sqrt(E / fy)
     if familia == 'HSS':
         bf, hw = _hss_planos(p)
         t = p['t']
         if compresion:
-            lims = {'patin': (bf / t, NTC_HSS_LR_COMP * sq), 'alma': (hw / t, NTC_HSS_LR_COMP * sq)}
+            lims = {'patin': (bf / t, AISC_HSS_LR_COMP * sq), 'alma': (hw / t, AISC_HSS_LR_COMP * sq)}
         else:
-            lr_p, lr_a = NTC_HSS_FLEX['patin'][2] * sq, NTC_HSS_FLEX['alma'][2] * sq
+            lr_p, lr_a = AISC_HSS_FLEX['patin'][2] * sq, AISC_HSS_FLEX['alma'][2] * sq
             lims = {'patin': (bf / t, lr_p), 'alma': (hw / t, lr_a),
                     'patin_y': (hw / t, lr_p), 'alma_y': (bf / t, lr_a)}
         return {n: lam / lr for n, (lam, lr) in lims.items()}, lims
@@ -645,34 +639,34 @@ def esbeltez_local(p, familia, fy, E, compresion):
         lams = {'patin': b_pat / p['t'], 'alma': (p['H'] - 2.0 * p['t']) / p['e']}
     elementos = {}
     for n, lam in lams.items():
-        lr_norm = NTC_LR_COMPRESION[n] if compresion else NTC_LIMITES_FLEXION[n][2]
+        lr_norm = AISC_LR_COMP[n] if compresion else AISC_LIMITES_FLEXION[n][2]
         elementos[n] = (lam, lr_norm * sq)
     fu = {n: lam / lr for n, (lam, lr) in elementos.items()}
     return fu, elementos
 
 
-def tipo_seccion_flexion(p, familia, fy, E):
-    """Tipo de seccion (NTC 3.2.1.2, Tabla 3.2.2): 1, 2, 3 o 4 segun el elemento mas esbelto."""
+def clasificacion_flexion(p, familia, fy, E):
+    """Clasificacion a flexion (AISC 360-22, Tabla B4.1b): 'compacta', 'no compacta' o 'esbelta' segun el elemento
+    mas esbelto de la seccion."""
     sq = math.sqrt(E / fy)
     _, det = esbeltez_local(p, familia, fy, E, compresion=False)
-    tipo = 1
+    etiquetas = ['compacta', 'no compacta', 'esbelta']
+    peor = 0
     for n, (lam, _) in det.items():
         base = n.split('_')[0]
-        lpl, lp, lr = (NTC_HSS_FLEX if familia == 'HSS' else NTC_LIMITES_FLEXION)[base]
-        if lpl is not None and lam <= lpl * sq:
-            t = 1
-        elif lam <= lp * sq:
-            t = 2
+        _, lp, lr = (AISC_HSS_FLEX if familia == 'HSS' else AISC_LIMITES_FLEXION)[base]
+        if lam <= lp * sq:
+            k = 0
         elif lam <= lr * sq:
-            t = 3
+            k = 1
         else:
-            t = 4
-        tipo = max(tipo, t)
-    return tipo
+            k = 2
+        peor = max(peor, k)
+    return etiquetas[peor]
 
 
 def clasificacion_compresion(p, familia, fy, E):
-    """NTC 3.2.1.1 (Tabla 3.2.1): seccion no-esbelta si todos sus elementos cumplen lambda <= lambda_r."""
+    """AISC B4.1a: seccion no-esbelta en compresion si todos sus elementos cumplen lambda <= lambda_r."""
     fu, _ = esbeltez_local(p, familia, fy, E, compresion=True)
     return 'no-esbelta' if max(fu.values()) <= 1.0 else 'esbelta'
 
@@ -760,15 +754,13 @@ CHEQUEOS_TORSION = ['T torsion (H3.1)', 'H3 interaccion (H3-6)']      # solo HSS
 CHEQUEOS_DEMANDA = CHEQUEOS_DEMANDA_BASE + CHEQUEOS_TORSION
 INTERACCION = ('H1 flexocompresion', 'H1 flexotension', 'H2 angulo (H2-1)', 'H3 interaccion (H3-6)')
 CHEQUEO_EL = 'EL esbeltez local (B4.1)'
-CHEQUEO_EG = 'EG KL/r <= 200 (2.3.2)'
-CHEQUEO_D60 = 'D columna ductil KL/r <= 60 (12.1.3.1)'
-CHEQUEO_D12 = 'D tabla 12.1.2 ancho/grueso'
-CHEQUEOS_ESBELTEZ = [CHEQUEO_EL, CHEQUEO_EG, CHEQUEO_D60, CHEQUEO_D12]
+CHEQUEO_EG = 'EG KL/r <= 200 (criterio del proyecto)'
+CHEQUEOS_ESBELTEZ = [CHEQUEO_EL, CHEQUEO_EG]
 CHEQUEOS_ASD = CHEQUEOS_DEMANDA_BASE + CHEQUEOS_ESBELTEZ
 COLS_RESULTADOS = ['ID', 'PERFIL', 'MATERIAL', 'GRUPO', 'CASO QUE GOBIERNA', 'FU TRACCION', 'FU COMPRESION',
                    'FU FLEXION EJE MAYOR', 'FU FLEXION EJE MENOR', 'FU CORTANTE EJE MAYOR', 'FU CORTANTE EJE MENOR',
                    'FU INTERACCION (H1/H2)', 'FU ESBELTEZ LOCAL (B4.1)', 'FU ESBELTEZ GLOBAL (KL/r<=200)',
-                   'FU DUCTILIDAD (12.1.2, 12.1.3.1)', 'FU MAXIMO', 'KL/r EJE FUERTE', 'KL/r EJE DEBIL',
+                   'FU MAXIMO', 'KL/r EJE FUERTE', 'KL/r EJE DEBIL',
                    'ESTADO', 'NOTAS', 'FU TORSION (H3.1)', 'VERIFICACION QUE GOBIERNA', 'FU ESFUERZOS',
                    'ESFUERZO QUE GOBIERNA', 'FU ESBELTEZ', 'ESBELTEZ QUE GOBIERNA']
 
@@ -808,32 +800,10 @@ def seccion_de(nombre):
     return re.sub(r'^(IR|CE|LI|HSS)\s*ᴬ?\s*', '', nombre).strip()
 
 
-def _ductilidad(p, familia, fy, E, grupo, nivel):
-    """Tabla 12.1.2 (NTC): I y canales (DN); angulos sencillos: alas (no atiesadas), lambda = b/t <= 0.30 (alta) o
-    0.38 (media) sqrt(E/Fy)."""
-    import diseno_ntc as DN
-    if familia == 'HSS':
-        if nivel not in ('ALTA', 'MEDIA'):
-            return None
-        bf, hw = _hss_planos(p)
-        lam = max(bf, hw) / p['t']                       # pared mas esbelta (patin o alma)
-        r = math.sqrt(E / fy)
-        lda, ldm = NTC_HSS_DUC['ALTA'] * r, NTC_HSS_DUC['MEDIA'] * r
-        lim = lda if nivel == 'ALTA' else ldm
-        return {'U': lam / lim, 'lambda': lam, 'limite': lim, 'lf': lam, 'lda_f': lda, 'ldm_f': ldm}
-    if familia == 'LI':
-        if nivel not in ('ALTA', 'MEDIA'):
-            return None
-        lim = (0.30 if nivel == 'ALTA' else 0.38) * math.sqrt(E / fy)
-        return {'U': (p['H'] / p['t']) / lim, 'lambda': p['H'] / p['t'], 'limite': lim}
-    forma = {'IR': 'I', 'CE': 'canal'}.get(familia)
-    return DN.ductilidad_12_1_2(p, fy, E, forma, grupo, nivel) if forma else None
-
-
-def _chequear(p, familia, fy, fu, E, nu, Lx, Ly, Lb, kx, ky, grupo, nivel, demandas_list, cb=None,
+def _chequear(p, familia, fy, fu, E, nu, Lx, Ly, Lb, kx, ky, grupo, demandas_list, cb=None,
               e5=False, u_t=1.0):
     """Utilizaciones ASD por demanda (una fila por combinacion) y verificaciones de esbeltez de la barra.
-    Devuelve dict: res, klr, dd, el (FU local por elemento), el_det, const (FU que no dependen de la demanda),
+    Devuelve dict: res, klr, el (FU local por elemento), el_det, const (FU que no dependen de la demanda),
     filas (una por demanda) y motivo (si no se puede verificar)."""
     res = resistencias_asd(p, familia, fy, fu, E, nu, Lx, Ly, Lb, kx, ky, max(Lx, Ly), Cb=cb, e5=e5, U=u_t)
     klr = res['klr']
@@ -842,12 +812,7 @@ def _chequear(p, familia, fy, fu, E, nu, Lx, Ly, Lb, kx, ky, grupo, nivel, deman
     const = {CHEQUEO_EL: max(fu_el.values())}
     if compr:
         const[CHEQUEO_EG] = klr / LIMITE_KLR
-    dd = _ductilidad(p, familia, fy, E, grupo, nivel)
-    if grupo == 'COLUMNA' and nivel in ('ALTA', 'MEDIA'):
-        const[CHEQUEO_D60] = klr / 60.0
-    if dd is not None and dd.get('U') is not None:
-        const[CHEQUEO_D12] = dd['U']
-    out = dict(res=res, klr=klr, dd=dd, el=fu_el, el_det=el_det, const=const, filas=[], motivo=res.get('motivo'))
+    out = dict(res=res, klr=klr, el=fu_el, el_det=el_det, const=const, filas=[], motivo=res.get('motivo'))
     if res.get('motivo') and any(d['Pr_c'] > 0 for d in demandas_list):
         return out
     for d in demandas_list:
@@ -867,23 +832,17 @@ _NOMBRE_ESFUERZO = {
 
 
 def _valores_esbeltez(ev, c):
-    """(lambda, limite, texto) de la verificacion de esbeltez c: esbeltez local, KL/r o ductilidad (12.1.2)."""
+    """(valor, limite, texto) de la verificacion de esbeltez c: esbeltez local (B4.1) o KL/r (criterio del proyecto)."""
     if c == CHEQUEO_EL:
         nombre, (lam, lr) = max(ev['el_det'].items(), key=lambda t: t[1][0] / t[1][1])
         return lam, lr, f'λ {nombre} {lam:.1f}/{lr:.1f}'
-    if c in (CHEQUEO_EG, CHEQUEO_D60):
-        lim = 60.0 if CHEQUEO_D60 in ev['const'] else LIMITE_KLR
-        return ev['klr'], lim, f'KL/r {ev["klr"]:.1f}/{lim:.1f}'
-    dd = ev['dd']
-    lam = dd['lf'] if 'lf' in dd else dd['lambda']
-    lim = lam / dd['U']
-    return lam, lim, f'λ ductil {lam:.2f}/{lim:.2f}'
+    return ev['klr'], LIMITE_KLR, f'KL/r {ev["klr"]:.1f}/{LIMITE_KLR:.1f}'
 
 
 def _resumen_fu(ev, pares):
     """FU por verificacion (maximo sobre combinaciones) y caso que gobierna. pares = [(fila, caso)].
     FU ESFUERZOS: resistencia (tension, compresion, flexion, cortante, interaccion, torsion).
-    FU ESBELTEZ: esbeltez local, KL/r y ductilidad (valores de λ o KL/r y su limite en el texto).
+    FU ESBELTEZ: esbeltez local (B4.1) y KL/r (criterio del proyecto; valores de λ o KL/r y su limite en el texto).
     FU MAXIMO: el mayor de ambos (la seccion cumple si FU MAXIMO <= 1)."""
     mx = {}
     for c in CHEQUEOS_DEMANDA:
@@ -897,14 +856,13 @@ def _resumen_fu(ev, pares):
     esf = [(mx[c][0], mx[c][1], c) for c in CHEQUEOS_DEMANDA if c in mx]
     esb = []
     for c, v in ev['const'].items():
-        nombre = '(esbeltez local)' if c == CHEQUEO_EL else ('(esbeltez global)' if c == CHEQUEO_EG else '(ductilidad)')
+        nombre = '(esbeltez local)' if c == CHEQUEO_EL else '(KL/r)'
         esb.append((v, nombre, c))
     cands = esf + esb
     fu_max, caso_gob, verif_gob = max(cands, key=lambda t: t[0]) if cands else (None, '', '')
     fu_esf = max(esf, key=lambda t: t[0]) if esf else (None, '', '')
     fu_esb = max(esb, key=lambda t: t[0]) if esb else (None, '', '')
     txt_esb = _valores_esbeltez(ev, fu_esb[2])[2] if esb else '—'
-    duct = [ev['const'][c] for c in (CHEQUEO_D60, CHEQUEO_D12) if c in ev['const']]
     return {'CASO QUE GOBIERNA': caso_gob, 'VERIFICACION QUE GOBIERNA': verif_gob,
             'FU ESFUERZOS': fu_esf[0], 'ESFUERZO QUE GOBIERNA': _NOMBRE_ESFUERZO.get(fu_esf[2], fu_esf[2]),
             'FU ESBELTEZ': fu_esb[0], 'ESBELTEZ QUE GOBIERNA': txt_esb,
@@ -914,7 +872,6 @@ def _resumen_fu(ev, pares):
             'FU INTERACCION (H1/H2)': max(inter, key=lambda t: t[0])[0] if inter else None,
             'FU ESBELTEZ LOCAL (B4.1)': ev['const'].get(CHEQUEO_EL),
             'FU ESBELTEZ GLOBAL (KL/r<=200)': ev['const'].get(CHEQUEO_EG),
-            'FU DUCTILIDAD (12.1.2, 12.1.3.1)': max(duct) if duct else None,
             'FU TORSION (H3.1)': val('T torsion (H3.1)'),
             'FU MAXIMO': fu_max}
 
@@ -932,7 +889,7 @@ def _preparar_entradas(materiales_filas, longitudes_df, demandas):
 
 
 def _entrada_barra(dib, i, id_barra, lon, mat):
-    """Datos de entrada ASD de la barra i: longitud, K, Cb, ductilidad y material. Lo no dado se supone y se anota."""
+    """Datos de entrada ASD de la barra i: longitud, K, Cb y material. Lo no dado se supone y se anota."""
     b = dib.barras[i]
     id_ = id_barra.get(i, i)
     L = float(np.linalg.norm(np.array(dib.nodos[b['n2']]) - np.array(dib.nodos[b['n1']]))) * 100.0
@@ -952,10 +909,6 @@ def _entrada_barra(dib, i, id_barra, lon, mat):
     kx = _req(kx, 'KX', barra)
     ky = _req(ky, 'KY', barra)
     cb = _req(cb, 'CB', barra)
-    duct_raw = r.get('DUCTILIDAD') if r is not None else None
-    nivel = None
-    if duct_raw is not None and not (isinstance(duct_raw, float) and math.isnan(duct_raw)) and str(duct_raw).strip():
-        nivel = str(duct_raw).strip().upper()
     lcon = campo('LI LONGITUD CONEXION (m)')
     conexion_raw = _texto(r.get('LI CONEXION')) if r is not None else ''
     sup_li = []
@@ -965,7 +918,7 @@ def _entrada_barra(dib, i, id_barra, lon, mat):
             raise ErrorAsd(f'{barra}falta LI CONEXION en LONGITUDES (angulo: UNA PATA, DOS PATAS o SOLDADA)')
         if lcon is None:
             raise ErrorAsd(f'{barra}falta LI LONGITUD CONEXION (m) en LONGITUDES (angulo)')
-    return dict(m=m, L=L, lx=lx, ly=ly, lb=lb, kx=kx, ky=ky, cb=cb, nivel=nivel, supuestos=supuestos,
+    return dict(m=m, L=L, lx=lx, ly=ly, lb=lb, kx=kx, ky=ky, cb=cb, supuestos=supuestos,
                 e5=e5_cumple(r), conexion=conexion_raw or None,
                 l_li=lcon * 100.0 if lcon is not None else None, sup_li=sup_li)
 
@@ -989,7 +942,7 @@ def perfil_por_grupo(dib):
 
 
 COLS_MATRIZ = ['CLAVE', 'ID', 'PERFIL', 'ELEMENTO DISENO', 'FU MAXIMO', 'FU DEMANDA', 'FU ESBELTEZ LOCAL (B4.1)',
-               'FU ESBELTEZ GLOBAL (KL/r<=200)', 'FU DUCTILIDAD (12.1.2, 12.1.3.1)', 'CASO QUE GOBIERNA', 'ESTADO',
+               'FU ESBELTEZ GLOBAL (KL/r<=200)', 'CASO QUE GOBIERNA', 'ESTADO',
                'FU ESFUERZOS', 'FU ESBELTEZ', 'ESBELTEZ QUE GOBIERNA']
 FU_DEMANDA_CLAVES = ['FU TRACCION', 'FU COMPRESION', 'FU FLEXION EJE MAYOR', 'FU FLEXION EJE MENOR',
                      'FU CORTANTE EJE MAYOR', 'FU CORTANTE EJE MENOR', 'FU INTERACCION (H1/H2)', 'FU TORSION (H3.1)']
@@ -1016,34 +969,32 @@ def matriz_fu_por_perfil(dib, materiales_filas, longitudes_df, demandas, id_barr
             base = [f'{int(id_)}|{nombre}', int(id_), nombre, b['elemento']]
             if p is None or m is None or m['fy'] is None or m['E'] is None or m['nu'] is None:
                 motivo = falta if p is None else 'material sin fy, E o nu'
-                filas.append(base + [motivo] + ['NO REVISADO'] * 9)
+                filas.append(base + [motivo] + ['NO REVISADO'] * 8)
                 continue
             if fam == 'LI' and (e['l_li'] is None or e['conexion'] is None):
                 # DECISION D20 (abierta): candidatos LI sin datos de conexion quedan NO REVISADO (alternativa: error).
                 # candidato angulo: sin LI CONEXION y LI LONGITUD CONEXION en LONGITUDES no se evalua (no se supone)
-                filas.append(base + ['falta LI CONEXION o LI LONGITUD CONEXION en LONGITUDES'] + ['NO REVISADO'] * 9)
+                filas.append(base + ['falta LI CONEXION o LI LONGITUD CONEXION en LONGITUDES'] + ['NO REVISADO'] * 8)
                 continue
             ev = _chequear(p, fam, m['fy'], m['fu'], m['E'], m['nu'], e['lx'] * 100.0, e['ly'] * 100.0,
-                           e['lb'] * 100.0, e['kx'], e['ky'], b['elemento'], e['nivel'], demandas_list, cb=e['cb'],
+                           e['lb'] * 100.0, e['kx'], e['ky'], b['elemento'], demandas_list, cb=e['cb'],
                            e5=(fam == 'LI' and e['e5']),
                            u_t=(factor_u_angulo(p['xc'], e['l_li'], e['conexion']) if fam == 'LI' else 1.0))
             if ev['motivo'] and any(d['Pr_c'] > 0 for d in demandas_list):
-                filas.append(base + ['NO REVISADO'] * 9 + ['NO REVISADO'])
+                filas.append(base + ['NO REVISADO'] * 9)
                 continue
             if not demandas_list:
                 el, eg = ev['const'][CHEQUEO_EL], ev['const'].get(CHEQUEO_EG)
                 filas.append(base + ['SIN COMBINACIONES', '—', round(el, 3),
-                                     round(eg, 3) if eg is not None else '—', '—', '—', 'SIN COMBINACIONES',
+                                     round(eg, 3) if eg is not None else '—', '—', 'SIN COMBINACIONES',
                                      '—', round(max(el, eg or 0.0), 3), '—'])
                 continue
             fu = _resumen_fu(ev, list(zip(ev['filas'], casos)))
             dem = [fu[c] for c in FU_DEMANDA_CLAVES if fu.get(c) is not None]
             eg = fu['FU ESBELTEZ GLOBAL (KL/r<=200)']
-            duct = fu['FU DUCTILIDAD (12.1.2, 12.1.3.1)']
             filas.append(base + [round(fu['FU MAXIMO'], 4), round(max(dem), 4) if dem else '—',
                                  round(fu['FU ESBELTEZ LOCAL (B4.1)'], 4),
                                  round(eg, 4) if eg is not None else '—',
-                                 round(duct, 4) if duct is not None else '—',
                                  fu['CASO QUE GOBIERNA'],
                                  'CUMPLE' if fu['FU MAXIMO'] <= 1.0 else 'NO CUMPLE',
                                  _r4(fu['FU ESFUERZOS']), _r4(fu['FU ESBELTEZ']), fu['ESBELTEZ QUE GOBIERNA']])
@@ -1084,8 +1035,8 @@ def diseno_asd_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id
                                   ESTADO='FUERA DE ALCANCE', NOTAS=motivo))
             continue
         e = _entrada_barra(dib, i, id_barra, lon, mat)
-        m, L, lx, ly, lb, kx, ky, cb, nivel, supuestos = (e['m'], e['L'], e['lx'], e['ly'], e['lb'], e['kx'],
-                                                          e['ky'], e['cb'], e['nivel'], e['supuestos'])
+        m, L, lx, ly, lb, kx, ky, cb, supuestos = (e['m'], e['L'], e['lx'], e['ly'], e['lb'], e['kx'],
+                                                   e['ky'], e['cb'], e['supuestos'])
         p, falta = _props_asd(perfil, familia)
         if p is None or m is None or m['fy'] is None or m['E'] is None or m['nu'] is None:
             motivo = falta if p is None else 'material sin fy, E o nu en MATERIALES'
@@ -1103,7 +1054,7 @@ def diseno_asd_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id
         demandas_list = [_demanda_fila(f) for _, f in filas_comb.iterrows()]
         casos = [f['CASO'] for _, f in filas_comb.iterrows()]
         ev = _chequear(p, familia, m['fy'], m['fu'], m['E'], m['nu'], lx * 100.0, ly * 100.0, lb * 100.0,
-                       kx, ky, grupo, nivel, demandas_list, cb=cb, e5=e5_b, u_t=u_b)
+                       kx, ky, grupo, demandas_list, cb=cb, e5=e5_b, u_t=u_b)
         res = ev['res']
         if ev['motivo'] and any(d['Pr_c'] > 0 for d in demandas_list):
             motivo = 'NO REVISADO: ' + res['motivo']
@@ -1121,7 +1072,6 @@ def diseno_asd_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id
             notas.append('sin verificacion KL/r (elemento sin compresion)')
         cap = {'ID': id_, 'PERFIL': perfil, 'FAMILIA': familia, 'MATERIAL': b.get('material'), 'GRUPO': grupo,
                'L (m)': L / 100.0, 'LX (m)': lx, 'LY (m)': ly, 'LB (m)': lb, 'KX': kx, 'KY': ky, 'CB': cb,
-               'DUCTILIDAD': nivel or '(informativo)',
                'Pa traccion (kgf)': res['Pa_t'], 'Pa compresion (kgf)': res['Pa_c'],
                'Ma eje mayor (kgf·cm)': res['Ma_x'], 'Ma eje menor (kgf·cm)': res['Ma_y'],
                'Va eje mayor (kgf)': res['Va_x'], 'Va eje menor (kgf)': res['Va_y'],
@@ -1284,7 +1234,7 @@ def listas_por_grupo_asd(dib, materiales_filas, longitudes_df, demandas, id_barr
         lx = ly = lb = kx = ky = 0.0
         e5_todas, lineas_li = [], []
         cb_min = None
-        niveles, materiales = set(), collections.Counter()
+        materiales = collections.Counter()
         for i in idx:
             r = lon.get(id_barra.get(i, i))
             L = float(np.linalg.norm(np.array(dib.nodos[dib.barras[i]['n2']]) - np.array(dib.nodos[dib.barras[i]['n1']])))
@@ -1299,14 +1249,10 @@ def listas_por_grupo_asd(dib, materiales_filas, longitudes_df, demandas, id_barr
             ky = max(ky, _req(v['KY'], 'KY'))
             cbi = _req(v['CB'], 'CB')
             cb_min = cbi if cb_min is None else min(cb_min, cbi)
-            duct = r.get('DUCTILIDAD') if r is not None else None
-            if duct is not None and not (isinstance(duct, float) and math.isnan(duct)) and str(duct).strip():
-                niveles.add(str(duct).strip().upper())
             materiales[str(dib.barras[i].get('material') or '').strip()] += 1
             ent = _entrada_barra(dib, i, id_barra, lon, mat)
             e5_todas.append(ent['e5'])
             lineas_li.append((ent['l_li'], ent['conexion']))
-        nivel = 'ALTA' if 'ALTA' in niveles else ('MEDIA' if 'MEDIA' in niveles else None)
         e5_grupo = bool(e5_todas) and all(e5_todas)
         nombre_mat = materiales.most_common(1)[0][0]
         m = mat.get(nombre_mat)
@@ -1322,7 +1268,7 @@ def listas_por_grupo_asd(dib, materiales_filas, longitudes_df, demandas, id_barr
                 filas_tabla.append(base_fila + [None, None, None, 'no revisado: ' + falta])
                 continue
             ev = _chequear(p, fam, m['fy'], m['fu'], m['E'], m['nu'], lx * 100.0, ly * 100.0, lb * 100.0,
-                           kx, ky, g, nivel, sint, cb=cb_min,
+                           kx, ky, g, sint, cb=cb_min,
                            e5=(fam == 'LI' and e5_grupo),
                            u_t=(min(factor_u_angulo(p['xc'], l, c) for l, c in lineas_li)
                                 if fam == 'LI' and lineas_li else 1.0))

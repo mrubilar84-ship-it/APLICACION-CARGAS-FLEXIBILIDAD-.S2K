@@ -65,8 +65,6 @@ def leer_planilla(ruta):
     barras = pd.read_excel(ruta, sheet_name='BARRAS', dtype=object)
     nodos = nodos[[not all(_vacio(v) for v in fila) for fila in nodos[['ID', 'X (m)', 'Y (m)', 'Z (m)']].values]]
     barras = barras[[not all(_vacio(v) for v in fila) for fila in barras[['ID', 'NODO_I', 'NODO_J']].values]]
-    if 'DUCTILIDAD' not in barras.columns:          # planilla anterior: sin la columna DUCTILIDAD
-        barras = barras.assign(DUCTILIDAD=None)
     # Con diseno, el perfil de cada barra lo da su grupo (PERFIL_GRUPO); la celda PERFIL de BARRAS es una formula.
     grupos = leer_perfil_grupo(ruta)
     if grupos:
@@ -208,9 +206,6 @@ def validar(nodos, barras):
             avisar('BARRAS', fila, 'ERROR', 'falta MATERIAL: elija una calidad de la lista (hoja MATERIALES)')
         elif material not in MATERIALES_VALIDOS:
             avisar('BARRAS', fila, 'ERROR', f"MATERIAL '{material}' no existe en la hoja MATERIALES")
-        duct_b = _col(r, 'DUCTILIDAD')
-        if not _vacio(duct_b) and str(duct_b).strip().upper() not in ('ALTA', 'MEDIA'):
-            avisar('BARRAS', fila, 'ERROR', 'DUCTILIDAD debe ser ALTA, MEDIA o vacio')
         for col in ('CONEXION_I', 'CONEXION_J'):
             c = _tipo(_col(r, col))
             if c and c not in TIPOS_CONEXION:
@@ -328,38 +323,29 @@ def leer_parametros(ruta):
 
 
 def leer_norma(ruta):
-    """Hoja NORMA: {'SISTEMAS': {nombre: {Q, gSV, gOI, R0}}, 'VALORES': {CLAVE: valor}}. None si falta la hoja."""
+    """Hoja NORMA: {'VALORES': {CLAVE: valor}}. None si falta la hoja."""
     import openpyxl
     try:
         ws = openpyxl.load_workbook(ruta, data_only=True)['NORMA']
     except KeyError:
         return None
-    sistemas, valores, modo = {}, {}, None
+    valores, leyendo = {}, False
     for fila in range(1, ws.max_row + 1):
         a = ws.cell(row=fila, column=1).value
         if _vacio(a):
             continue
         t = str(a).strip()
-        if t == 'NOMBRE DEL SISTEMA':
-            modo = 'S'
-            continue
         if t == 'CLAVE':
-            modo = 'V'
+            leyendo = True
             continue
-        if t.startswith(('NORMA:', 'SISTEMAS ESTRUCTURALES', 'VALORES DE NORMA')):
-            modo = None
-            continue
-        if modo == 'S':
-            sistemas[t] = {'Q': float(ws.cell(row=fila, column=2).value), 'gSV': float(ws.cell(row=fila, column=3).value),
-                           'gOI': float(ws.cell(row=fila, column=4).value), 'R0': float(ws.cell(row=fila, column=5).value)}
-        elif modo == 'V':
+        if leyendo:
             valores[t] = float(ws.cell(row=fila, column=2).value)
-    return {'SISTEMAS': sistemas, 'VALORES': valores}
+    return {'VALORES': valores}
 
 
 def validar_datos_diseno(barras, longitudes):
-    """Datos obligatorios para el diseno de cada barra: LX, LY, LB, KX, KY, CB en LONGITUDES y DUCTILIDAD en
-    columnas y vigas (BARRAS). Sin estos datos no se supone nada: aparece como ERROR."""
+    """Datos obligatorios para el diseno de cada barra: LX, LY, LB, KX, KY, CB en LONGITUDES. Sin estos datos no se
+    supone nada: aparece como ERROR."""
     msgs = []
     lon = {int(float(r['ID'])): r for _, r in longitudes.iterrows() if not _vacio(r['ID'])}
     for k, r in barras.iterrows():
@@ -372,10 +358,6 @@ def validar_datos_diseno(barras, longitudes):
         for campo in ['LX (m)', 'LY (m)', 'LB (m)', 'KX', 'KY', 'CB']:
             if lr is None or _vacio(lr[campo]):
                 msgs.append(('LONGITUDES', fila, 'ERROR', f'barra {id_}: falta {campo} (dato obligatorio para el diseno)'))
-        elemento = str(r['ELEMENTO']).strip().upper() if not _vacio(r['ELEMENTO']) else ''
-        # DECISION D19 (abierta): DUCTILIDAD obligatoria solo en COLUMNA y VIGA; ARRIOSTRE y DIAGONAL opcionales.
-        if elemento in ('COLUMNA', 'VIGA') and _vacio(r['DUCTILIDAD']):
-            msgs.append(('BARRAS', fila, 'ERROR', f'barra {id_} ({elemento}): falta DUCTILIDAD (ALTA o MEDIA)'))
     return msgs
 
 
@@ -522,10 +504,6 @@ mensajes = validar(nodos, barras)
 cargas = leer_cargas(RUTA_PLANILLA_LEIDA)
 estados_df = leer_estados(RUTA_PLANILLA_LEIDA)
 longitudes_df = leer_longitudes(RUTA_PLANILLA_LEIDA)
-# DUCTILIDAD (ALTA o MEDIA) se marca en BARRAS; el diseno la lee por ID desde la tabla de longitudes
-_duct_por_id = {int(float(r['ID'])): r['DUCTILIDAD'] for _, r in barras.iterrows() if not _vacio(r['ID'])}
-longitudes_df['DUCTILIDAD'] = [None if _vacio(v) else _duct_por_id.get(int(float(v)), None)
-                               for v in longitudes_df['ID']]
 ids_nodo = set()
 for _v in nodos['ID'].values:
     try:

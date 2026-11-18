@@ -7,7 +7,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.worksheet.datavalidation import DataValidation
 COLS_MATRIZ_XL = ['CLAVE', 'ID', 'PERFIL', 'ELEMENTO DISENO', 'FU MAXIMO', 'FU DEMANDA',
                   'FU ESBELTEZ LOCAL (B4.1)', 'FU ESBELTEZ GLOBAL (KL/r<=200)',
-                  'FU DUCTILIDAD (12.1.2, 12.1.3.1)', 'CASO QUE GOBIERNA', 'ESTADO',
+                  'CASO QUE GOBIERNA', 'ESTADO',
                   'FU ESFUERZOS', 'FU ESBELTEZ', 'ESBELTEZ QUE GOBIERNA']
 from openpyxl.chart import ScatterChart, Reference, Series
 from openpyxl.drawing.image import Image as XLImage
@@ -19,7 +19,7 @@ import pandas as pd
 NODOS_COLS = ['ID', 'X (m)', 'Y (m)', 'Z (m)', 'UX', 'UY', 'UZ', 'RX', 'RY', 'RZ', 'NOTA', 'REPORTAR']
 GRADOS_COLS = ['UX', 'UY', 'UZ', 'RX', 'RY', 'RZ']       # columnas E..J de NODOS: SI = grado restringido
 BARRAS_COLS = ['ID', 'NODO_I', 'NODO_J', 'ELEMENTO', 'PERFIL', 'EJE_FUERTE_X', 'EJE_FUERTE_Y', 'EJE_FUERTE_Z',
-               'CONEXION_I', 'CONEXION_J', 'MATERIAL', 'NOTA', 'REPORTAR', 'DUCTILIDAD']
+               'CONEXION_I', 'CONEXION_J', 'MATERIAL', 'NOTA', 'REPORTAR']
 MAT_MAX = 10
 MAT_FIN = MAT_MAX + 1
 # Valores de partida de la plantilla. Son datos de ENTRADA en la hoja MATERIALES: el notebook los lee de ahi
@@ -888,92 +888,18 @@ def _hoja_combinaciones(wb, combinaciones):
 # (solo lectura). El notebook lee ambas hojas: no hay valores de norma ni supuestos dentro del codigo.
 PARAM_CATALOGO = [
     # CLAVE, concepto, valor (ejemplo), unidad, opciones, referencia, explicacion
-    ('SISTEMA_SISMICO', 'Sistema estructural sismico', 'Marcos de acero de ductilidad media', '',
-     'lista (hoja NORMA, tabla 4.3.2)', 'NTC Diseno por Sismo 2023, tabla 4.3.2, pag. 53',
-     'Define Q, gamma SV, gamma OI y R0 del sistema.'),
-    ('CRUJIAS_AMBAS', 'Tres o mas crujias resistentes en las dos direcciones', 'SÍ', '', 'SÍ / NO',
-     'NTC Diseno por Sismo 2023, §3.3.1, pag. 42-43',
-     'SÍ: k1 = 1.0. NO: k1 = 0.8 (menos de tres crujias en alguna direccion).'),
-    ('ZONA_SISMICA', 'Zona sismica del sitio', 'B', '', 'A / B / C',
-     'NTC Diseno por Sismo 2023, §3.1 (eq. 3.1.1)', 'Se usa si KS_METODO = SEGUN ZONA. Dato obligatorio.'),
-    ('TS', 'Ts del sitio (SASID)', 0.5, 's', 'numero > 0', 'NTC Diseno por Sismo 2023, eq. 3.1.1 y SASID',
-     'Periodo caracteristico del sitio. Dato del SASID. Obligatorio.'),
-    ('TA', 'Ta del sitio (SASID)', 0.2, 's', 'numero > 0', 'NTC Diseno por Sismo 2023, §3.3.1b y SASID',
-     'Limite de la meseta. k2 = 0 si T >= Ta (T de §6.4.1). Obligatorio.'),
-    ('TB', 'Tb del sitio (SASID)', 1.0, 's', 'numero > Ta', 'NTC Diseno por Sismo 2023, §3.2 y SASID',
-     'Limite superior de la meseta. Obligatorio.'),
-    ('K_SASID', 'Factor k del SASID', 1.0, '', 'numero > 0', 'NTC Diseno por Sismo 2023, §3.2, eq. 3.2.1',
-     "Q' = 1 + (Q-1)/k. Con k = 1, Q' = Q. Dato del SASID. Obligatorio."),
-    ('C_SASID', 'Coeficiente sismico c (SASID)', 0.25, '', 'numero > 0',
-     'NTC Diseno por Sismo 2023, §6.3, eq. 6.3.1', "Base de la fuerza de diseno V0 = c W0/(Q' R'). Obligatorio."),
-    ('KS_METODO', 'Factor Ks para la distorsion LDNE', 'CONSERVADOR (Ks=1)', '',
-     'CONSERVADOR (Ks=1) / SEGUN ZONA (ec. 3.1.1)', 'NTC Diseno por Sismo 2023, tabla 3.1.1, nota [3]; eq. 3.1.1',
-     'CONSERVADOR: Ks = 1. SEGUN ZONA: Ks de la zona y de Ts.'),
-    ('DEFORMABLES', 'Elementos no estructurales capaces de deformarse o separados', 'SÍ', '', 'SÍ / NO',
-     'NTC Diseno por Sismo 2023, §1.7, pag. 26', 'SÍ: limite LDNE 0.004. NO: 0.002.'),
-    ('FRAGILES', 'Elementos no estructurales fragiles unidos', 'NO', '', 'SÍ / NO',
-     'NTC Criterios y Acciones, §4.1.1 b), pag. 8', 'SÍ: distorsion h/500. NO: h/250.'),
     ('VIENTO', 'Viento considerado en el diseno', 'NO', '', 'NO',
      'Criterio del proyecto (version actual)',
      'Esta version no considera viento. Los estados y combinaciones con W se omiten.'),
     ('KZ_TORSION', 'Factor Kz de pandeo torsional (extremos)', 1.0, '', '1.0 / 0.5',
      'AISC 360-22, E4 (Kz, factor de longitud efectiva para pandeo torsional)',
      '1.0: extremos sin restriccion al alabeo. 0.5: extremos con restriccion al alabeo y a la rotacion. Confirme segun sus conexiones.'),
-    ('METODO', 'Metodo de analisis sismico', 'ESTÁTICO', '', 'ESTÁTICO',
-     'NTC Diseno por Sismo 2023, §6.1-6.2',
-     'Solo analisis estatico. El modal espectral no se usa en esta aplicacion.'),
-]
-
-# DECISION D15 (abierta): solo marcos de acero (tabla 4.3.2). Alternativa: agregar contraventeos y sistemas duales.
-NORMA_SISTEMAS = [
-    # NOMBRE, Q, gamma SV, gamma OI, R0, referencia
-    ('Marcos de acero de ductilidad alta', 4.0, 0.030, 0.0075, 2.0,
-     'NTC Diseno por Sismo 2023, tabla 4.3.2, i) Marcos, pag. 53; R0 de §3.3.1a'),
-    ('Marcos de acero de ductilidad media', 3.0, 0.020, 0.0075, 2.0,
-     'NTC Diseno por Sismo 2023, tabla 4.3.2, i) Marcos, pag. 53; R0 de §3.3.1a'),
-    ('Marcos de acero de ductilidad baja', 2.0, 0.015, 0.0075, 1.75,
-     'NTC Diseno por Sismo 2023, tabla 4.3.2, i) Marcos, pag. 53; R0 de §3.3.1a (Q < 3)'),
 ]
 
 NORMA_VALORES = [
     # CLAVE, valor, unidad, referencia, explicacion
-    ('LDNE_DEFORMABLES', 0.004, '', 'NTC Diseno por Sismo 2023, §1.7, pag. 26',
-     'Limite de distorsion LDNE si los elementos no estructurales son deformables o estan separados.'),
-    ('LDNE_NO', 0.002, '', 'NTC Diseno por Sismo 2023, §1.7, pag. 26', 'Limite LDNE en los demas casos.'),
-    ('NTC_CA_H_FRAGILES', 500, '', 'NTC Criterios y Acciones, §4.1.1 b), pag. 8',
-     'Distorsion horizontal h/500 con elementos no estructurales fragiles unidos.'),
-    ('NTC_CA_H_OTROS', 250, '', 'NTC Criterios y Acciones, §4.1.1 b), pag. 8', 'Distorsion h/250 en otros casos.'),
-    ('SEG2_FACTOR', 0.08, '', 'NTC Diseno por Sismo 2023, §2.4, eq. 2.4.1, pag. 32',
-     'Efectos de segundo orden despreciables si la distorsion no excede 0.08 V/W.'),
-    ('FLECHA_DIVISOR', 300, '', 'AISC 360-22, Comentario L2, pag. 16.1-543',
-     'Flecha vertical maxima L/300 en vigas. El comentario indica que 1/300 del claro es visible y puede causar dano arquitectonico. La NTC-Acero no fija un numero (§11.4 remite a la NTC-CA).'),
-    ('K1_SI', 1.0, '', 'NTC Diseno por Sismo 2023, §3.3.1a, pag. 42-43', 'k1 con tres o mas crujias en ambas direcciones.'),
-    ('K1_NO', 0.8, '', 'NTC Diseno por Sismo 2023, §3.3.1a, pag. 42-43', 'k1 con menos de tres crujias en alguna direccion.'),
-    ('K2_COEF', 0.5, '', 'NTC Diseno por Sismo 2023, §3.3.1b, pag. 43', 'k2 = 0.5 (1 - (T/Ta)^2) si T < Ta.'),
-    ('K2_EXP', 2, '', 'NTC Diseno por Sismo 2023, §3.3.1b, pag. 43', 'Exponente de T/Ta en k2.'),
-    ('RP_SV', 1.0, '', 'NTC Diseno por Sismo 2023, §3.3.2a', 'R-prima para Seguridad de Vida = R.'),
-    ('RP_OI', 0.75, '', 'NTC Diseno por Sismo 2023, §3.3.2b', 'R-prima para Ocupacion Inmediata = 0.75 R.'),
-    ('KS_A_DEN', 6, '', 'NTC Diseno por Sismo 2023, eq. 3.1.1 (zona A)', 'Ks = 1/6 en zona A.'),
-    ('KS_C_DEN', 4, '', 'NTC Diseno por Sismo 2023, eq. 3.1.1 (zona C)', 'Ks = 1/4 en zona C.'),
-    ('KS_B_A', 6, '', 'NTC Diseno por Sismo 2023, eq. 3.1.1 (zona B)', 'Zona B: Ks = 1/[6 - 4(Ts - 0.5)].'),
-    ('KS_B_B', 4, '', 'NTC Diseno por Sismo 2023, eq. 3.1.1 (zona B)', 'Coeficiente de Ts en la zona B.'),
-    ('KS_B_C', 0.5, 's', 'NTC Diseno por Sismo 2023, eq. 3.1.1 (zona B)', 'Valor de Ts en la zona B.'),
-    ('G', 9.81, 'm/s2', 'NTC Diseno por Sismo 2023, §6.4.1', 'Aceleracion de la gravedad para el periodo T.'),
-    ('NTC_LR_PATIN', 0.56, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.1, pag. 57', 'lambda_r de patin (I y canal) en compresion.'),
-    ('NTC_LR_ALMA', 1.49, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.1, pag. 57', 'lambda_r de alma en compresion.'),
-    ('NTC_LR_PATA', 0.45, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.1, pag. 57', 'lambda_r de ala de angulo en compresion.'),
-    ('NTC_LIM_PATIN_PL', 0.30, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.2, pag. 58', 'Patin tipo 1 (flexion).'),
-    ('NTC_LIM_PATIN_P', 0.38, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.2, pag. 58', 'Patin tipo 2 (flexion) y limite media de Tabla 12.1.2.'),
-    ('NTC_LIM_PATIN_R', 1.00, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.2, pag. 58', 'Patin tipo 3 (flexion).'),
-    ('NTC_LIM_ALMA_PL', 2.45, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.2, pag. 58', 'Alma tipo 1 (flexion).'),
-    ('NTC_LIM_ALMA_P', 3.76, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.2, pag. 58', 'Alma tipo 2 (flexion).'),
-    ('NTC_LIM_ALMA_R', 5.70, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.2, pag. 58', 'Alma tipo 3 (flexion).'),
-    ('NTC_LIM_PATA_P', 0.54, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.2, pag. 58', 'Ala de angulo tipo 2 (flexion).'),
-    ('NTC_LIM_PATA_R', 0.91, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.2, pag. 58', 'Ala de angulo tipo 3 (flexion).'),
-    ('NTC_KLR_COMP', 200, '', 'NTC-Acero 2020, §2.3.2, pag. 41', 'KL/r maximo en compresion (obligatorio).'),
-    ('NTC_KLR_REF_PRINC', 240, '', 'NTC-Acero 2020, §2.3.2 (comentario)', 'L/r de referencia en tension, miembros principales.'),
-    ('NTC_KLR_REF_CONTR', 300, '', 'NTC-Acero 2020, §2.3.2 (comentario)', 'L/r de referencia en tension, contraventeos.'),
-    ('NTC_KLR_DUCTIL', 60, '', 'NTC-Acero 2020, §12.1.3.1, pag. 207', 'KL/r maximo en columnas ductiles.'),
+    ('FLECHA_DIVISOR', 360, '', 'AISC 360-22, Comentario L2 (pisos: L/360; cubiertas: L/240)',
+     'Flecha vertical maxima de vigas: L/360 (criterio AISC). Para cubiertas el mismo comentario indica L/240.'),
     ('AISC_OMEGA_TFLU', 1.67, '', 'AISC 360-22, D2 (fluencia en traccion)', 'Factor de seguridad ASD, traccion por fluencia.'),
     ('AISC_OMEGA_TFRA', 2.00, '', 'AISC 360-22, D2 (fractura en traccion)', 'Factor de seguridad ASD, traccion por fractura.'),
     ('AISC_OMEGA_C', 1.67, '', 'AISC 360-22, E1 (compresion)', 'Factor de seguridad ASD en compresion.'),
@@ -994,6 +920,20 @@ NORMA_VALORES = [
     ('AISC_B41A_C1_PATA', 0.22, '', 'AISC 360-22, Tabla B4.1a', 'Coeficiente c1 de pata (E7).'),
     ('AISC_B41A_C2_PATA', 1.49, '', 'AISC 360-22, Tabla B4.1a', 'Coeficiente c2 de pata (E7).'),
     ('AISC_LR_PATA_B41A', 0.45, 'sqrt(E/Fy)', 'AISC 360-22, Tabla B4.1a', 'lambda_r de pata de angulo (E7).'),
+    ('PROY_KLR_COMP', 200, '', 'IMCA 5ta ed., cap. E (pag. 185 aprox., texto OCR: KL/r no mayor de 200; verificar en la imagen). Igual al criterio de AISC.',
+     'KL/r maximo en compresion (criterio del proyecto, no NTC).'),
+    ('AISC_LR_PATIN_COMP', 0.56, 'sqrt(E/Fy)', 'AISC 360-22, Tabla B4.1a (patin de I en compresion uniforme)',
+     'lambda_r de patin de I y canal en compresion (E7).'),
+    ('AISC_LR_ALMA_COMP', 1.49, 'sqrt(E/Fy)', 'AISC 360-22, Tabla B4.1a (alma de I en compresion)',
+     'lambda_r de alma de I y canal en compresion (E7).'),
+    ('AISC_LP_ALMA_FLEX', 3.76, 'sqrt(E/Fy)', 'AISC 360-22, Tabla B4.1b (alma de I en flexion)',
+     'lambda_p de alma de I en flexion.'),
+    ('AISC_LR_ALMA_FLEX', 5.70, 'sqrt(E/Fy)', 'AISC 360-22, Tabla B4.1b (alma de I en flexion)',
+     'lambda_r de alma de I en flexion.'),
+    ('AISC_LP_PATA_FLEX', 0.54, 'sqrt(E/Fy)', 'AISC 360-22, Tabla B4.1b (pata de angulo en flexion)',
+     'lambda_p de pata de angulo en flexion.'),
+    ('AISC_LR_PATA_FLEX', 0.91, 'sqrt(E/Fy)', 'AISC 360-22, Tabla B4.1b (pata de angulo en flexion)',
+     'lambda_r de pata de angulo en flexion.'),
     # HSS rectangulares y cuadradas (agregadas para el diseno de HSS del catalogo ATC)
     ('AISC_HSS_LP_PATIN', 1.12, 'sqrt(E/Fy)', 'AISC 360-22, Tabla B4.1b, caso 17 (F7.2)', 'lambda_p de patin de HSS en flexion (compacto).'),
     ('AISC_HSS_LR_PATIN', 1.40, 'sqrt(E/Fy)', 'AISC 360-22, Tabla B4.1b, caso 17 (F7.2)', 'lambda_r de patin de HSS en flexion (no compacto a esbelto).'),
@@ -1002,13 +942,6 @@ NORMA_VALORES = [
     ('AISC_HSS_LR_COMP', 1.40, 'sqrt(E/Fy)', 'AISC 360-22, Tabla B4.1a, caso 6 (E7)', 'lambda_r de paredes de HSS rectangular en compresion.'),
     ('AISC_HSS_C1', 0.20, '', 'AISC 360-22, Tabla E7.1, caso (b)', 'Coeficiente c1 de paredes de HSS (E7-3).'),
     ('AISC_HSS_C2', 1.38, '', 'AISC 360-22, Tabla E7.1, caso (b)', 'Coeficiente c2 de paredes de HSS (E7-5).'),
-    ('NTC_HSS_LR_COMP', 1.40, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.1, elementos atiesados, paredes de HSS, pag. 58',
-     'lambda_r de paredes de HSS rectangulares en compresion (clasificacion de seccion).'),
-    ('NTC_HSS_LIM_PATIN_PL', 1.12, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.2, patines de HSS, pag. 59', 'Patin de HSS: lambda_pl (seccion tipo 1).'),
-    ('NTC_HSS_LIM_PATIN_P', 1.12, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.2, patines de HSS, pag. 59', 'Patin de HSS: lambda_p (seccion tipo 2).'),
-    ('NTC_HSS_LIM_PATIN_R', 1.40, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.2, patines de HSS, pag. 59', 'Patin de HSS: lambda_r (seccion tipo 3).'),
-    ('NTC_HSS_LIM_ALMA_P', 2.42, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.2, almas de HSS, pag. 59', 'Alma de HSS: lambda_p (seccion tipo 2).'),
-    ('NTC_HSS_LIM_ALMA_R', 5.70, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 3.2.2, almas de HSS, pag. 59', 'Alma de HSS: lambda_r (seccion tipo 3).'),
     ('AISC_KV_HSS', 5, '', 'AISC 360-22, G4 y G2.2 (kv = 5 para HSS rectangulares y cajon)', 'kv de la alma de HSS rectangular (Cv2).'),
     ('AISC_CV2_LIM2', 1.37, 'sqrt(kv E/Fy)', 'AISC 360-22, G2.2, ec. G2-10 (pagina 16.1-77)', 'Limite superior de h/t para Cv2 (G2-10).'),
     ('AISC_CV2_K', 1.51, '', 'AISC 360-22, G2.2, ec. G2-11 (pagina 16.1-77)', 'Constante 1.51 de Cv2 para h/t > 1.37 sqrt(kv E/Fy) (G2-11).'),
@@ -1019,11 +952,6 @@ NORMA_VALORES = [
     ('AISC_H3_K', 0.458, '', 'AISC 360-22, H3.1(b)(3), ec. H3-5', 'Constante 0.458 pi^2 E/(h/t)^2 del Fcr elastico de torsion.'),
     ('AISC_H3_FCR_Y', 0.6, '', 'AISC 360-22, H3.1, ec. H3-3', 'Factor de fluencia de la torsion: Fcr = 0.6 Fy.'),
     ('AISC_H3_20PCT', 0.2, '', 'AISC 360-22, H3.2', 'Fraccion Tr/Tc a partir de la cual se aplica H3-6 en lugar de H1.'),
-    ('NTC_HSS_DUC_ALTA', 0.55, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 12.1.2, paredes de HSS rectangulares, pag. 212',
-     'lambda_da de paredes de HSS (ductilidad alta). La nota [b] fija 0.6 para columnas de cajon: no reduce este valor.'),
-    ('NTC_HSS_DUC_MEDIA', 0.64, 'sqrt(E/Fy)', 'NTC-Acero 2020, tabla 12.1.2, paredes de HSS rectangulares, pag. 212',
-     'lambda_dm de paredes de HSS (ductilidad media). POR CONFIRMAR: la nota [c] (1.12 sqrt(E/Fy)) se interpreta como '
-     'limite de patines de vigas, no de paredes comprimidas.'),
 ]
 
 
@@ -1043,16 +971,8 @@ def _hoja_normas_y_parametros(wb):
     ws_n = wb.create_sheet('NORMA')
     ws_n['A1'] = 'NORMA: valores de la norma usados por el calculo (solo lectura). Cada valor tiene su referencia.'
     ws_n['A1'].font = NEGRITA
-    ws_n['A3'] = 'SISTEMAS ESTRUCTURALES (NTC Diseno por Sismo 2023, tabla 4.3.2)'
-    ws_n['A3'].font = NEGRITA
-    _cabecera_en(ws_n, 4, ['NOMBRE DEL SISTEMA', 'Q', 'gamma SV', 'gamma OI', 'R0', 'REFERENCIA'],
-                 [44, 8, 11, 11, 8, 70])
-    for k, (nombre, q, gsv, goi, r0, ref) in enumerate(NORMA_SISTEMAS):
-        fila = 5 + k
-        for col, valor in zip('ABCDEF', [nombre, q, gsv, goi, r0, ref]):
-            ws_n[f'{col}{fila}'] = valor
-    fila_v = 5 + len(NORMA_SISTEMAS) + 2
-    ws_n[f'A{fila_v}'] = 'VALORES DE NORMA (usados por el calculo)'
+    fila_v = 3
+    ws_n[f'A{fila_v}'] = 'VALORES DE NORMA (usados por el calculo): AISC 360-22, criterio del proyecto y su referencia'
     ws_n[f'A{fila_v}'].font = NEGRITA
     _cabecera_en(ws_n, fila_v + 1, ['CLAVE', 'VALOR', 'UNIDAD', 'REFERENCIA', 'EXPLICACION'], [44, 12, 12, 60, 90])
     for k, (clave, valor, unidad, ref, expl) in enumerate(NORMA_VALORES):
@@ -1065,25 +985,15 @@ def _hoja_normas_y_parametros(wb):
     ws_p = wb.create_sheet('PARAMETROS')
     ws_p['A1'] = 'PARAMETROS DE DISENO: elija en las listas (columna C, amarilla). Sin estos datos no se hace el diseno.'
     ws_p['A1'].font = NEGRITA
-    ws_p['A2'] = ('Los datos del SASID (Ts, Ta, Tb, k, c) y la zona vienen de su estudio de sitio. Los valores de '
-                  'ejemplo son para probar: reemplacelos por los suyos.')
+    ws_p['A2'] = ('Parametros de diseno AISC 360-22 (ASD). El diseno no usa la NTC-Acero ni la NTC de sismo.')
     _cabecera_en(ws_p, 4, ['CLAVE', 'CONCEPTO', 'VALOR', 'UNIDAD', 'OPCIONES', 'REFERENCIA NORMATIVA', 'EXPLICACION'],
                  [22, 44, 40, 8, 40, 52, 70])
     dv_lista = {
-        'CRUJIAS_AMBAS': DV(type='list', formula1='"SÍ,NO"', allow_blank=False),
-        'ZONA_SISMICA': DV(type='list', formula1='"A,B,C"', allow_blank=False),
-        'KS_METODO': DV(type='list', formula1='"CONSERVADOR (Ks=1),SEGUN ZONA (ec. 3.1.1)"', allow_blank=False),
-        'DEFORMABLES': DV(type='list', formula1='"SÍ,NO"', allow_blank=False),
-        'FRAGILES': DV(type='list', formula1='"SÍ,NO"', allow_blank=False),
         'VIENTO': DV(type='list', formula1='"NO"', allow_blank=False),
-        'METODO': DV(type='list', formula1='"ESTÁTICO"', allow_blank=False),
         'KZ_TORSION': DV(type='list', formula1='"1.0,0.5"', allow_blank=False),
-        'SISTEMA_SISMICO': DV(type='list', formula1=f'NORMA!$A$5:$A${4 + len(NORMA_SISTEMAS)}', allow_blank=False),
     }
     for dv in dv_lista.values():
         ws_p.add_data_validation(dv)
-    dv_num = DV(type='decimal', operator='greaterThan', formula1='0', allow_blank=False)
-    ws_p.add_data_validation(dv_num)
     for k, (clave, concepto, valor, unidad, opciones, ref, expl) in enumerate(PARAM_CATALOGO):
         fila = 5 + k
         ws_p[f'A{fila}'] = clave
@@ -1096,8 +1006,6 @@ def _hoja_normas_y_parametros(wb):
         ws_p[f'G{fila}'] = expl
         if clave in dv_lista:
             dv_lista[clave].add(f'C{fila}')
-        if clave in ('TS', 'TA', 'TB', 'K_SASID', 'C_SASID'):
-            dv_num.add(f'C{fila}')
     ws_p.freeze_panes = 'A5'
     return ws_p, ws_n
 
@@ -1111,10 +1019,9 @@ def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas
     texto = [
         'PLANTILLA DE SOPORTES: como llenarla',
         '',
-        'PARAMETROS: elija en las listas desplegables (columna C, amarilla) e ingrese Ts, Ta, Tb, k y c del SASID.',
+        'PARAMETROS: elija en las listas desplegables (columna C, amarilla): VIENTO y KZ_TORSION.',
         'NORMA: valores de la norma con su referencia. Solo lectura: el calculo los toma de aqui.',
         'LONGITUDES: LX, LY, LB, KX, KY y CB son obligatorios en cada barra. No se suponen valores.',
-        'BARRAS: DUCTILIDAD (ALTA o MEDIA) es obligatoria en COLUMNA y VIGA.',
         'VIENTO: esta version no considera viento; no se usan los estados ni las combinaciones con W.',
         '',
         'NODOS: una fila por nodo. X, Y, Z en metros. Capacidad: 98 nodos.',
@@ -1122,7 +1029,6 @@ def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas
         '   Empotrado = los 6 en SI. Rotulado = UX, UY, UZ en SI (giros libres). Rodillo = solo UZ, etc.',
         'BARRAS: una fila por barra. NODO_I y NODO_J son IDs de la hoja NODOS. Capacidad: 106 barras.',
         'ELEMENTO: COLUMNA, VIGA, ARRIOSTRE o DIAGONAL (lista).',
-        'DUCTILIDAD: ALTA o MEDIA (lista). Vacio = no se verifica la Tabla 12.1.2 de la NTC para esta barra.',
         'PERFIL: nombre Gerdau rev04 (lista ordenada por familia y seccion).',
         'MATERIAL: elija la calidad de la lista (base de datos de la hoja MATERIALES). Es obligatorio: vacio da error.',
         'EJE_FUERTE_X, _Y, _Z: direccion del eje fuerte (peralte) en coordenadas globales. OBLIGATORIA en cada barra: no hay valor por defecto.',
@@ -1158,7 +1064,7 @@ def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas
     ws_n.add_data_validation(dv_rep_n); dv_rep_n.add(f'L2:L{FIN_N}')
 
     ws_b = wb.create_sheet('BARRAS')
-    _encabezado(ws_b, BARRAS_COLS, [8, 10, 10, 14, 18, 13, 13, 13, 14, 14, 12, 30, 12, 14])
+    _encabezado(ws_b, BARRAS_COLS, [8, 10, 10, 14, 18, 13, 13, 13, 14, 14, 12, 30, 12])
     for f in filas_barras:
         ws_b.append(f)
     for _ in range(FIN_B - 1 - len(filas_barras)):
@@ -1172,10 +1078,9 @@ def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas
     dv_cj = DataValidation(type='list', formula1='"' + ','.join(TIPOS_CONEXION) + '"', allow_blank=True)
     dv_mat = DataValidation(type='list', formula1=f'MATERIALES!$A$2:$A${MAT_FIN}', allow_blank=True)
     dv_rep_b = DataValidation(type='list', formula1='"SI,NO"', allow_blank=True)
-    dv_duc_b = DataValidation(type='list', formula1='"ALTA,MEDIA"', allow_blank=True)
     lista_dv = [(dv_elem, f'D2:D{FIN_B}'), (dv_vec, f'F2:H{FIN_B}'),
                 (dv_ci, f'I2:I{FIN_B}'), (dv_cj, f'J2:J{FIN_B}'), (dv_mat, f'K2:K{FIN_B}'),
-                (dv_rep_b, f'M2:M{FIN_B}'), (dv_duc_b, f'N2:N{FIN_B}')]
+                (dv_rep_b, f'M2:M{FIN_B}')]
     if grupos_perfil is None:
         lista_dv.insert(1, (dv_perf, f'E2:E{FIN_B}'))      # sin diseno: perfil por barra
     else:
@@ -1363,25 +1268,25 @@ def _hojas_diseno_vivo(wb, grupos_perfil, fu_matriz, perfiles_analizados=None):
 
     ws_f = wb.create_sheet('FU_BARRAS')
     _encabezado(ws_f, ['ID', 'ELEMENTO', 'PERFIL', 'FILA (auxiliar)', 'FU MAXIMO', 'FU ESBELTEZ LOCAL',
-                       'FU ESBELTEZ GLOBAL', 'FU DUCTILIDAD', 'CASO QUE GOBIERNA', 'ESTADO', 'AVISO'],
-                [8, 13, 22, 12, 12, 16, 16, 15, 26, 16, 36])
+                       'FU ESBELTEZ GLOBAL', 'CASO QUE GOBIERNA', 'ESTADO', 'AVISO'],
+                [8, 13, 22, 12, 12, 16, 16, 26, 16, 36])
     for r in range(2, FIN_B + 1):
         ws_f.cell(row=r, column=1, value=f'=IF(BARRAS!A{r}="","",BARRAS!A{r})')
         ws_f.cell(row=r, column=2, value=f'=IF(A{r}="","",BARRAS!D{r})')
         ws_f.cell(row=r, column=3, value=f'=IF(A{r}="","",BARRAS!E{r})')
         ws_f.cell(row=r, column=4, value=f'=IF(A{r}="","",IFERROR(MATCH(A{r}&"|"&C{r},FU_MATRIZ!$A:$A,0),""))')
-        for col, letra in ((5, 'E'), (6, 'G'), (7, 'H'), (8, 'I'), (9, 'J')):
+        for col, letra in ((5, 'E'), (6, 'G'), (7, 'H'), (8, 'I')):
             ws_f.cell(row=r, column=col, value=f'=IF(D{r}="","",INDEX(FU_MATRIZ!${letra}:${letra},D{r}))')
-        ws_f.cell(row=r, column=10, value=(f'=IF(A{r}="","",IF(D{r}="","SIN DATO: perfil fuera del diseno",'
-                                           f'INDEX(FU_MATRIZ!$K:$K,D{r})))'))
-        ws_f.cell(row=r, column=11, value=(f'=IF(D{r}="","",IF(B{r}<>INDEX(FU_MATRIZ!$D:$D,D{r}),'
+        ws_f.cell(row=r, column=9, value=(f'=IF(A{r}="","",IF(D{r}="","SIN DATO: perfil fuera del diseno",'
+                                          f'INDEX(FU_MATRIZ!$J:$J,D{r})))'))
+        ws_f.cell(row=r, column=10, value=(f'=IF(D{r}="","",IF(B{r}<>INDEX(FU_MATRIZ!$D:$D,D{r}),'
                                            f'"ELEMENTO cambio: ejecute el bloque 10",""))'))
     ws_f.conditional_formatting.add(f'E2:G{FIN_B}', FormulaRule(formula=['AND(ISNUMBER(E2),E2>1)'], fill=rojo))
     ws_f.conditional_formatting.add(f'E2:G{FIN_B}', FormulaRule(formula=['AND(ISNUMBER(E2),E2<=1)'], fill=verde))
     ws_f.freeze_panes = 'A2'
 
     ws_m = wb.create_sheet('FU_MATRIZ')
-    _encabezado(ws_m, COLS_MATRIZ_XL, [26, 6, 22, 14, 12, 12, 16, 18, 20, 24, 14, 12, 12, 30])
+    _encabezado(ws_m, COLS_MATRIZ_XL, [26, 6, 22, 14, 12, 12, 16, 18, 24, 14, 12, 12, 30])
     for fila in fu_matriz.itertuples(index=False):
         ws_m.append([None if (isinstance(v, float) and v != v) else (v.item() if hasattr(v, 'item') else v)
                      for v in fila])

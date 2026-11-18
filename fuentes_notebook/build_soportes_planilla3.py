@@ -90,7 +90,7 @@ Notebook nuevo (no modifica el ejemplo `agente_estructural.ipynb`). El modelo se
 1. **Bloque 6**: carga la plantilla `plantilla_soportes.xlsx` (incrustada) y muestra sus hojas. Descárguela desde la pestaña Output.
 2. Llénela en Excel:
    - **NODOS**: ID, X, Y, Z (m) y UX, UY, UZ, RX, RY, RZ (`SI` = grado restringido; vacío o NO = libre). Empotrado = los 6 en SI; rotulado = UX, UY, UZ.
-   - **BARRAS**: ID, NODO_I, NODO_J, ELEMENTO, PERFIL (lista Gerdau), EJE_FUERTE_X/Y/Z (direccion del peralte; OBLIGATORIO en cada barra, no tiene valor por defecto), CONEXION_I y CONEXION_J (`empotrado` o `rotulado` en cada extremo) y DUCTILIDAD (ALTA o MEDIA, lista; vacío = no verifica la Tabla 12.1.2).
+   - **BARRAS**: ID, NODO_I, NODO_J, ELEMENTO, PERFIL (lista Gerdau), EJE_FUERTE_X/Y/Z (direccion del peralte; OBLIGATORIO en cada barra, no tiene valor por defecto), CONEXION_I y CONEXION_J (`empotrado` o `rotulado` en cada extremo).
    - **VISTA_VIVA**: planta y alzado que cambian al editar NODOS o BARRAS. Puede elegir el nivel Z (C3) y la cota Y (C4).
    - **LONGITUDES**: por barra, LX y LY (m) longitud no arriostrada en X e Y, KX y KY (factor K), LB (m) para pandeo lateral y CB. Vacío = supuesto, y queda marcado en el diseño.
    - **Ángulos (LI)**: en LONGITUDES, marque SI en las cuatro columnas E5 solo si la barra las cumple; si no, el diseño usa K·L/rz y H2. LI CONEXION (UNA PATA o DOS PATAS) y LI LONGITUD CONEXION (m) fijan el factor U de tracción.
@@ -159,11 +159,10 @@ def construir():
     celdas.append(md('## Bloque 9b. Deformada con escala editable\n\nCambie `ESCALA_DEFORMADA` y ejecute solo esta celda: no vuelve a resolver el análisis.'))
     celdas.append(code(BLOQUE_9B, oculto=False))
     celdas.append(md('## Bloque 10. Diseño por AISC 360-22 (ASD)\n\nCapacidades de IR, CE y LI (tensión, compresión, flexión, cortante, interacción H1 o H2) con las combinaciones de servicio del bloque 9 (sin las que incluyen viento: para el diseño solo aplica el sismo) y las longitudes de la hoja LONGITUDES. Escribe `diseno_asd.xlsx` y `planilla_con_diseno.xlsx`. Los perfiles macizos (CS, OS y SOL) fueron eliminados de la base y no se diseñan. Las barras CS quedan fuera del diseño. Los resultados salen **por grupo**: elija la sección de cada grupo en su desplegable (ordenado por tipo y sección); la tabla se recalcula y el botón **Aplicar** actualiza el Excel por elemento y la planilla (hoja PERFIL_GRUPO).'))
-    celdas.append(code('%%writefile diseno_ntc.py\n' + leer('diseno_ntc.py')))
     celdas.append(code('%%writefile diseno_asd.py\n' + leer('diseno_asd.py')))
     celdas.append(code('%%writefile memoria_asd.py\n' + leer('memoria_asd.py')))
     celdas.append(code(BLOQUE_10))
-    celdas.append(md('## Bloque 11. Memoria de cálculo (HTML)\n\nGenera `memoria_calculo.html` con los datos, las propiedades y cada verificación de cada barra, con su ecuación, los valores sustituidos y el FU. Incluye la nota normativa: diseño AISC 360-22 (ASD) y esbelteces local y global con la NTC-Acero CDMX 2020. Para PDF: abra el archivo y use Imprimir > Guardar como PDF. Edite PROYECTO dentro del bloque.'))
+    celdas.append(md('## Bloque 11. Memoria de cálculo (HTML)\n\nGenera `memoria_calculo.html` con los datos, las propiedades y cada verificación de cada barra, con su ecuación, los valores sustituidos y el FU. Incluye la nota normativa: diseño AISC 360-22 (ASD) y esbeltez local (AISC B4.1) y KL/r ≤ 200 como criterio del proyecto. No se aplica la NTC-Acero ni la NTC de sismo. Para PDF: abra el archivo y use Imprimir > Guardar como PDF. Edite PROYECTO dentro del bloque.'))
     celdas.append(code(BLOQUE_11))
     nb = {'cells': celdas,
           'metadata': {'kernelspec': {'name': 'python3', 'display_name': 'Python 3', 'language': 'python'},
