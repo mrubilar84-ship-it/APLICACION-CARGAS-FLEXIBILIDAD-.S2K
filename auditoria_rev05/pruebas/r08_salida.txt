@@ -1,0 +1,126 @@
+R-08 verificacion independiente. Modelo: openseespy
+
+== 0. Control de fuentes ==
+OK    [0.1] copia de scratch = repositorio (analisis_opensees.py) | obtenido: 777ca5bfe131 | esperado: 777ca5bfe131
+OK    [0.1] copia de scratch = repositorio (orientacion_gerdau.py) | obtenido: 7a4be4dd6802 | esperado: 7a4be4dd6802
+OK    [0.1] copia de scratch = repositorio (dibujo_directo.py) | obtenido: d29989d08360 | esperado: d29989d08360
+
+== 1. Equilibrio global de fuerzas y momentos (caso gravitacional y caso sismo) ==
+OK    [1.1a] ejemplo, estado "Peso propio y muerta" (tipo D, PP=SI): suma de fuerzas | obtenido: 2.1e-12 kgf | esperado: 0 (tol 0.0027) | componentes [-0.0, -0.0, 0.0]
+OK    [1.2b] ejemplo, estado "Peso propio y muerta" (tipo D, PP=SI): suma de momentos respecto del origen | obtenido: 2.35e-11 kgf·m | esperado: 0 (tol 0.019) | componentes [0.0, -0.0, 0.0]
+OK    [1.control-signo] signo de las reacciones: con la convencion de la hoja el equilibrio cierra y con el signo opuesto no | obtenido: residuo signo opuesto F=2.718e+04 kgf, M=1.464e+05 kgf·m | esperado: > 1e-4 x escala | reaccion = fuerza que el apoyo ejerce sobre la estructura (FZ hacia arriba)
+OK    [1.3a] ejemplo, estado "Sobrecarga" (tipo L, PP=NO): suma de fuerzas | obtenido: 0 kgf | esperado: 0 (tol 1e-07) | componentes [0.0, 0.0, 0.0]
+OK    [1.4b] ejemplo, estado "Sobrecarga" (tipo L, PP=NO): suma de momentos respecto del origen | obtenido: 0 kgf·m | esperado: 0 (tol 1e-07) | componentes [0.0, 0.0, 0.0]
+OK    [1.5a] sismo, estado "Peso propio y muerta" (tipo D, PP=SI): suma de fuerzas | obtenido: 2.1e-12 kgf | esperado: 0 (tol 0.0027) | componentes [-0.0, -0.0, 0.0]
+OK    [1.6b] sismo, estado "Peso propio y muerta" (tipo D, PP=SI): suma de momentos respecto del origen | obtenido: 2.35e-11 kgf·m | esperado: 0 (tol 0.019) | componentes [0.0, -0.0, 0.0]
+OK    [1.7a] sismo, estado "Sobrecarga" (tipo L, PP=NO): suma de fuerzas | obtenido: 0 kgf | esperado: 0 (tol 1e-07) | componentes [0.0, 0.0, 0.0]
+OK    [1.8b] sismo, estado "Sobrecarga" (tipo L, PP=NO): suma de momentos respecto del origen | obtenido: 0 kgf·m | esperado: 0 (tol 1e-07) | componentes [0.0, 0.0, 0.0]
+OK    [1.9a] sismo, estado "Sismo X" (tipo E, PP=NO): suma de fuerzas | obtenido: 3.07e-11 kgf | esperado: 0 (tol 0.00059) | componentes [0.0, 0.0, -0.0]
+OK    [1.10b] sismo, estado "Sismo X" (tipo E, PP=NO): suma de momentos respecto del origen | obtenido: 9.91e-11 kgf·m | esperado: 0 (tol 0.004) | componentes [-0.0, 0.0, -0.0]
+OK    [1.masa1] masa IR 10 × 49: JSON del repositorio = modulo del programa | obtenido: 72.9 | esperado: 72.9
+OK    [1.masa2] masa IR 12 × 16: JSON del repositorio = modulo del programa | obtenido: 23.9 | esperado: 23.9
+
+== 2. Voladizo 3D: carga en punta, eje fuerte (Iz) y eje debil (Iy), convencion vecxz de la planilla ==
+OK    [2.0] ejes de la planilla (vecxz por defecto): eje fuerte local y = Z global (peralte vertical) | obtenido: y = [-0.0, 0.0, 1.0] | esperado: [0, 0, 1]
+OK    [2.1] carga Z (eje fuerte = local y, peralte vertical): flecha PL^3/(3E*Iz), Iz = Ix Gerdau (cm) | obtenido: 0.38990768 | esperado: 0.38990768
+OK    [2.2] carga Y (eje debil = local z): flecha PL^3/(3E*Iy), Iy = Iy Gerdau (cm) | obtenido: 1.1353253 | esperado: 1.1353253
+OK    [2.3] eje fuerte horizontal (peralte en Y): carga Y usa Iz = Ix Gerdau (cm) | obtenido: 0.38990768 | esperado: 0.38990768
+OK    [2.4] eje fuerte horizontal (peralte en Y): carga Z usa Iy = Iy Gerdau (cm) | obtenido: 1.1353253 | esperado: 1.1353253
+OK    [2.5] control axial: carga X, u = PL/(EA) (cm) | obtenido: 0.0015838338 | esperado: 0.0015838338
+
+== 3. Rotulas: biapoyada, empotrada-rotulada, voladizo con rotula en la punta ==
+OK    [3.1] PROGRAMA biapoyada con rotulas en ambos extremos: debe reportar MODELO INESTABLE (torsion libre) | obtenido: ErrorAnalisis: OpenSees no pudo resolver el caso: matriz singular (mecanism | esperado: ErrorAnalisis (inestable)
+INFO  [3.1b] diagnostico: biapoyada con giros de nudos principales fijados | resuelve
+OK    [3.2a] REIMPLEMENTACION biapoyada (openseespy): momento en extremos = 0 | obtenido: 0 | esperado: 0 | no es el programa: el programa no resuelve este caso (3.1)
+OK    [3.2b] REIMPLEMENTACION biapoyada (openseespy): momento maximo en el tramo = qL^2/8 (kgf·cm) | obtenido: 9000 | esperado: 9000 | no es el programa
+OK    [3.3a] PROGRAMA empotrada-rotulada: momento en la rotula (I) = 0 (kgf·cm) | obtenido: 0 | esperado: 0
+OK    [3.3b] PROGRAMA empotrada-rotulada: momento en el empotramiento (J) = qL^2/8 (kgf·cm) | obtenido: 9000 | esperado: 9000
+OK    [3.3c] PROGRAMA empotrada-rotulada: M max en el tramo = qL^2/8 (kgf·cm) y M(L) = M_J (control de signos) | obtenido: 9000 | esperado: 9000 | control M(L)-M_J = 0
+OK    [3.3d] PROGRAMA empotrada-rotulada: reaccion en la rotula = 3qL/8 (kgf, hacia arriba) | obtenido: 45 | esperado: 45
+OK    [3.4] PROGRAMA voladizo con rotula en la punta: M en la punta = 0 (kgf·cm) | obtenido: -1.819e-12 | esperado: 0
+INFO  [3.4b] diagnostico: punta rotulada con los giros del nudo principal fijados (no es el programa tal cual) | resuelve; M punta = -1.82e-12 kgf·cm
+OK    [3.5a] REIMPLEMENTACION voladizo con punta rotulada: M en la punta = 0 (kgf·cm) | obtenido: -1.8189894e-12 | esperado: 0 | no es el programa: el programa no resuelve este caso (3.4)
+OK    [3.5b] REIMPLEMENTACION voladizo con punta rotulada: flecha en la punta = qL^4/(8EIz) (cm) | obtenido: -0.79411765 | esperado: -0.79411765 | no es el programa
+
+== 4. Mecanismo (GDL de giro sin restriccion en la base): el programa debe fallar, no dar numeros ==
+OK    [4.1] PROGRAMA (_resolver), RZ libre en la base + Fy=100 kgf en punta: debe reportar fallo | obtenido: ErrorAnalisis | esperado: ErrorAnalisis
+OK    [4.2] PROGRAMA (correr -> Excel), mismo mecanismo: debe fallar o marcar no resuelto | obtenido: ErrorAnalisis | esperado: ErrorAnalisis
+OK    [4.3] PROGRAMA (comprobacion de estabilidad), RZ libre en la base + solo peso propio: debe reportar inestable | obtenido: ErrorAnalisis: MODELO INESTABLE: la carga de prueba produce un desplazamien | esperado: ErrorAnalisis (MODELO INESTABLE)
+OK    [4.4] control estable: viga empotrada con Fy=100 kgf: UY = PL^3/(3E*Iy) (cm), Iy = eje debil | obtenido: 17.647059 | esperado: 17.647059
+
+== 5. Modelo girado 30 grados alrededor de Z (coordenadas, cargas y ejes fuertes) ==
+OK    [5.0a] control: modelo reconstruido reproduce REACCIONES del Excel (ejemplo, "Peso propio y muerta") (dif. relativa) | obtenido: 1.9254186e-16 | esperado: 0
+OK    [5.0] control: eje fuerte de columnas explicito con theta=0 = eje por defecto (dif. relativa) | obtenido: 0 | esperado: 0
+OK    [5.1] ejemplo, estado "Peso propio y muerta" girado 30°: reacciones = R x reacciones originales (dif. relativa) | obtenido: 1.1720384e-13 | esperado: 0
+OK    [5.1b] ejemplo, estado "Peso propio y muerta" girado 30°: esfuerzos de cada barra iguales (dif. relativa) | obtenido: 4.9164397e-14 | esperado: 0
+OK    [5.1c] ejemplo, estado "Peso propio y muerta" girado 30°: desplazamientos = R x originales (dif. relativa) | obtenido: 1.0808818e-15 | esperado: 0
+OK    [5.2] ejemplo, "Peso propio y muerta" girado 30° con el eje fuerte de las columnas SIN girar: los esfuerzos cambian (el resultado depende del eje dado) | obtenido: dif. relativa maxima 0.3879 | esperado: diferencia mayor que 1e-3 | control: el eje fuerte es un dato de la planilla
+OK    [5.0a] control: modelo reconstruido reproduce REACCIONES del Excel (sismo, "Sismo X") (dif. relativa) | obtenido: 6.8789321e-19 | esperado: 0
+OK    [5.4] sismo, estado "Sismo X" girado 30°: reacciones = R x reacciones originales (dif. relativa) | obtenido: 1.7975568e-13 | esperado: 0
+OK    [5.4b] sismo, estado "Sismo X" girado 30°: esfuerzos de cada barra iguales (dif. relativa) | obtenido: 1.6334278e-13 | esperado: 0
+OK    [5.4c] sismo, estado "Sismo X" girado 30°: desplazamientos = R x originales (dif. relativa) | obtenido: 4.8960835e-14 | esperado: 0
+
+== 6. Barra inclinada 45 grados (plano XZ), carga vertical en la punta: dos orientaciones (vecxz) ==
+OK    [6.1a] vecxz eje fuerte perpendicular (regla anterior): flecha vertical punta (cm): -PL^3/(6E*Iz) - PL/(2EA); flexion con Iz = Ix Gerdau (la carga perpendicular cae en el peralte, local y) | obtenido: -0.19574576 | esperado: -0.19574576
+OK    [6.1b] vecxz eje fuerte perpendicular (regla anterior): vector de desplazamiento OpenSees = prediccion con ejes locales del codigo (dif. relativa) | obtenido: 7.2314944e-15 | esperado: 0
+INFO  [6.1c] vecxz por defecto: componente de P perpendicular al eje (sin/en el plano del peralte) | P_perp = 707.11 kgf en la direccion y local [-0.7071, 0.0, 0.7071] (plano del peralte) -> flexion alrededor de z -> Iz
+OK    [6.2a] vecxz eje fuerte horizontal: flecha vertical punta (cm): -PL^3/(6E*Iy) - PL/(2EA); flexion con Iy = Iy Gerdau (la carga perpendicular cae en z, eje debil) | obtenido: -0.56845458 | esperado: -0.56845458
+OK    [6.2b] vecxz eje fuerte horizontal: vector de desplazamiento OpenSees = prediccion con ejes locales del codigo (dif. relativa) | obtenido: 5.0193512e-14 | esperado: 0
+INFO  [6.2c] vecxz de peralte horizontal: componente perpendicular de P en la direccion z local | z local [-0.7071, 0.0, 0.7071] -> flexion alrededor de y -> Iy (contraste con 6.1)
+INFO  [6.3] contraste: flecha vertical de 6.1 si se usara Iy en lugar de Iz (cm) | -0.5685
+
+== RESUMEN ==
+CODIGO         RESULTADO  PRUEBA
+0.1            OK      copia de scratch = repositorio (analisis_opensees.py)
+0.1            OK      copia de scratch = repositorio (orientacion_gerdau.py)
+0.1            OK      copia de scratch = repositorio (dibujo_directo.py)
+1.1a           OK      ejemplo, estado "Peso propio y muerta" (tipo D, PP=SI): suma de fuerzas
+1.2b           OK      ejemplo, estado "Peso propio y muerta" (tipo D, PP=SI): suma de momentos respecto del origen
+1.control-signo OK      signo de las reacciones: con la convencion de la hoja el equilibrio cierra y con el signo opuesto no
+1.3a           OK      ejemplo, estado "Sobrecarga" (tipo L, PP=NO): suma de fuerzas
+1.4b           OK      ejemplo, estado "Sobrecarga" (tipo L, PP=NO): suma de momentos respecto del origen
+1.5a           OK      sismo, estado "Peso propio y muerta" (tipo D, PP=SI): suma de fuerzas
+1.6b           OK      sismo, estado "Peso propio y muerta" (tipo D, PP=SI): suma de momentos respecto del origen
+1.7a           OK      sismo, estado "Sobrecarga" (tipo L, PP=NO): suma de fuerzas
+1.8b           OK      sismo, estado "Sobrecarga" (tipo L, PP=NO): suma de momentos respecto del origen
+1.9a           OK      sismo, estado "Sismo X" (tipo E, PP=NO): suma de fuerzas
+1.10b          OK      sismo, estado "Sismo X" (tipo E, PP=NO): suma de momentos respecto del origen
+1.masa1        OK      masa IR 10 × 49: JSON del repositorio = modulo del programa
+1.masa2        OK      masa IR 12 × 16: JSON del repositorio = modulo del programa
+2.0            OK      ejes de la planilla (vecxz por defecto): eje fuerte local y = Z global (peralte vertical)
+2.1            OK      carga Z (eje fuerte = local y, peralte vertical): flecha PL^3/(3E*Iz), Iz = Ix Gerdau (cm)
+2.2            OK      carga Y (eje debil = local z): flecha PL^3/(3E*Iy), Iy = Iy Gerdau (cm)
+2.3            OK      eje fuerte horizontal (peralte en Y): carga Y usa Iz = Ix Gerdau (cm)
+2.4            OK      eje fuerte horizontal (peralte en Y): carga Z usa Iy = Iy Gerdau (cm)
+2.5            OK      control axial: carga X, u = PL/(EA) (cm)
+3.1            OK      PROGRAMA biapoyada con rotulas en ambos extremos: debe reportar MODELO INESTABLE (torsion libre)
+3.2a           OK      REIMPLEMENTACION biapoyada (openseespy): momento en extremos = 0
+3.2b           OK      REIMPLEMENTACION biapoyada (openseespy): momento maximo en el tramo = qL^2/8 (kgf·cm)
+3.3a           OK      PROGRAMA empotrada-rotulada: momento en la rotula (I) = 0 (kgf·cm)
+3.3b           OK      PROGRAMA empotrada-rotulada: momento en el empotramiento (J) = qL^2/8 (kgf·cm)
+3.3c           OK      PROGRAMA empotrada-rotulada: M max en el tramo = qL^2/8 (kgf·cm) y M(L) = M_J (control de signos)
+3.3d           OK      PROGRAMA empotrada-rotulada: reaccion en la rotula = 3qL/8 (kgf, hacia arriba)
+3.4            OK      PROGRAMA voladizo con rotula en la punta: M en la punta = 0 (kgf·cm)
+3.5a           OK      REIMPLEMENTACION voladizo con punta rotulada: M en la punta = 0 (kgf·cm)
+3.5b           OK      REIMPLEMENTACION voladizo con punta rotulada: flecha en la punta = qL^4/(8EIz) (cm)
+4.1            OK      PROGRAMA (_resolver), RZ libre en la base + Fy=100 kgf en punta: debe reportar fallo
+4.2            OK      PROGRAMA (correr -> Excel), mismo mecanismo: debe fallar o marcar no resuelto
+4.3            OK      PROGRAMA (comprobacion de estabilidad), RZ libre en la base + solo peso propio: debe reportar inestable
+4.4            OK      control estable: viga empotrada con Fy=100 kgf: UY = PL^3/(3E*Iy) (cm), Iy = eje debil
+5.0a           OK      control: modelo reconstruido reproduce REACCIONES del Excel (ejemplo, "Peso propio y muerta") (dif. relativa)
+5.0            OK      control: eje fuerte de columnas explicito con theta=0 = eje por defecto (dif. relativa)
+5.1            OK      ejemplo, estado "Peso propio y muerta" girado 30°: reacciones = R x reacciones originales (dif. relativa)
+5.1b           OK      ejemplo, estado "Peso propio y muerta" girado 30°: esfuerzos de cada barra iguales (dif. relativa)
+5.1c           OK      ejemplo, estado "Peso propio y muerta" girado 30°: desplazamientos = R x originales (dif. relativa)
+5.2            OK      ejemplo, "Peso propio y muerta" girado 30° con el eje fuerte de las columnas SIN girar: los esfuerzos cambian (el resultado depende del eje dado)
+5.0a           OK      control: modelo reconstruido reproduce REACCIONES del Excel (sismo, "Sismo X") (dif. relativa)
+5.4            OK      sismo, estado "Sismo X" girado 30°: reacciones = R x reacciones originales (dif. relativa)
+5.4b           OK      sismo, estado "Sismo X" girado 30°: esfuerzos de cada barra iguales (dif. relativa)
+5.4c           OK      sismo, estado "Sismo X" girado 30°: desplazamientos = R x originales (dif. relativa)
+6.1a           OK      vecxz eje fuerte perpendicular (regla anterior): flecha vertical punta (cm): -PL^3/(6E*Iz) - PL/(2EA); flexion con Iz = Ix Gerdau (la carga perpendicular cae en el peralte, local y)
+6.1b           OK      vecxz eje fuerte perpendicular (regla anterior): vector de desplazamiento OpenSees = prediccion con ejes locales del codigo (dif. relativa)
+6.2a           OK      vecxz eje fuerte horizontal: flecha vertical punta (cm): -PL^3/(6E*Iy) - PL/(2EA); flexion con Iy = Iy Gerdau (la carga perpendicular cae en z, eje debil)
+6.2b           OK      vecxz eje fuerte horizontal: vector de desplazamiento OpenSees = prediccion con ejes locales del codigo (dif. relativa)
+
+Total: 50 pruebas, OK = 50, FALLA = 0
+Process 0 Terminating

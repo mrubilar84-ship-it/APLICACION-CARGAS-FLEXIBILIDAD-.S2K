@@ -40,6 +40,18 @@ CHEQUEOS = [
 KGF_POR_KSI = 70.307
 MPA_POR_KGCM2 = 0.0980665
 KGF_POR_N = 1.0 / 9.80665
+TOL_MOMENTO = 1e-3                    # kgf·cm: ruido numerico
+LIMITACIONES = [
+    'pernos: n/2 por lado en la direccion N (X); no se modelan pernos en la direccion Y (NO REVISADO)',
+    'pernos: solo predimensionamiento: no se verifican arrancamiento lateral, rotura lateral, pryout, espesor del '
+    'elemento ni el efecto de grupo (NO REVISADO)',
+    'pernos: cono de concreto con A_Nc = A_Nco (un cono por lado); no se verifican separacion ni distancia al borde '
+    '>= 1.5 h_ef (ACI 318-02 Ap. D, NO REVISADO)',
+    'soldadura: modelo simplificado (cortante y tension); no es un modelo de grupo de soldadura ni verifica el momento '
+    '(NO REVISADO)',
+    'transferencia de compresion por contacto (columna a placa) no verificada (NO REVISADO)',
+    'valores de NORMA marcados NO REVISADO en la hoja NORMA: ver referencia',
+]
 
 
 def _falta(v):
@@ -100,7 +112,8 @@ def _apoyo(P, mx, my, N, B, f_adm, c_t):
     if 6 * ex / N + 6 * ey / B <= 1.0:
         f = P / (N * B) * (1 + 6 * ex / N + 6 * ey / B)
         return {'f': f, 'T': 0.0, 'ok': True, 'ex': ex, 'ey': ey, 'fuera': False, 'Y': None,
-                'modo_x': 'lineal', 'modo_y': 'lineal', 'f_x': f, 'f_y': f, 'tension_x': False, 'tension_y': False}
+                'modo_x': 'lineal', 'modo_y': 'lineal', 'f_x': f, 'f_y': f, 'tension_x': False, 'tension_y': False,
+                'biaxial_fuera': False}
     if 6 * ex / N <= 1.0:
         rx = {'f': P / (N * B) * (1 + 6 * ex / N), 'T': 0.0, 'Y': None, 'ok': True, 'tension': False}
         modo_x = 'lineal'
@@ -119,7 +132,8 @@ def _apoyo(P, mx, my, N, B, f_adm, c_t):
     f_x = rx['f']
     return {'f': max(f_x, f_y), 'T': rx['T'], 'ok': rx['ok'] and math.isfinite(f_y), 'ex': ex, 'ey': ey,
             'fuera': True, 'Y': rx['Y'] if modo_x == 'pernos' else None, 'modo_x': modo_x, 'modo_y': modo_y,
-            'f_x': f_x, 'f_y': f_y, 'tension_x': rx['tension'], 'tension_y': ry_tension}
+            'f_x': f_x, 'f_y': f_y, 'tension_x': rx['tension'], 'tension_y': ry_tension,
+            'biaxial_fuera': ex > 0 and ey > 0 and (6 * ex / N + 6 * ey / B) > 1.0}
 
 
 def _combinacion(caso, v, d, ctx):
@@ -129,7 +143,13 @@ def _combinacion(caso, v, d, ctx):
     Pc, Pt = max(fz, 0.0), max(-fz, 0.0)
     V = math.hypot(fx, fy)
     c = {'caso': caso, 'Pc': Pc, 'Pt': Pt, 'V': V, 'mx': mx, 'my': my, 'fx': fx, 'fy': fy, 'fz': fz,
-         'fu': {}, 'notas': []}
+         'fu': {}, 'notas': [], 'pendientes': []}
+    # R04-03: momento de torsion MZ y momentos sin compresion: no se verifican (no se representan como cero)
+    if abs(mz) > TOL_MOMENTO:
+        c['pendientes'].append('torsion MZ en la base: no verificada (NO REVISADO)')
+    if Pc <= 0 and (abs(mx) > TOL_MOMENTO or abs(my) > TOL_MOMENTO):
+        c['pendientes'].append('momento sin compresion en la base: transferencia al dado y anclajes no verificada '
+                               '(NO REVISADO)')
     if Pc > 0:
         ap = _apoyo(Pc, mx, my, N, B, ctx['f_adm'], c_t)
         c.update(f=ap['f'], ex=ap['ex'], ey=ap['ey'], fuera=ap['fuera'], Y=ap['Y'], T_ap=ap['T'], ap_ok=ap['ok'],
@@ -139,6 +159,9 @@ def _combinacion(caso, v, d, ctx):
             c['notas'].append('excentricidad fuera del tercio medio: distribucion triangular (NO REVISADO)')
         if ap.get('tension_y'):
             c['notas'].append('excentricidad en Y fuera del tercio medio: sin pernos modelados en Y (NO REVISADO)')
+        if ap.get('biaxial_fuera'):
+            c['pendientes'].append('contacto biaxial fuera del nucleo: presion por direccion, sin solucion de contacto '
+                                   '(NO REVISADO)')
         if not math.isfinite(ap['f']):
             c['notas'].append('la resultante queda fuera de la placa (e > mitad de la placa en una direccion): no hay '
                               'apoyo. NO CUMPLE: aumentar la placa o revisar pernos en esa direccion')
@@ -161,9 +184,9 @@ def _combinacion(caso, v, d, ctx):
     else:
         Tside = Pt / 2.0 + abs(my) / (N - 2 * c_t) if (Pt > 0 or abs(my) > 0) else 0.0
         if Pt > 0:
-            c['notas'].append('levantamiento: flexion de la placa por los pernos no verificada (NO REVISADO)')
+            c['pendientes'].append('levantamiento: flexion de la placa por los pernos no verificada (NO REVISADO)')
         if Pt > 0 and abs(mx) > 0:
-            c['notas'].append('levantamiento con momento en Y: pernos solo en X (NO REVISADO)')
+            c['pendientes'].append('levantamiento con momento en X: pernos solo en la direccion N (NO REVISADO)')
     if Tside is None:
         c['notas'].append('placa insuficiente: no hay equilibrio con la presion admisible (NO REVISADO)')
         c['fu'].update(T=math.inf, cono=math.inf)
@@ -190,7 +213,7 @@ def verificar_nodo(datos, perfil, eje, reacciones, nrm):
     eje: vector del eje fuerte; reacciones: [(caso, [FX, FY, FZ, MX, MY, MZ])] de las combinaciones (kgf, kgf·cm);
     nrm: valores de la hoja NORMA. Devuelve un dict con estado, verificaciones que gobiernan y notas."""
     res = {'id': datos['id'], 'perfil': perfil, 'datos': datos, 'estado': '', 'fu_max': None, 'verif': [],
-           'combos': [], 'notas': [], 'faltan': [], 'norma': [], 'ctx': {}}
+           'combos': [], 'notas': [], 'pendientes': [], 'faltan': [], 'norma': [], 'ctx': {}}
     res['faltan'] = [ETIQUETA.get(c, c) for c in OBLIGATORIOS if datos.get(c) is None]
     res['norma'] = [k for k in NORMA_BASE if nrm.get(k) is None]
     if res['norma']:
@@ -202,14 +225,22 @@ def verificar_nodo(datos, perfil, eje, reacciones, nrm):
     d = datos
     N, B = d['pl_n'], d['pl_b']
     invalidos = []
-    if d['c_t'] >= N / 2.0:
+    # R04-07: datos fisicamente validos antes de calcular: finitos, positivos, enteros donde corresponde
+    for k in OBLIGATORIOS + ['mu']:
+        if not math.isfinite(d[k]):
+            invalidos.append(f'{ETIQUETA.get(k, k)}: valor no finito')
+    for k in ('fc', 'dado_n', 'dado_b', 'pl_n', 'pl_b', 'pl_t', 'fy', 'c_t', 'diam', 'hilos', 'fu', 'hef',
+              'sold_w', 'sold_l'):
+        if math.isfinite(d[k]) and d[k] <= 0:
+            invalidos.append(f'{ETIQUETA.get(k, k)} debe ser mayor que cero')
+    if math.isfinite(d['mu']) and d['mu'] < 0:
+        invalidos.append('coeficiente de friccion negativo')
+    if math.isfinite(d['n']) and (not float(d['n']).is_integer() or d['n'] < 2 or int(d['n']) % 2):
+        invalidos.append('anclas totales n debe ser un entero par y al menos 2 (dos lados)')
+    if math.isfinite(d['c_t']) and math.isfinite(N) and d['c_t'] >= N / 2.0:
         invalidos.append('c anclas debe ser menor que la mitad de la placa')
-    if d['n'] < 2 or int(d['n']) % 2:
-        invalidos.append('anclas totales n debe ser par y al menos 2 (dos lados)')
-    if d['diam'] <= 0 or d['hilos'] <= 0:
-        invalidos.append('diametro e hilos por pulgada deben ser mayores que cero')
-    if d['sold_w'] <= 0 or d['sold_l'] <= 0:
-        invalidos.append('soldadura: tamaño y longitud deben ser mayores que cero')
+    if math.isfinite(N * B) and math.isfinite(d['dado_n'] * d['dado_b']) and d['dado_n'] * d['dado_b'] < N * B:
+        invalidos.append('el dado es menor que la placa (A2 < A1)')
     if invalidos:
         res['estado'] = 'DATO INVALIDO'
         res['notas'] += invalidos
@@ -221,8 +252,9 @@ def verificar_nodo(datos, perfil, eje, reacciones, nrm):
         return res
     Wx, Wy = envolvente(p, eje)
     if N < Wx or B < Wy:
-        res['notas'].append(f'AVISO: la placa ({N:g} x {B:g} cm) es menor que la envolvente de la seccion '
-                            f'({Wx:.1f} x {Wy:.1f} cm)')
+        res['estado'] = 'DATO INVALIDO'
+        res['notas'].append(f'la placa ({N:g} x {B:g} cm) no cubre la envolvente de la seccion ({Wx:.1f} x {Wy:.1f} cm)')
+        return res
     Oc = nrm['BASE_OMEGA_C']
     fac = nrm['BASE_FACTOR_ASD']
     Opl = fac / nrm['BASE_PHI_PL']
@@ -231,8 +263,6 @@ def verificar_nodo(datos, perfil, eje, reacciones, nrm):
     Ocono = fac / nrm['BASE_PHI_CONO']
     Osol = fac / nrm['BASE_PHI_SOLD']
     A1, A2 = N * B, d['dado_n'] * d['dado_b']
-    if A2 < A1:
-        res['notas'].append('AVISO: el dado es menor que la placa (A2 < A1): revisar')
     Pp = min(nrm['BASE_J8_085'] * d['fc'] * A1 * math.sqrt(A2 / A1), nrm['BASE_J8_LIM'] * d['fc'] * A1)
     f_adm = Pp / (Oc * A1)
     # Pernos: area bruta Ab y de tension At (roscada, ASME B1.1), en cm2
@@ -263,15 +293,17 @@ def verificar_nodo(datos, perfil, eje, reacciones, nrm):
         res['verif'].append({'clave': clave, 'nombre': nombre, 'ref': ref, 'unidad': unidad, 'caso': mejor['caso'],
                              'fu': fu, 'combo': mejor})
     res['fu_max'] = max(v['fu'] for v in res['verif'])
-    res['estado'] = 'CUMPLE' if res['fu_max'] <= 1.0 else 'NO CUMPLE'
     if any(c['notas'] for c in res['combos']):
         res['notas'] += sorted({n for c in res['combos'] for n in c['notas']})
-    res['notas'].append('pernos: n/2 por lado en la direccion N (X); no se modelan pernos en la direccion Y (NO REVISADO)')
-    res['notas'].append('pernos: cono de concreto con A_Nc = A_Nco (un cono por lado); verificar separacion y '
-                        'distancia al borde >= 1.5 h_ef (ACI 318-02 Ap. D, NO REVISADO)')
-    res['notas'].append('soldadura: se verifica con cortante y tension (levantamiento + momento / ancho); '
-                        'la transferencia de compresion por contacto no se verifica (NO REVISADO)')
-    res['notas'].append('valores de NORMA marcados NO REVISADO en la hoja NORMA: ver referencia')
+    # Pendientes: verificaciones no hechas. El estado global no puede ser CUMPLE mientras existan (R04-04).
+    res['pendientes'] = sorted({p for c in res['combos'] for p in c['pendientes']}) + LIMITACIONES
+    res['notas'] += [p for p in res['pendientes'] if p not in res['notas']]
+    if res['fu_max'] > 1.0:
+        res['estado'] = 'NO CUMPLE'
+    elif res['pendientes']:
+        res['estado'] = 'NO REVISADO'
+    else:
+        res['estado'] = 'CUMPLE'
     return res
 
 

@@ -116,9 +116,9 @@ def _elementos_E7(p, forma, fy, E, fn):
     if forma == 'I':
         b_alma = p['H'] - 2.0 * p['t']
         b_pat = p['B'] / 2.0
-        elems = [(b_alma, p['e'], AISC_LR_COMP['alma'] * sq, AISC_B41A['alma'][0], AISC_B41A['alma'][1], 'alma'),
-                 (b_pat, p['t'], AISC_LR_COMP['patin'] * sq, AISC_B41A['patin'][0], AISC_B41A['patin'][1], 'patin'),
-                 (b_pat, p['t'], AISC_LR_COMP['patin'] * sq, AISC_B41A['patin'][0], AISC_B41A['patin'][1], 'patin')]
+        # AISC E7: cada patin tiene dos salientes (a cada lado del alma): cuatro elementos en total (R04-12)
+        elems = [(b_alma, p['e'], AISC_LR_COMP['alma'] * sq, AISC_B41A['alma'][0], AISC_B41A['alma'][1], 'alma')] + \
+                [(b_pat, p['t'], AISC_LR_COMP['patin'] * sq, AISC_B41A['patin'][0], AISC_B41A['patin'][1], 'patin')] * 4
     else:
         b_alma = p['H'] - 2.0 * p['t']
         elems = [(b_alma, p['e'], AISC_LR_COMP['alma'] * sq, AISC_B41A['alma'][0], AISC_B41A['alma'][1], 'alma'),
@@ -461,18 +461,16 @@ def _resistencias_angulo(p, fy, E, Lx, Ly, Lb, Kx, Ky, Cb, e5):
     fn_u, _ = _fn_E3(fy, E, lam_u)
     fn = min(fn_z, fn_u)
     gob = 'Fe eje z (menor, E5)' if (fn_z <= fn_u and e5) else ('Fe eje z (menor, K L/rz)' if fn_z <= fn_u else 'Fe eje u (mayor)')
-    # E7 patas esbeltas en compresion (B4.1a: 0.45 sqrt(E/Fy); c1 = 0.22, c2 = 1.49), ambas patas
+    # E7 patas esbeltas en compresion (B4.1a: 0.45 sqrt(E/Fy); c1 = 0.22, c2 = 1.49), ambas patas.
+    # E7-2: be = b si lambda <= lambda_r sqrt(Fy/Fn) (R04-12: antes el umbral usaba c2 y no era E7-2).
     lam_leg = b / t
     lr_leg = AISC_B41A['lr_pata'] * sq
-    if lam_leg <= lr_leg:
+    if lam_leg <= lr_leg * math.sqrt(fy / fn):
         be = b
     else:
         fel = (AISC_B41A['patin'][1] * lr_leg / lam_leg) ** 2 * fy                       # E7-5
-        if fel >= fn:
-            be = b
-        else:
-            r = math.sqrt(fel / fn)
-            be = min(b * (1.0 - 0.22 * r) * r, b)                       # E7-3
+        r = math.sqrt(fel / fn)
+        be = min(b * (1.0 - 0.22 * r) * r, b)                                             # E7-3
     Ae = A - 2.0 * (b - be) * t
     pn_c = fn * Ae
     motivo = None
@@ -547,6 +545,8 @@ def resistencias_asd(p, familia, fy, fu, E, nu, Lx, Ly, Lb, Kx, Ky, Lz, Cb=None,
     out['U'] = U                                                                     # D3: Ae = U Ag (sin agujeros)
     out['Pa_t_fractura'] = None if fu is None else fu * p['A'] * U / OMEGA_T_FRA
     out['Pa_t'] = pa_flu if fu is None else min(pa_flu, fu * p['A'] * U / OMEGA_T_FRA)
+    out['motivo_fu'] = None if fu is not None else \
+        'NO REVISADO: falta Fu del material (fractura en traccion, D2-2); no se supone'
     if familia == 'LI':
         out.update(_resistencias_angulo(p, fy, E, Lx, Ly, Lb, Kx, Ky, Cb, e5))
         return out
@@ -576,7 +576,20 @@ def resistencias_asd(p, familia, fy, fu, E, nu, Lx, Ly, Lb, Kx, Ky, Lz, Cb=None,
     return out
 
 
+TOL_TORSION_ABIERTA = 1e-3          # kgf·cm: ruido numerico; las demandas exportadas de torsion son <= 1e-6
+CHEQUEO_TORSION_ABIERTA = 'torsion seccion abierta (NO REVISADO)'
+FU_BLOQUEO_TORSION = 99.0           # R04-02: torsion en seccion abierta no verificada -> la barra no puede aprobarse
+
+
 def utilizacion_asd(res, Pr_t, Pr_c, Mr_x, Mr_y, Vr_x, Vr_y, Tr=0.0):
+    """Utilizaciones ASD. Si hay torsion en una seccion abierta (IR, CE, LI), no verificada: FU de bloqueo."""
+    u = _utilizacion_base(res, Pr_t, Pr_c, Mr_x, Mr_y, Vr_x, Vr_y, Tr)
+    if Tr > TOL_TORSION_ABIERTA and res.get('Tc') is None:
+        u[CHEQUEO_TORSION_ABIERTA] = FU_BLOQUEO_TORSION
+    return u
+
+
+def _utilizacion_base(res, Pr_t, Pr_c, Mr_x, Mr_y, Vr_x, Vr_y, Tr=0.0):
     """Utilizaciones ASD (<= 1 cumple): tension, compresion, flexion eje mayor y menor, cortante, H1 o H2.
     HSS (H3): utilizacion de torsion Tr/Tc; si Tr > 0.2 Tc, la interaccion es H3-6 en lugar de H1 (H3.2)."""
     if res.get('angulo'):
@@ -612,6 +625,8 @@ def utilizacion_asd(res, Pr_t, Pr_c, Mr_x, Mr_y, Vr_x, Vr_y, Tr=0.0):
         pc = res['Pa_t']
         ratio = Pr_t / pc
         u['H1 flexotension'] = (ratio + 8.0 / 9.0 * (mx + my)) if ratio >= 0.2 else (ratio / 2.0 + (mx + my))
+    elif mx > 0 or my > 0:                                                    # R04-01: sin axial, H1-1b con Pr/Pc = 0
+        u['H1 flexotension'] = mx + my
     return u
 
 
@@ -728,18 +743,30 @@ def _props_asd(nombre, familia):
     return p, ''
 
 
+def _dato(fila, col):
+    """Valor numerico y finito de una demanda. Vacio, texto, NaN o infinito: error (R04-09), no cero."""
+    try:
+        x = float(fila[col])
+    except (KeyError, TypeError, ValueError):
+        x = float('nan')
+    if not math.isfinite(x):
+        raise ErrorAsd(f"demanda no numerica o no finita en '{col}' (caso {fila.get('CASO', '?')}, "
+                       f"barra {fila.get('BARRA', '?')}): corrija la entrada; no se supone cero")
+    return x
+
+
 def _demanda_fila(fila):
-    """Demandas ASD de una fila de BARRAS (kgf, kgf·cm)."""
-    N_I, N_J = _num(fila['N I (kgf)'], 0.0), _num(fila['N J (kgf)'], 0.0)
+    """Demandas ASD de una fila de BARRAS (kgf, kgf·cm). Cualquier valor faltante o no finito detiene el calculo."""
+    N_I, N_J = _dato(fila, 'N I (kgf)'), _dato(fila, 'N J (kgf)')
     return dict(Pr_c=max(N_I, -N_J, 0.0), Pr_t=max(-N_I, N_J, 0.0),
                 # H-01: el momento de diseno incluye el maximo en el tramo (no solo los extremos)
-                Mr_x=max(abs(_num(fila['Mz I (kgf·m)'], 0.0)), abs(_num(fila['Mz J (kgf·m)'], 0.0)),
-                         abs(fila['MZ MAX EN EL TRAMO (kgf·m)'])) * 100.0,
-                Mr_y=max(abs(_num(fila['My I (kgf·m)'], 0.0)), abs(_num(fila['My J (kgf·m)'], 0.0)),
-                         abs(fila['MY MAX EN EL TRAMO (kgf·m)'])) * 100.0,
-                Vr_x=max(abs(_num(fila['Vy I (kgf)'], 0.0)), abs(_num(fila['Vy J (kgf)'], 0.0))),
-                Tr=max(abs(_num(fila['T I (kgf·m)'], 0.0)), abs(_num(fila['T J (kgf·m)'], 0.0))) * 100.0,
-                Vr_y=max(abs(_num(fila['Vz I (kgf)'], 0.0)), abs(_num(fila['Vz J (kgf)'], 0.0))))
+                Mr_x=max(abs(_dato(fila, 'Mz I (kgf·m)')), abs(_dato(fila, 'Mz J (kgf·m)')),
+                         abs(_dato(fila, 'MZ MAX EN EL TRAMO (kgf·m)'))) * 100.0,
+                Mr_y=max(abs(_dato(fila, 'My I (kgf·m)')), abs(_dato(fila, 'My J (kgf·m)')),
+                         abs(_dato(fila, 'MY MAX EN EL TRAMO (kgf·m)'))) * 100.0,
+                Vr_x=max(abs(_dato(fila, 'Vy I (kgf)')), abs(_dato(fila, 'Vy J (kgf)'))),
+                Tr=max(abs(_dato(fila, 'T I (kgf·m)')), abs(_dato(fila, 'T J (kgf·m)'))) * 100.0,
+                Vr_y=max(abs(_dato(fila, 'Vz I (kgf)')), abs(_dato(fila, 'Vz J (kgf)'))))
 
 
 # ---------------------------------------------------------------- planilla -> diseno ASD (IR, CE, LI)
@@ -756,7 +783,7 @@ FAMILIA_ORDEN = ['IR', 'CE', 'LI', 'HSS']
 CHEQUEOS_DEMANDA_BASE = ['T traccion', 'C compresion', 'F flexion eje mayor', 'F flexion eje menor',
                          'V cortante eje mayor', 'V cortante eje menor', 'H1 flexocompresion', 'H1 flexotension',
                          'H2 angulo (H2-1)']
-CHEQUEOS_TORSION = ['T torsion (H3.1)', 'H3 interaccion (H3-6)']      # solo HSS (H3)
+CHEQUEOS_TORSION = ['T torsion (H3.1)', 'H3 interaccion (H3-6)', CHEQUEO_TORSION_ABIERTA]   # H3 (HSS); bloqueo en seccion abierta
 CHEQUEOS_DEMANDA = CHEQUEOS_DEMANDA_BASE + CHEQUEOS_TORSION
 INTERACCION = ('H1 flexocompresion', 'H1 flexotension', 'H2 angulo (H2-1)', 'H3 interaccion (H3-6)')
 CHEQUEO_EL = 'EL esbeltez local (B4.1)'
@@ -821,6 +848,10 @@ def _chequear(p, familia, fy, fu, E, nu, Lx, Ly, Lb, kx, ky, grupo, demandas_lis
     if compr:
         const[CHEQUEO_EG] = klr / LIMITE_KLR
     out = dict(res=res, klr=klr, el=fu_el, el_det=el_det, const=const, filas=[], motivo=res.get('motivo'))
+    if res.get('motivo_fu') and any(d['Pr_t'] > 0 for d in demandas_list):      # R04-08
+        out['motivo'] = res['motivo_fu']
+        out['bloquea_traccion'] = True
+        return out
     if res.get('motivo') and any(d['Pr_c'] > 0 for d in demandas_list):
         return out
     for d in demandas_list:
@@ -836,6 +867,7 @@ _NOMBRE_ESFUERZO = {
     'V cortante eje menor': 'cortante eje menor', 'H1 flexocompresion': 'interacción H1 flexocompresión',
     'H1 flexotension': 'interacción H1 flexotensión', 'H2 angulo (H2-1)': 'interacción H2 (ángulo)',
     'T torsion (H3.1)': 'torsión H3.1', 'H3 interaccion (H3-6)': 'interacción H3-6',
+    CHEQUEO_TORSION_ABIERTA: 'torsión en sección abierta (NO REVISADO)',
 }
 
 
@@ -988,7 +1020,7 @@ def matriz_fu_por_perfil(dib, materiales_filas, longitudes_df, demandas, id_barr
                            e['lb'] * 100.0, e['kx'], e['ky'], b['elemento'], demandas_list, cb=e['cb'],
                            e5=(fam == 'LI' and e['e5']),
                            u_t=(factor_u_angulo(p['xc'], e['l_li'], e['conexion']) if fam == 'LI' else 1.0))
-            if ev['motivo'] and any(d['Pr_c'] > 0 for d in demandas_list):
+            if ev['motivo'] and (ev.get('bloquea_traccion') or any(d['Pr_c'] > 0 for d in demandas_list)):
                 filas.append(base + ['NO REVISADO'] * 9)
                 continue
             if not demandas_list:
@@ -1064,13 +1096,15 @@ def diseno_asd_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id
         ev = _chequear(p, familia, m['fy'], m['fu'], m['E'], m['nu'], lx * 100.0, ly * 100.0, lb * 100.0,
                        kx, ky, grupo, demandas_list, cb=cb, e5=e5_b, u_t=u_b)
         res = ev['res']
-        if ev['motivo'] and any(d['Pr_c'] > 0 for d in demandas_list):
+        if ev['motivo'] and (ev.get('bloquea_traccion') or any(d['Pr_c'] > 0 for d in demandas_list)):
             motivo = 'NO REVISADO: ' + res['motivo']
             caps.append({'ID': id_, 'PERFIL': perfil, 'FAMILIA': familia, 'NOTA': motivo})
             res_filas.append(dict(ID=id_, PERFIL=perfil, MATERIAL=b.get('material'), GRUPO=grupo,
                                   ESTADO='NO REVISADO', NOTAS=motivo))
             continue
         notas = []
+        if p is not None and p.get('alerta_catalogo'):      # R04-11: la alerta del catalogo llega a resultados
+            notas.append('CATALOGO (alerta sin corregir): ' + str(p['alerta_catalogo']))
         if familia == 'LI':
             notas.append('LI: ejes principales (u mayor, v menor); H2 con momento resultante; cortante de una pata (G3)')
             notas.append('E5(a) verificado en LONGITUDES: se usa Lc/rz de E5' if e5_b
@@ -1117,10 +1151,10 @@ def diseno_asd_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id
         pd.DataFrame([['Metodo', 'ASD con ANSI/AISC 360-22 (Omega: traccion 1.67/2.00, compresion y flexion 1.67, cortante 1.50 o 1.67)'],
                       ['Demandas', 'combinaciones de servicio de COMBINACIONES (ASD); sin factores de carga'],
                       ['FU', 'factor de utilizacion = demanda / capacidad ASD; cumple si FU <= 1.0'],
-                      ['FU esbeltez local', 'lambda / lambda_r por elemento (B4.1a en compresion, B4.1b en flexion; angulo: pata)'],
-                      ['FU esbeltez global', 'KL/r / 200 en elementos a compresion (2.3.2); vigas sin verificacion de KL/r'],
-                      ['Alcance', 'IR, CE, LI (angulos de lados iguales) y HSS (tubulares rectangulares y cuadradas, catalogo ATC). Perfiles macizos (CS, OS, SOL) eliminados de la base; LM no incluido. '
-                                  'Ductilidad: 12.1.2 (IR y CE) y 12.1.3.1 (columnas)'],
+                      ['FU esbeltez local', 'lambda / lambda_r por elemento (B4.1a en miembros comprimidos; B4.1b en VIGA; angulo: pata)'],
+                      ['FU esbeltez global', 'KL/r / 200 en miembros con compresion en alguna combinacion (incluye vigas comprimidas); sin compresion: no aplica'],
+                      ['Alcance', 'IR, CE, LI (angulos de lados iguales) y HSS (tubulares rectangulares y cuadradas, catalogo ATC). Perfiles macizos (CS, OS, SOL) eliminados de la base; LM no incluido.'],
+                      ['Ductilidad', 'no se aplica: criterio AISC 360-22 (la ductilidad NTC fue retirada)'],
                       ['Unidades', 'fuerzas kgf; momentos kgf·cm; longitudes cm']],
                      columns=['DATO', 'VALOR']).to_excel(w, sheet_name='RESUMEN', index=False)
         capacidades.to_excel(w, sheet_name='CAPACIDADES', index=False)
@@ -1280,7 +1314,7 @@ def listas_por_grupo_asd(dib, materiales_filas, longitudes_df, demandas, id_barr
                            e5=(fam == 'LI' and e5_grupo),
                            u_t=(min(factor_u_angulo(p['xc'], l, c) for l, c in lineas_li)
                                 if fam == 'LI' and lineas_li else 1.0))
-            if ev['motivo'] and any(d['Pr_c'] > 0 for d in sint):
+            if ev['motivo'] and (ev.get('bloquea_traccion') or any(d['Pr_c'] > 0 for d in sint)):
                 filas_tabla.append(base_fila + [None, None, None, 'no revisado: ' + ev['motivo']])
                 continue
             umax = max(max(u.values()) for u in ev['filas']) if ev['filas'] else None

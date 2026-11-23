@@ -1,0 +1,5 @@
+OK    error_al_inicio: codigo=1 esperado=1 | RESUMEN: EJECUCION INCOMPLETA en la celda 0 (0 celdas de codigo OK antes del error). No use las sali
+OK    error_al_final: codigo=1 esperado=1 | RESUMEN: EJECUCION INCOMPLETA en la celda 1 (1 celdas de codigo OK antes del error). No use las sali
+OK    completo: codigo=0 esperado=0 | RESUMEN: EJECUCION COMPLETA (2 celdas de codigo OK)
+
+RESULTADO: OK (3 de 3)

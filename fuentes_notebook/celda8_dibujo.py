@@ -107,6 +107,6 @@ else:
                       combinaciones=comb_crudas,
                       longitudes=filas_longitudes_para_excel(longitudes_df),
                       estados=[[None if _vacio(v) else v for v in f] for f in estados_df.values.tolist()],
-                      bases=BASES_FILAS)
+                      bases=BASES_FILAS, parametros=PAR_LEIDA)
     guardar_con_valores('planilla_con_vista.xlsx')
     print('Planilla regenerada: planilla_con_vista.xlsx (hoja VISTA_VIVA)')

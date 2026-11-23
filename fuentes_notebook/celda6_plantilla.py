@@ -988,7 +988,7 @@ def _cabecera_en(ws, fila, columnas, anchos):
         ws.column_dimensions[celda.column_letter].width = anchos[c - 1]
 
 
-def _hoja_normas_y_parametros(wb):
+def _hoja_normas_y_parametros(wb, parametros=None):
     """Crea las hojas NORMA (solo lectura) y PARAMETROS (listas desplegables y datos a ingresar)."""
     from openpyxl.worksheet.datavalidation import DataValidation as DV
     ws_n = wb.create_sheet('NORMA')
@@ -1021,7 +1021,8 @@ def _hoja_normas_y_parametros(wb):
         fila = 5 + k
         ws_p[f'A{fila}'] = clave
         ws_p[f'B{fila}'] = concepto
-        ws_p[f'C{fila}'] = valor
+        usado = (parametros or {}).get(clave)                 # R04-18: se conserva el valor de la entrada
+        ws_p[f'C{fila}'] = valor if usado is None else usado
         ws_p[f'C{fila}'].fill = ENTRADA
         ws_p[f'D{fila}'] = unidad
         ws_p[f'E{fila}'] = opciones
@@ -1059,7 +1060,7 @@ def _hoja_bases(wb, filas=None):
 
 def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas=None, estados=None,
                       materiales=None, combinaciones=None, longitudes=None, listas=None,
-                      grupos_perfil=None, fu_matriz=None, perfiles_analizados=None, bases=None):
+                      grupos_perfil=None, fu_matriz=None, perfiles_analizados=None, bases=None, parametros=None):
     """Escribe el libro completo con los datos dados. Cada fila de NODOS: NODOS_COLS; de BARRAS: BARRAS_COLS.
     bases: filas de la hoja BASES (BASES_COLS); None = hoja vacia."""
     wb = openpyxl.Workbook()
@@ -1174,7 +1175,7 @@ def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas
     _hoja_estados(wb, estados or [])
     _hoja_materiales(wb, materiales if materiales is not None else MATERIALES_DEFAULT)
     _hoja_combinaciones(wb, combinaciones if combinaciones is not None else COMBINACIONES_DEFAULT)
-    _hoja_normas_y_parametros(wb)
+    _hoja_normas_y_parametros(wb, parametros)
     ws_cc, col_cc = _hoja_calc_cargas(wb, col_3d)
     primer_estado = estados[0][0] if estados else ''
     ws_car = _hoja_cargas(wb, filas_cargas or [], primer_estado)
@@ -1306,7 +1307,12 @@ def _hojas_diseno_vivo(wb, grupos_perfil, fu_matriz, perfiles_analizados=None):
             ws_g.cell(row=r, column=col, value=(
                 f'=IF(G{r}=0,"sin barras",IF(COUNTIFS(FU_BARRAS!$B$2:$B${FIN_B},A{r},{rango},">=0")=0,"no aplica",'
                 f'_xlfn.MAXIFS({rango},FU_BARRAS!$B$2:$B${FIN_B},A{r})))'))
-        ws_g.cell(row=r, column=6, value=f'=IF(ISNUMBER(C{r}),IF(C{r}<=1,"CUMPLE","NO CUMPLE"),C{r})')
+        # R04-17: el grupo es CUMPLE solo si todas sus barras estan CUMPLE (una barra NO REVISADO no se oculta)
+        ws_g.cell(row=r, column=6, value=(f'=IF(G{r}=0,"sin barras",'
+            f'IF(COUNTIFS(FU_BARRAS!$B$2:$B${FIN_B},A{r},FU_BARRAS!$I$2:$I${FIN_B},"NO CUMPLE")>0,"NO CUMPLE",'
+            f'IF(COUNTIFS(FU_BARRAS!$B$2:$B${FIN_B},A{r},FU_BARRAS!$I$2:$I${FIN_B},"CUMPLE")<G{r},'
+            f'"NO REVISADO: barras sin verificacion completa",'
+            f'IF(ISNUMBER(C{r}),IF(C{r}<=1,"CUMPLE","NO CUMPLE"),C{r}))))'))
         dv = DataValidation(type='list', formula1=f'LISTA_{g}', allow_blank=True, errorStyle='warning',
                             showErrorMessage=True, errorTitle='Perfil fuera de la lista',
                             error='Este perfil no cumple para el grupo. Se usara igual: revise el FU.')

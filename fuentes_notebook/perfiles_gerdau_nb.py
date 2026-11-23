@@ -22,7 +22,8 @@ def obtener_perfil(nombre):
             'estado': p['estado'], 'masa': p['masa_kg_m'], 'pagina_manual': p.get('pagina_manual'),
             'fuente_completado': p.get('fuente_completado'), 'seccion': p.get('seccion'),
             'pagina_catalogo_atc': p.get('pagina_catalogo_atc'), 'referencia_catalogo': p.get('referencia_catalogo'),
-            'fuente_propiedades': p.get('fuente_propiedades')}
+            'fuente_propiedades': p.get('fuente_propiedades'),
+            'alerta_catalogo': p.get('alerta_catalogo'), 'campos_pendientes': p.get('campos_pendientes')}
 
 
 def _clave_seccion(p):

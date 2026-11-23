@@ -29,6 +29,7 @@ td.num { text-align: right; white-space: nowrap; }
 .cumple { color: #1e6b33; font-weight: bold; }
 .nocumple { color: #a61b1b; font-weight: bold; }
 .nota { color: #555; font-size: 8.5pt; }
+.norev { color: #8a5a00; font-weight: bold; }
 .barra { page-break-inside: avoid; margin-top: 18px; }
 .ec { font-family: 'Courier New', monospace; font-size: 8.5pt; }
 @media print { body { margin: 10mm; } h2 { page-break-after: avoid; } }
@@ -543,7 +544,7 @@ REF = {
     'B4_1A': 'AISC 360-22 Tabla B4.1a (esbeltez local de elementos comprimidos), con E7 para anchos efectivos',
     'B4_1B': 'AISC 360-22 Tabla B4.1b (esbeltez local de elementos en flexión)',
     'PROY_KLR': 'IMCA 5ta ed., cap. E, pág. II-89 (pdf 185): nota "preferiblemente KL/r ≤ 200", verificada en imagen; aplicada como límite del proyecto',
-    'L2_FLECHA': 'AISC 360-22 Comentario L2, pág. 16.1-543 (límites de flecha)',
+    'L2_FLECHA': 'AISC 360-22 Comentario L2, pág. 16.1-543. L/360 es el criterio adoptado para este proyecto (pisos); no es un límite universal para soportes industriales (R04-22)',
     'BASE_J8': 'IMCA 5.ª ed., cap. J, J8-1 y J8-2 (pág. II-218, pdf 312), verificada en imagen. Ω_c = 2.31 y φ_c = 0.65 (pág. II-218)',
     'BASE_DG1_PL': 'AISC Design Guide 1, 2.ª ed., §3.1.2 (m, n, n′, λn′ y espesor; base AISC 2005). Texto extraído, NO verificado en imagen; φ = 0.90 y Ω = 1.67 tampoco verificados',
     'BASE_DG1_T': 'AISC Design Guide 1, 2.ª ed., pág. 19 (pdf 26): R_n = 0.7 F_u (verificada en imagen) y Ω = 2.00; área A_t según §3.2.1 (texto, NO verificado en imagen)',
@@ -808,6 +809,10 @@ def _modelo_html(dib, equilibrio):
 
 def _pendientes_html(evals, materiales_filas, proyecto, dib=None):
     items = []
+    # R04-14: el analisis es elastico de primer orden. Los efectos P-Delta y P-delta no estan incluidos.
+    items.append('Analisis elastico de primer orden (OpenSees, lineal): los efectos de segundo orden (P-Δ, P-δ) y las '
+                 'imperfecciones no se incluyen. La estabilidad del marco queda NO REVISADA; el criterio KL/r y los '
+                 'factores K son supuestos del proyecto.')
     no_rev = {}
     for v in evals:
         if v['estado'] == 'NO REVISADO':
@@ -1137,10 +1142,10 @@ def _seccion_placas(resultados):
     bloques = [_factores_placa_html(resultados)]
     for i, r in enumerate(resultados, 1):
         estado = r['estado']
-        clase = 'cumple' if estado == 'CUMPLE' else 'nocumple'
+        clase = {'CUMPLE': 'cumple', 'NO REVISADO': 'norev'}.get(estado, 'nocumple')
         perfil = html.escape(str(r['perfil'] or '—'))
         bloques.append(f'<h3>8.{i} Nodo {r["id"]} · perfil {perfil} · <span class="{clase}">{estado}</span></h3>')
-        if estado not in ('CUMPLE', 'NO CUMPLE'):
+        if estado not in ('CUMPLE', 'NO CUMPLE', 'NO REVISADO'):
             motivo = ', '.join(r['faltan'] + r['norma']) or '; '.join(r['notas'])
             bloques.append(f'<p class="nota">No se verifica: {html.escape(motivo)}.</p>')
             continue
