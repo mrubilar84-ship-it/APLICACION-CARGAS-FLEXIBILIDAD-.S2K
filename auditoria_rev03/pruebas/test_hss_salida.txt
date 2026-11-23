@@ -1,0 +1,9 @@
+OK    cortante eje fuerte HSS 8x8x1/2 (Vn/Omega, kgf): obtenido=48725.4 esperado=48725.4
+OK    E7-2: be = b justo por debajo de lambda_r sqrt(Fy/Fn): obtenido=0.99998 esperado=1
+OK    E7-3: be/b justo por encima del umbral = 0.9868
+OK    Se (sin reduccion) / S catalogo = 1.0197 (modelo de lineas medias)
+Traceback (most recent call last):
+  File "/home/user/APLICACION-CARGAS-FLEXIBILIDAD-.S2K/verificacion_posterior/hss/test_hss.py", line 75, in <module>
+    d = DA._ductilidad(p, 'HSS', FY, E, 'COLUMNA', 'MEDIA')
+        ^^^^^^^^^^^^^^
+AttributeError: module 'diseno_asd' has no attribute '_ductilidad'
