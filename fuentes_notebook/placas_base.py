@@ -78,22 +78,29 @@ def envolvente(perfil, eje):
     return perfil['H'] * abs(ux) + perfil['B'] * abs(uy), perfil['H'] * abs(uy) + perfil['B'] * abs(ux)
 
 
-def _traccion_lado(P, e, L, W, x_T, f_adm):
-    """Compresion P con excentricidad e fuera del tercio medio, en la direccion de longitud L, pernos a x_T del borde
-    comprimido. Distribucion triangular: C = f B Y / 2 a Y/3 del borde. Con f = f_adm (admisible) y pernos en tension,
-    el equilibrio (C = P + T; momentos en torno a los pernos) da Y y T. NO REVISADO contra DG1 §3.2."""
+def _traccion_lado(P, e, L, W, x_T, f_adm, pernos=True):
+    """Compresion P con excentricidad e en la direccion de longitud L, pernos a x_T del borde comprimido.
+    Distribucion triangular: C = f B Y / 2 a Y/3 del borde. Si la carga cae dentro del tercio medio, la presion es
+    triangular sin pernos. Si queda fuera del tercio medio, el equilibrio (C = P + T; momentos en torno a los pernos)
+    da Y y T con f = f_adm. Si la carga queda fuera de la placa (x_P <= 0), solo hay equilibrio con pernos en
+    tension (pernos=True); sin pernos en esa direccion no hay apoyo. NO REVISADO contra DG1 §3.2."""
     x_P = L / 2.0 - e
-    if x_P <= 0:
-        return {'f': math.inf, 'f0': math.inf, 'T': None, 'Y': None, 'ok': False, 'tension': False}
-    Y0 = 3.0 * x_P
-    f0 = 2.0 * P / (W * Y0)
-    if f0 <= f_adm:
-        return {'f': f0, 'f0': f0, 'T': 0.0, 'Y': Y0, 'ok': True, 'tension': False}
+    if x_P > 0:
+        Y0 = 3.0 * x_P
+        f0 = 2.0 * P / (W * Y0)
+        if f0 <= f_adm:
+            return {'f': f0, 'f0': f0, 'T': 0.0, 'Y': Y0, 'ok': True, 'tension': False}
+        a = Y0
+    else:
+        if not pernos:
+            return {'f': math.inf, 'f0': math.inf, 'T': None, 'Y': None, 'ok': False, 'tension': False}
+        f0 = math.inf
+        a = 0.0
     k = f_adm * W / 2.0
     g = lambda Y: k * Y * (x_T - Y / 3.0) - P * (x_T - x_P)
     if x_T - x_P <= 0 or g(L) < 0:
         return {'f': f_adm, 'f0': f0, 'T': None, 'Y': None, 'ok': False, 'tension': True}
-    a, b = Y0, L
+    b = L
     for _ in range(100):
         m = (a + b) / 2.0
         if g(m) < 0:
@@ -126,7 +133,7 @@ def _apoyo(P, mx, my, N, B, f_adm, c_t):
         ry_tension = False
         modo_y = 'lineal'
     else:
-        ry = _traccion_lado(P, ey, B, N, B, f_adm)     # sin pernos en Y: la presion no se limita
+        ry = _traccion_lado(P, ey, B, N, B, f_adm, pernos=False)     # sin pernos en Y: no hay apoyo fuera del tercio
         ry_tension = ry['tension']
         f_y = ry['f0'] if ry['tension'] else ry['f']
         modo_y = 'triangular'
