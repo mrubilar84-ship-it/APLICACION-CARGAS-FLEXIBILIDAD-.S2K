@@ -1255,6 +1255,113 @@ def _detalle_placa_html(r):
     return ''.join(bloques)
 
 
+def _figura_placa(r):
+    """Esquemas del nodo: planta (pernos Nx x Ny, zona de compresion Y, voladizos) y secciones X e Y, para la
+    combinacion que gobierna el FU del nodo. Cotas en cm; fuerzas en kgf. Devuelve un bloque <figure> con PNG."""
+    from matplotlib.figure import Figure
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.patches import Rectangle, Polygon
+    d = r['datos']
+    N, B = float(d['pl_n']), float(d['pl_b'])
+    N1, B1 = float(d['dado_n']), float(d['dado_b'])
+    c = float(d['c_t'])
+    nx, ny = int(d['nx']), int(d['ny'])
+    Wx, Wy = float(r['ctx']['Wx']), float(r['ctx']['Wy'])
+    fp = float(r['ctx']['f_adm'])
+    comb = max(r['combos'], key=lambda q: max(q['fu'].values()) if q['fu'] else 0.0)
+    P = float(comb.get('Pc', 0.0))
+    ex, ey = float(comb.get('ex', 0.0)), float(comb.get('ey', 0.0))
+    dx, dy = comb.get('dx', {}), comb.get('dy', {})
+    fig = Figure(figsize=(11.0, 4.9), dpi=110)
+    FigureCanvasAgg(fig)
+    ax0, ax1, ax2 = fig.add_subplot(1, 3, 1), fig.add_subplot(1, 3, 2), fig.add_subplot(1, 3, 3)
+    # Planta
+    ax = ax0
+    ax.add_patch(Rectangle((0, 0), N, B, fill=False, lw=1.6, ec='#1f4e79'))
+    ax.add_patch(Rectangle((N / 2 - N1 / 2, B / 2 - B1 / 2), N1, B1, fill=False, ls='--', ec='#7f7f7f', lw=1.0))
+    ax.add_patch(Rectangle((N / 2 - Wx / 2, B / 2 - Wy / 2), Wx, Wy, fc='#d9d9d9', ec='k', lw=0.8))
+    xs = np.linspace(c, N - c, nx) if nx > 1 else [N / 2]
+    ys = np.linspace(c, B - c, ny) if ny > 1 else [B / 2]
+    for xb in xs:
+        for yb in ys:
+            ax.plot(xb, yb, 'o', color='#c00000', ms=5)
+    if dx.get('grande') and dx.get('ok') and dx.get('Y'):
+        ax.add_patch(Rectangle((0, 0), dx['Y'], B, fill=False, hatch='///', ec='#2e7d32', lw=0.6))
+        ax.plot([N - c, N - c], [0, B], ls=':', color='#c00000', lw=0.8)
+    if dy.get('grande') and dy.get('ok') and dy.get('Y'):
+        ax.add_patch(Rectangle((0, 0), N, dy['Y'], fill=False, hatch='xxx', ec='#2e7d32', lw=0.6))
+        ax.plot([0, N], [B - c, B - c], ls=':', color='#c00000', lw=0.8)
+    xP, yP = N / 2 - ex, B / 2 - ey
+    xPd = min(max(xP, -0.08 * N), 1.08 * N)
+    yPd = min(max(yP, -0.08 * B), 1.08 * B)
+    if P > 0:
+        ax.plot(xPd, yPd, 'x', color='#000', ms=9, mew=2)
+        txt = f'P = {P:.0f}' + (f'\nx_P = {xP:.1f} (fuera de la placa)' if (xP < 0 or xP > N) else '')
+        ax.annotate(txt, (xPd, yPd), xytext=(-62, 14), textcoords='offset points', fontsize=7,
+                    arrowprops=dict(arrowstyle='-', lw=0.5))
+    ax.annotate('', xy=(N, -0.06 * B), xytext=(N - c, -0.06 * B), arrowprops=dict(arrowstyle='<->', lw=0.7))
+    ax.text(N - c / 2, -0.12 * B, f'c = {c:g}', ha='center', fontsize=7)
+    ax.annotate('', xy=(0, B + 0.06 * B), xytext=(N, B + 0.06 * B), arrowprops=dict(arrowstyle='<->', lw=0.7))
+    ax.text(N / 2, B + 0.1 * B, f'N = {N:g}', ha='center', fontsize=7)
+    ax.set_xlim(-0.2 * N, 1.2 * N)
+    ax.set_ylim(-0.2 * B, 1.25 * B)
+    ax.set_aspect('equal')
+    ax.set_title(f'Planta: Nx = {nx}, Ny = {ny} pernos (zona Y: rayado)', fontsize=8)
+    ax.axis('off')
+
+    def seccion(ax, L, Wd, info, e, Pc, Lo, titulo, tiene):
+        """Seccion a lo largo de L (N o B): placa, columna, bloque de compresion o distribucion, perno en traccion."""
+        tdr = 0.04 * L
+        xT, xPp = L - c, L / 2 - e
+        ax.add_patch(Rectangle((-0.15 * L, -0.10 * L), 1.30 * L, 0.10 * L, fc='#eeeeee', ec='#999999'))
+        ax.add_patch(Rectangle((0, 0), L, tdr, fc='#bdd7ee', ec='#1f4e79'))
+        ax.add_patch(Rectangle((L / 2 - Wd / 2, tdr), Wd, 0.30 * L, fc='#d9d9d9', ec='k', lw=0.6))
+        if info.get('grande') and info.get('ok'):
+            ax.plot([xT, xT], [-0.10 * L, 0.0], color='#c00000', lw=2)
+            Y = info['Y']
+            ax.add_patch(Rectangle((0, -0.05 * L), Y, 0.05 * L, fc='#c6efce', ec='#2e7d32'))
+            ax.annotate(f'T = {info["Ta"]:.0f}', xy=(xT, tdr), xytext=(xT, 0.14 * L), ha='center', fontsize=7,
+                        color='#c00000', arrowprops=dict(arrowstyle='-|>', color='#c00000', lw=1.2))
+            resumen = (f'Y = {Y:.3f} cm ;  C = qY = {info["q"] * Y:.0f} kgf (q = {info["q"]:.0f} kgf/cm)\n'
+                       f'T = {info["Ta"]:.0f} kgf ;  x_T = {xT:.2f} cm ;  x_P = {xPp:.2f} cm')
+        else:
+            f0 = float(info.get('f', 0.0))
+            h0 = 0.05 * L * (f0 / fp) if fp > 0 else 0.0
+            if e <= L / 6.0:
+                h1 = h0 * (1 - 6 * e / L) / (1 + 6 * e / L) if (1 + 6 * e / L) > 0 else 0.0
+                ax.add_patch(Polygon([(0, 0), (0, -h0), (L, -h1), (L, 0)], closed=True, fc='#c6efce', ec='#2e7d32'))
+            else:
+                Y0 = min(3 * xPp, L) if xPp > 0 else L
+                ax.add_patch(Polygon([(0, 0), (0, -h0), (Y0, 0)], closed=True, fc='#c6efce', ec='#2e7d32'))
+            resumen = (f'compresión sin tracción: f = {f0:.1f} kgf/cm² (fpmax = {fp:.1f})\n'
+                       f'e = {e:.2f} cm ;  x_P = {xPp:.2f} cm')
+        if Pc > 0:
+            xd = min(max(xPp, -0.1 * L), 1.1 * L)
+            txt = f'P = {Pc:.0f}' + (' (fuera)' if (xPp < 0 or xPp > L) else '')
+            ax.annotate(txt, xy=(xd, tdr), xytext=(xd, 0.45 * L), ha='center', fontsize=7,
+                        arrowprops=dict(arrowstyle='-|>', lw=1.4))
+        ax.annotate('', xy=(L, -0.03 * L), xytext=(xT, -0.03 * L), arrowprops=dict(arrowstyle='<->', lw=0.7))
+        ax.text(L - c / 2, -0.03 * L + 0.02 * L, f'c = {c:g}', ha='center', fontsize=6)
+        ax.set_xlim(-0.2 * L, 1.2 * L)
+        ax.set_ylim(-0.25 * L, 0.6 * L)
+        ax.set_aspect('equal')
+        ax.set_title(titulo, fontsize=8)
+        ax.text(-0.2 * L, -0.27 * L, resumen, fontsize=6.2, va='top')
+        ax.axis('off')
+
+    seccion(ax1, N, Wx, dx, ex, P, None, f'Seccion X (a lo largo de N = {N:g})', True)
+    seccion(ax2, B, Wy, dy, ey, P, None, f'Seccion Y (a lo largo de B = {B:g})', True)
+    fig.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=110)
+    b64 = base64.b64encode(buf.getvalue()).decode('ascii')
+    etiq = f'{html.escape(str(comb.get("caso", "")))}'
+    return (f'<figure class="esquema"><img alt="Esquemas placa base nodo {r["id"]}" '
+            f'src="data:image/png;base64,{b64}" style="max-width:100%">'
+            f'<figcaption class="nota">Esquemas del nodo {r["id"]}: planta y secciones X e Y. Combinación que '
+            f'gobierna el FU: {etiq}. Cotas en cm; fuerzas en kgf. Rojo: pernos en tracción. Verde: bloque de compresión.</figcaption></figure>')
+
+
 def _seccion_placas(resultados):
     """Seccion 8: placas base, ordenada por nodo. Por nodo: 8.i.1 datos, 8.i.2 combinaciones, 8.i.3 resumen,
     8.i.4 detalle paso a paso con referencia, 8.i.5 notas y puntos no revisados."""
@@ -1274,6 +1381,7 @@ def _seccion_placas(resultados):
             bloques.append(f'<p class="nota">No se verifica: {html.escape(motivo)}.</p>')
             continue
         bloques.append(_datos_placa_html(r).replace('{i}', str(i)))
+        bloques.append(_figura_placa(r))
         bloques.append(_combos_placa_html(r).replace('{i}', str(i)))
         bloques.append(_resumen_placa_html(r).replace('{i}', str(i)))
         bloques.append(_detalle_placa_html(r).replace('{i}', str(i)))

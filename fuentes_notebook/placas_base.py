@@ -89,7 +89,9 @@ def _direccion(P, e, L, W, c, fp, cant, bf, Fy):
     ecrit = L / 2.0 - P / (2.0 * q)
     if e <= ecrit:
         f = P / (L * W) * (1.0 + 6.0 * e / L) if e <= L / 6.0 else 2.0 * P / (W * 3.0 * (L / 2.0 - e))
-        return {'grande': False, 'ok': True, 'ecrit': ecrit, 'e': e, 'f': f}
+        capped = f > fp                      # DG1: el bloque de compresion no supera fpmax (bloque rectangular)
+        f = min(f, fp)
+        return {'grande': False, 'ok': True, 'ecrit': ecrit, 'e': e, 'f': f, 'capped': capped}
     f_b = L / 2.0 - c                        # f = Sxx/2: distancia del perno al eje de la placa
     xT = L / 2.0 + f_b                       # distancia del borde comprimido al perno en tension
     disc = xT * xT - 2.0 * P * (e + f_b) / q
