@@ -814,7 +814,9 @@ def _chequear(p, familia, fy, fu, E, nu, Lx, Ly, Lb, kx, ky, grupo, demandas_lis
     res = resistencias_asd(p, familia, fy, fu, E, nu, Lx, Ly, Lb, kx, ky, max(Lx, Ly), Cb=cb, e5=e5, U=u_t)
     klr = res['klr']
     compr = en_compresion(grupo, demandas_list)
-    fu_el, el_det = esbeltez_local(p, familia, fy, E, compresion=compr)
+    # Esbeltez local (AISC B4.1): VIGA se revisa a flexion (Tabla B4.1b) aunque tenga compresion secundaria;
+    # COLUMNA, ARRIOSTRE y DIAGONAL con compresion se revisan a compresion (Tabla B4.1a). La KL/r usa 'compr'.
+    fu_el, el_det = esbeltez_local(p, familia, fy, E, compresion=compr and grupo != 'VIGA')
     const = {CHEQUEO_EL: max(fu_el.values())}
     if compr:
         const[CHEQUEO_EG] = klr / LIMITE_KLR

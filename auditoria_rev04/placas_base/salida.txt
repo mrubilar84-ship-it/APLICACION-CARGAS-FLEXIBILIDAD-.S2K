@@ -1,0 +1,17 @@
+estado del nodo: NO CUMPLE | f_adm = 183.9827 Pp = 382500.0
+OK    f_adm aplastamiento (J8)                                   obtenido=183.983  esperado=183.983  dif_rel=0.00e+00
+OK    C1 FU aplastamiento                                        obtenido=0.120784  esperado=0.120784  dif_rel=0.00e+00
+OK    C1 FU espesor de placa (DG1, voladizo)                     obtenido=1.16206  esperado=1.16206  dif_rel=0.00e+00
+OK    C2 FU aplastamiento (dentro del nucleo)                    obtenido=0.241569  esperado=0.241569  dif_rel=0.00e+00
+OK    C3 FU aplastamiento (triangular, X)                        obtenido=0.322092  esperado=0.322092  dif_rel=0.00e+00
+OK    C4 traccion total T (equilibrio independiente)             obtenido=742.756  esperado=742.756  dif_rel=0.00e+00
+OK    C4 residuo del equilibrio independiente |g(Y)| (debe ser ~0) valor=5.821e-11  tolerancia=1e-06
+OK    C4 FU traccion por perno                                   obtenido=0.120525  esperado=0.120525  dif_rel=0.00e+00
+OK    C4 FU cono                                                 obtenido=0.111451  esperado=0.111451  dif_rel=0.00e+00
+OK    C4 FU soldadura (Tw = max(Mx/Wy, My/Wx))                   obtenido=0.472965  esperado=0.472965  dif_rel=1.17e-16
+OK    C5 traccion total levantamiento T = Pt/2 + My/(N-2c)       obtenido=4000  esperado=4000  dif_rel=0.00e+00
+OK    C5 FU traccion por perno                                   obtenido=0.649068  esperado=0.649068  dif_rel=0.00e+00
+OK    C5 FU cono                                                 obtenido=0.600204  esperado=0.600204  dif_rel=0.00e+00
+OK    C6 FU cortante por perno (V/n con roscas)                  obtenido=0.214981  esperado=0.214981  dif_rel=0.00e+00
+
+RESULTADO: OK  (14 comprobaciones OK, 0 FALLA)

@@ -578,8 +578,9 @@ def _refs_verif(nombre, familia):
 
 
 def _ref_local(v):
-    """Referencia AISC de la esbeltez local: Tabla B4.1a en compresion, Tabla B4.1b en flexion."""
-    return _ref_html('B4_1A' if DA.CHEQUEO_EG in (v.get('ev') or {}).get('const', {}) else 'B4_1B')
+    """Referencia AISC de la esbeltez local: Tabla B4.1a para miembros comprimidos (no VIGA); Tabla B4.1b para flexion."""
+    comprimido = DA.CHEQUEO_EG in (v.get('ev') or {}).get('const', {}) and v.get('grupo') != 'VIGA'
+    return _ref_html('B4_1A' if comprimido else 'B4_1B')
 
 
 def _nota_normativa():
@@ -588,9 +589,9 @@ def _nota_normativa():
         ('Esbeltez global en compresión (IMCA cap. E)', REF['PROY_KLR'], 'KL/r ≤ 200',
          'Cualquier miembro con compresión (COLUMNA, ARRIOSTRE, DIAGONAL y barras comprimidas)'),
         ('Esbeltez local en compresión: patín', REF['B4_1A'],
-         'b/t ≤ 0.56·√(E/Fy) (I y canal); ala de ángulo b/t ≤ 0.45·√(E/Fy)', 'Cualquier miembro con compresión (COLUMNA, ARRIOSTRE, DIAGONAL y barras comprimidas)'),
+         'b/t ≤ 0.56·√(E/Fy) (I y canal); ala de ángulo b/t ≤ 0.45·√(E/Fy)', 'COLUMNA, ARRIOSTRE y DIAGONAL con compresión (la VIGA se revisa a flexión)'),
         ('Esbeltez local en compresión: alma', REF['B4_1A'], 'h/t ≤ 1.49·√(E/Fy)',
-         'Cualquier miembro con compresión (COLUMNA, ARRIOSTRE, DIAGONAL y barras comprimidas)'),
+         'COLUMNA, ARRIOSTRE y DIAGONAL con compresión (la VIGA se revisa a flexión)'),
         ('Esbeltez local en flexión: patín', REF['B4_1B'],
          'b/t ≤ 1.00·√(E/Fy) (λr); 0.38·√(E/Fy) (λp)', 'VIGA'),
         ('Esbeltez local en flexión: alma', REF['B4_1B'],
