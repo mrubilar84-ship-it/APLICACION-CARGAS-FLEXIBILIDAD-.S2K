@@ -162,13 +162,24 @@ def _verificaciones(v):
     res, fu, p, familia = v['res'], v['fu_res'], v['p'], v['familia']
     fy, fuu, U, A = v['fy'], v['fu'], v['U'], p['A']
     d = v.get('dem') or {}
+    dem_all = v.get('dem_all') or []
+    ev_filas = (v.get('ev') or {}).get('filas') or []
+
+    def dem_de(chequeo):
+        """Demanda de la combinacion que controla ESTA verificacion (no la de toda la barra)."""
+        if not dem_all or len(ev_filas) != len(dem_all):
+            return d
+        idx = max(range(len(ev_filas)),
+                  key=lambda k: ev_filas[k].get(chequeo) if ev_filas[k].get(chequeo) is not None else -1.0)
+        return dem_all[idx]
+
     filas = []
     # Traccion
     calc_t = f'Fy·Ag/Ωt = {_v(fy, 1)}·{_v(A, 3)}/1.67 = {_v(res["Pa_t_fluencia"], 1)}'
     if fuu:
         calc_t += (f'; Fu·U·Ag/Ωt = {_v(fuu, 1)}·{_v(U, 3)}·{_v(A, 3)}/2.00 = {_v(res["Pa_t_fractura"], 1)}')
     filas.append(('Tracción', '§D2: D2-1 Pn = Fy·Ag (Ωt = 1.67); D2-2 Pn = Fu·Ae (Ωt = 2.00). §D3 Tabla D3.1: Ae = U·Ag (ángulos)' if familia == 'LI' else '§D2: D2-1 Pn = Fy·Ag (Ωt = 1.67); D2-2 Pn = Fu·Ae (Ωt = 2.00), Ae = Ag',
-                  calc_t + f'; Pa = mín = {_v(res["Pa_t"], 1)}', res['Pa_t'], d.get('Pr_t'), fu and fu['FU TRACCION']))
+                  calc_t + f'; Pa = mín = {_v(res["Pa_t"], 1)}', res['Pa_t'], dem_de('T traccion').get('Pr_t'), fu and fu['FU TRACCION']))
     # Compresion
     dc = res['detalle_c']
     if familia == 'LI':
@@ -186,19 +197,20 @@ def _verificaciones(v):
               f'Pn = Fn·Ae = {_v(dc["Fn"] * dc["Ae"], 0)}')
     if fu and fu['FU COMPRESION'] == 0.0:
         calc_c += '; sin compresión en las combinaciones'
-    filas.append(('Compresión', ecu_c, calc_c, res['Pa_c'], d.get('Pr_c'), fu and fu['FU COMPRESION']))
+    filas.append(('Compresión', ecu_c, calc_c, res['Pa_c'], dem_de('C compresion').get('Pr_c'), fu and fu['FU COMPRESION']))
     # Flexion eje mayor
     dx = res['detalle_x']
     if familia == 'LI':
         calc_x = (f'My = Fy·Su = {_v(dx["My"], 1)}; Mcr (F10-4) = {_v(dx["Mcr"], 1)}; LTB (F10-2/3) = {_v(dx["LTB"], 1)}; '
                   f'Mn = {_v(dx["Mn"], 1)}')
         ecu_x = '§F10: F10-1 Mn = 1.5·My; F10-2/F10-3 LTB; F10-4 Mcr (βw = 0). §F10.3: F10-6 a F10-8 (pata). Ωb = 1.67'
-        mr = math.hypot(d.get('Mr_x', 0.0), d.get('Mr_y', 0.0)) if d else None
+        dfx = dem_de('F flexion eje mayor')
+        mr = math.hypot(dfx.get('Mr_x', 0.0), dfx.get('Mr_y', 0.0)) if dfx else None
     else:
         calc_x = (f'Mp = Fy·Zx = {_v(dx["Mp"], 1)}; LTB (F2) = {_v(dx["LTB"], 1)}; patín (F3) = {_v(dx.get("LFB"), 1)}; '
                   f'Mn = {_v(min(dx["LTB"], dx.get("LFB", dx["LTB"])), 1)}')
         ecu_x = '§F2: F2-1 Mn = Mp; F2-2 LTB inelástico; F2-3 LTB elástico (F2-4 a F2-8). §F3: F3-1, F3-2 (patín). Ωb = 1.67'
-        mr = d.get('Mr_x') if d else None
+        mr = dem_de('F flexion eje mayor').get('Mr_x')
     if familia == 'HSS':
         calc_x = (f'Mp = Fy·Zx = {_v(dx["Mp"], 1)}; patín (F7-2/F7-3) = {_v(dx["LFB"], 1)}; '
                   f'alma (F7-6) = {_v(dx["LWB"], 1)}; LTB (F7-8/F7-9) = {_v(dx["LTB"], 1)}; Mn = {_v(dx["Mn"], 1)}')
@@ -211,11 +223,12 @@ def _verificaciones(v):
     if familia == 'LI':
         calc_y = f'My = Fy·Sv = {_v(dy["My"], 1)}; Mn = mín(1.5My; LLB) = {_v(dy["Mn"], 1)}'
         ecu_y = '§F10: F10-1 Mn = 1.5·My. §F10.3: F10-6 a F10-8 (pata, eje v). Ωb = 1.67'
-        mr_y = mr
+        dfy = dem_de('F flexion eje menor')
+        mr_y = math.hypot(dfy.get('Mr_x', 0.0), dfy.get('Mr_y', 0.0)) if dfy else None
     else:
         calc_y = (f'Mp = mín(Fy·Zy; 1.6·Fy·Sy) = {_v(dy["Mp"], 1)}; My = Fy·Sy = {_v(dy["My"], 1)}')
         ecu_y = '§F6: F6-1 Mp = mín(Fy·Zy; 1.6·Fy·Sy); F6-2, F6-3 (patín y alma). Ωb = 1.67'
-        mr_y = d.get('Mr_y') if d else None
+        mr_y = dem_de('F flexion eje menor').get('Mr_y')
     if familia == 'HSS':
         calc_y = (f'Mp = Fy·Zy = {_v(dy["Mp"], 1)}; patín (F7-2/F7-3) = {_v(dy["LFB"], 1)}; '
                   f'alma (F7-6) = {_v(dy["LWB"], 1)}; Mn = {_v(dy["Mn"], 1)}')
@@ -244,9 +257,9 @@ def _verificaciones(v):
         ecu_vx = '§G4: G4-1 Vn = 0.6·Fy·Aw·Cv2, Aw = 2·h·t (h = peralte plano). Cv2 de §G2.2: G2-9 a G2-11 con kv = 5. Ωv = 1.67'
         ecu_vy = '§G4: G4-1 Vn = 0.6·Fy·Aw·Cv2, Aw = 2·h·t (h = ancho plano). Cv2 de §G2.2 con kv = 5. Ωv = 1.67'
     filas.append(('Cortante eje mayor', ecu_vx, calc_vx + f'; Va = {_v(res["Va_x"], 1)}', res['Va_x'],
-                  d.get('Vr_x') if d else None, fu and fu['FU CORTANTE EJE MAYOR']))
+                  dem_de('V cortante eje mayor').get('Vr_x'), fu and fu['FU CORTANTE EJE MAYOR']))
     filas.append(('Cortante eje menor', ecu_vy, calc_vy + f'; Va = {_v(res["Va_y"], 1)}', res['Va_y'],
-                  d.get('Vr_y') if d else None, fu and fu['FU CORTANTE EJE MENOR']))
+                  dem_de('V cortante eje menor').get('Vr_y'), fu and fu['FU CORTANTE EJE MENOR']))
     # Interaccion
     if familia == 'LI':
         ecu_i = '§H2: H2-1 fra/Fca + frbw/Fcbw + frbz/Fcbz ≤ 1 (Mr = momento resultante sobre cada eje principal)'
@@ -804,6 +817,9 @@ def _pendientes_html(evals, materiales_filas, proyecto, dib=None):
     if dib is not None and not any(t == 'E' for t in (getattr(dib, 'estados_tipo', {}) or {}).values()):
         items.append('La planilla no tiene estado sísmico (TIPO E): el diseño usa solo combinaciones gravitacionales.')
     items.append('No se verifican conexiones, placas, soldaduras ni pernos.')
+    if any(v.get('familia') == 'LI' for v in evals):
+        items.append('Ángulos (LI): el análisis (OpenSees) usa Ix = Iy del catálogo, sin producto de inercia; el '
+                     'diseño usa las propiedades principales Iu y Iv. Diferencia pendiente de decisión.')
     items.append('Ángulos: el pandeo flexotorsional (E4) no está implementado; si b/t &gt; 0.71·√(E/Fy) la barra queda '
                  'como NO REVISADO.')
     return '<ul>' + ''.join(f'<li>{t}</li>' for t in items) + '</ul>'
