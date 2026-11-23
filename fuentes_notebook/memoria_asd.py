@@ -818,8 +818,8 @@ def _pendientes_html(evals, materiales_filas, proyecto, dib=None):
         items.append('La planilla no tiene estado sísmico (TIPO E): el diseño usa solo combinaciones gravitacionales.')
     items.append('No se verifican conexiones, placas, soldaduras ni pernos.')
     if any(v.get('familia') == 'LI' for v in evals):
-        items.append('Ángulos (LI): el análisis (OpenSees) usa Ix = Iy del catálogo, sin producto de inercia; el '
-                     'diseño usa las propiedades principales Iu y Iv. Diferencia pendiente de decisión.')
+        items.append('Ángulos (LI): el análisis usa Ix = Iy del catálogo, sin producto de inercia (decisión del proyecto: se mantiene); '
+                     'el diseño verifica con las propiedades principales Iu y Iv.')
     items.append('Ángulos: el pandeo flexotorsional (E4) no está implementado; si b/t &gt; 0.71·√(E/Fy) la barra queda '
                  'como NO REVISADO.')
     return '<ul>' + ''.join(f'<li>{t}</li>' for t in items) + '</ul>'
