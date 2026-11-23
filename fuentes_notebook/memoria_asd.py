@@ -157,7 +157,7 @@ def _props_tabla(v):
     if familia == 'HSS' and p.get('t_nominal') is not None:
         body += ('<tr><td colspan="3" class="nota">AISC 360-22 B4.2: propiedades de diseño = catálogo × razón entre la '
                  'sección de esquina viva con t de diseño y con t nominal (A, I, S, Z, J); r = r catálogo · √(razón I / '
-                 'razón A). Con t nominal la razón es 1. Masa sin cambio. El análisis usa el catálogo nominal.</td></tr>')
+                 'razón A). Con t nominal la razón es 1. Masa sin cambio. El análisis (OpenSees) usa estas mismas propiedades.</td></tr>')
     if p.get('pagina_manual') is not None:
         body += f'<tr><td colspan="3" class="nota">Catálogo Gerdau rev04, pág. impresa {p["pagina_manual"]}.</td></tr>'
     if p.get('pagina_catalogo_atc'):
@@ -761,7 +761,7 @@ def _criterios_html():
         f'Ángulos (LI): E5 solo si LONGITUDES marca las cuatro condiciones ({REF["E5"]}). Si no, K·L/rz y H2 '
         f'({REF["H2"]}). Tracción con Ae = U·Ag, U de D3 ({REF["D3"]}): una pata U = 1 − x̄/l; dos patas U = 1.0.',
         'Espesor de diseño de HSS (AISC 360-22 B4.2): t = 0.93·t nominal para HSS salvo ASTM A1065/A1085. Las '
-        'propiedades de diseño se obtienen del catálogo por la razón de espesores; el análisis usa el catálogo nominal.',
+        'propiedades de diseño se obtienen del catálogo por la razón de espesores; el análisis (OpenSees) usa el mismo espesor de diseño.',
         'Estimaciones: IR con Zx, Zy o Cw faltantes se estiman por geometría; LI con propiedades geométricas. Cada '
         'barra lista sus supuestos.',
         f'Interacción: H1-1 para I y canal ({REF["H1"]}); H2-1 para ángulos ({REF["H2"]}), con el momento resultante '
@@ -896,7 +896,7 @@ def _pendientes_html(evals, materiales_filas, proyecto, dib=None):
     items.append('Placas base (sección 8): alcance de predimensionamiento. Momento en la base, torsión y contacto biaxial '
                  'quedan NO REVISADO donde corresponde (ver cada nodo).')
     if any(v.get('familia') == 'HSS' for v in evals):
-        items.append('HSS: espesor de diseño 0.93·t (AISC 360-22 B4.2) aplicado a todos los HSS. La norma del producto no '
+        items.append('HSS: espesor de diseño 0.93·t (AISC 360-22 B4.2) aplicado a todos los HSS, en el diseño y en el análisis. La norma del producto no '
                      'figura en el catálogo: se supone que no es ASTM A1065/A1085. Pendiente de confirmar con el fabricante.')
     no_rev = {}
     for v in evals:

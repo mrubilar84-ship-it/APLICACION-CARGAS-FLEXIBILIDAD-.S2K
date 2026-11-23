@@ -1,7 +1,8 @@
 """
 ANALISIS LINEAL 3D CON OPENSEES (openseespy) A PARTIR DE LA PLANILLA. El Excel manda:
   - E y nu por calidad: hoja MATERIALES (columnas E y NU).
-  - Seccion (A, Ix fuerte, Iy debil, J, masa): base Gerdau rev04 (no ICHA).
+  - Seccion (A, Ix fuerte, Iy debil, J, masa): base Gerdau rev04 (no ICHA). HSS: propiedades de diseno
+    (AISC 360-22 B4.2, factor AISC_B42_HSS de NORMA); la masa es la del catalogo.
   - Apoyos: NODOS (UX, UY, UZ, RX, RY, RZ = SI restringe ese grado) y rotulas de extremo: BARRAS (CONEXION_I/J).
   - Cargas por nodo y estado: hoja CARGAS (kgf, kgf·m).
   - Peso propio: hoja ESTADOS (PESO PROPIO = SI), calculado con la masa Gerdau (kgf/m).
@@ -23,6 +24,7 @@ import pandas as pd
 import openseespy.opensees as ops
 from orientacion_gerdau import vecxz_de_barra, ejes_locales
 import perfiles_gerdau as G
+import diseno_asd as DA
 from dibujo_directo import etiqueta_restricciones
 
 GRAVEDAD = np.array([0.0, 0.0, -1.0])        # el peso propio actua hacia -Z global
@@ -75,7 +77,7 @@ def estados_desde_df(df):
     return salida
 
 
-def propiedades_barras(dib, materiales, id_barra):
+def propiedades_barras(dib, materiales, id_barra, factor_hss=None):
     """Propiedades de cada barra: seccion desde la base Gerdau y E, nu desde MATERIALES. Lanza ErrorAnalisis
     con la lista completa de datos faltantes (no sustituye valores por cero)."""
     props, faltas = [], []
@@ -96,6 +98,17 @@ def propiedades_barras(dib, materiales, id_barra):
             faltas.append(f"{etiqueta}: falta {', '.join(falta)}")
             props.append(None)
             continue
+        if p.get('familia') == 'HSS':                    # AISC B4.2: el analisis usa el espesor de diseno
+            if factor_hss is None:
+                faltas.append(f"{etiqueta}: falta AISC_B42_HSS en la hoja NORMA (factor del espesor de diseno de HSS)")
+                props.append(None)
+                continue
+            try:
+                p = DA._hss_diseno(p, factor_hss)
+            except DA.ErrorAsd as error:
+                faltas.append(f"{etiqueta}: {error}")
+                props.append(None)
+                continue
         props.append({'A': p['A'], 'Iz': p['Ix'], 'Iy': p['Iy'], 'J': p['J'], 'masa': p['masa'],
                       'E': m['E'], 'nu': m['nu']})
     if faltas:
@@ -674,13 +687,13 @@ def flechas_vigas(dib, props, casos, combinaciones, estados_pp, clase):
     return out
 
 
-def correr(dib, materiales, estados, rep_barras, rep_nodos, id_barra, id_de_indice, ruta_salida):
+def correr(dib, materiales, estados, rep_barras, rep_nodos, id_barra, id_de_indice, ruta_salida, factor_hss=None):
     """Resuelve todos los estados y combinaciones y escribe el Excel de resultados.
     materiales: {nombre: {'E', 'nu'}}; estados: [(nombre, peso_propio)]; rep_barras / rep_nodos: indices a reportar.
     Devuelve (bloques, equilibrio, casos): tablas, residuo de equilibrio por estado (kgf) y resultados por caso
     (todos los nodos, para la deformada)."""
     _verificar_conectividad(dib)
-    props = propiedades_barras(dib, materiales, id_barra)
+    props = propiedades_barras(dib, materiales, id_barra, factor_hss)
     cargas = getattr(dib, 'cargas', {}) or {}
     combinaciones = getattr(dib, 'combinaciones', {}) or {}
     tipos = getattr(dib, 'estados_tipo', {}) or {}
@@ -736,7 +749,8 @@ def correr(dib, materiales, estados, rep_barras, rep_nodos, id_barra, id_de_indi
     return bloques, equilibrio, casos
 
 
-def correr_desde_planilla(dib, materiales_filas, estados_df, nodos, barras, id_barra, id_de_indice, ruta_salida):
+def correr_desde_planilla(dib, materiales_filas, estados_df, nodos, barras, id_barra, id_de_indice, ruta_salida,
+                          factor_hss=None):
     """Punto de entrada del notebook: toma los datos de la planilla ya leida y valida (bloque 7).
     materiales_filas es None si la planilla no tiene la hoja MATERIALES (no se usan valores de ejemplo)."""
     if materiales_filas is None:
@@ -751,4 +765,5 @@ def correr_desde_planilla(dib, materiales_filas, estados_df, nodos, barras, id_b
     dib.estados_tipo = {str(r['NOMBRE']).strip(): str(r['TIPO']).strip().upper()
                         for _, r in estados_df.iterrows()
                         if isinstance(r['NOMBRE'], str) and isinstance(r['TIPO'], str)}
-    return correr(dib, materiales, estados, rep_barras, rep_nodos, id_barra, id_de_indice, ruta_salida)
+    return correr(dib, materiales, estados, rep_barras, rep_nodos, id_barra, id_de_indice, ruta_salida,
+                  factor_hss=factor_hss)

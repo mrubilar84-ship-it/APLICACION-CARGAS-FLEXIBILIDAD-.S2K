@@ -1,6 +1,6 @@
 """Pruebas de AISC 360-22 B4.2 (espesor de diseno de HSS) y de la exclusion de KL/r para vigas.
 
-Uso:  DIBUJO=<carpeta con los modulos del notebook (diseno_asd.py, perfiles_gerdau.py, gerdau_datos.py)>
+Uso:  DIBUJO=<carpeta con los modulos del notebook (diseno_asd.py, analisis_opensees.py, perfiles_gerdau.py, gerdau_datos.py, dibujo_directo.py, orientacion_gerdau.py)>
       [PLANTILLA=<plantilla_soportes.xlsx>] python3 test_b42_hss.py
 Los valores de norma se leen de la hoja NORMA de la plantilla, igual que cargar_norma en el notebook.
 Sale con codigo 1 si alguna comprobacion falla.
@@ -93,6 +93,29 @@ D.cargar_norma(valores, 1.0)
 chequeo('VIGA exenta de KL/r aunque tenga compresion', D.aplica_klr('VIGA', [{'Pr_c': 500.0}]) is False)
 chequeo('COLUMNA con compresion: KL/r aplica', D.aplica_klr('COLUMNA', [{'Pr_c': 500.0}]) is True)
 chequeo('ARRIOSTRE: KL/r aplica (grupo de miembros comprimidos)', D.aplica_klr('ARRIOSTRE', [{'Pr_c': 0.0}]) is True)
+
+# 5) Analisis (OpenSees): las barras HSS usan las mismas propiedades de diseno; la masa es la del catalogo
+import analisis_opensees as AO    # noqa: E402  (requiere openseespy)
+
+
+class _Modelo:
+    pass
+
+
+modelo = _Modelo()
+modelo.barras = [{'perfil': NOMBRE, 'material': 'ACERO'}]
+mats = {'ACERO': {'E': 2.04e6, 'nu': 0.3}}
+pa = AO.propiedades_barras(modelo, mats, {0: 1}, factor_hss=0.93)[0]
+chequeo('analisis: A = A de diseno', abs(pa['A'] - q['A']) < 1e-9, f"{pa['A']:.4f}")
+chequeo('analisis: Iz = Ix de diseno', abs(pa['Iz'] - q['Ix']) < 1e-9)
+chequeo('analisis: Iy = Iy de diseno', abs(pa['Iy'] - q['Iy']) < 1e-9)
+chequeo('analisis: J = J de diseno', abs(pa['J'] - q['J']) < 1e-9)
+chequeo('analisis: masa = masa del catalogo', pa['masa'] == p['masa'])
+try:
+    AO.propiedades_barras(modelo, mats, {0: 1}, factor_hss=None)
+    chequeo('analisis sin factor AISC_B42_HSS da ErrorAnalisis', False)
+except AO.ErrorAnalisis as error:
+    chequeo('analisis sin factor AISC_B42_HSS da ErrorAnalisis', 'AISC_B42_HSS' in str(error))
 
 print(f'FALLOS: {len(FALLOS)}')
 sys.exit(1 if FALLOS else 0)

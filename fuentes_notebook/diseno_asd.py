@@ -98,6 +98,9 @@ def cargar_norma(v, kz):
         AISC_H3_K, AISC_H3_FCR_Y, AISC_H3_20PCT = v['AISC_H3_K'], v['AISC_H3_FCR_Y'], v['AISC_H3_20PCT']
         FACTOR_ESPESOR_HSS = v['AISC_B42_HSS']
     except KeyError as falta:
+        if str(falta).strip("'\"") == 'AISC_B42_HSS':
+            raise ErrorAsd("falta el valor de norma 'AISC_B42_HSS' en la hoja NORMA: agregue una fila con CLAVE "
+                           "AISC_B42_HSS, VALOR 0.93 y REFERENCIA AISC 360-22, B4.2 (espesor de diseno de HSS)")
         raise ErrorAsd(f'falta el valor de norma {falta} en la hoja NORMA de la planilla')
 
 
@@ -732,15 +735,17 @@ def _hss_esquina_viva(B, H, t):
             'J': 2.0 * t * (B - t) ** 2 * (H - t) ** 2 / (B + H - 2.0 * t)}
 
 
-def _hss_diseno(p):
+def _hss_diseno(p, factor=None):
     """AISC 360-22 B4.2: espesor de diseno t = FACTOR x t_nominal para HSS de norma distinta de ASTM A1065/A1085.
     Propiedades de diseno = propiedades del catalogo x razon (seccion de esquina viva con t_diseno) /
     (seccion de esquina viva con t_nominal). Asi solo cambia el espesor: con t nominal la razon es 1 y se
-    conserva el catalogo. La masa por metro es la fisica y no cambia."""
-    if FACTOR_ESPESOR_HSS is None:
+    conserva el catalogo. La masa por metro es la fisica y no cambia. El analisis (OpenSees) usa estas mismas
+    propiedades; factor = AISC_B42_HSS de la hoja NORMA (None: el cargado por cargar_norma)."""
+    f = FACTOR_ESPESOR_HSS if factor is None else factor
+    if f is None:
         raise ErrorAsd('falta el factor de espesor de diseno de HSS (AISC_B42_HSS) en la hoja NORMA')
     B, H, tn = p['B'], p['H'], p['t']
-    t = FACTOR_ESPESOR_HSS * tn
+    t = f * tn
     if 2.0 * t >= min(B, H):
         raise ErrorAsd('HSS con espesor de diseno mayor que la mitad de la dimension exterior: revisar la base')
     n, d = _hss_esquina_viva(B, H, tn), _hss_esquina_viva(B, H, t)
@@ -750,7 +755,7 @@ def _hss_diseno(p):
     q.update(t_nominal=tn, t=t, e=t, A=A, Ix=Ix, Iy=Iy,
              Sx=p['Sx'] * r['Ix'], Sy=p['Sy'] * r['Iy'], Zx=p['Zx'] * r['Zx'], Zy=p['Zy'] * r['Zy'],
              rx=p['rx'] * math.sqrt(r['Ix'] / r['A']), ry=p['ry'] * math.sqrt(r['Iy'] / r['A']),
-             J=p['J'] * r['J'], razon_espesor_hss=FACTOR_ESPESOR_HSS)
+             J=p['J'] * r['J'], razon_espesor_hss=f)
     return q
 
 
@@ -1150,7 +1155,7 @@ def diseno_asd_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id
         notas = []
         if p is not None and p.get('t_nominal') is not None:       # AISC B4.2
             notas.append(f"HSS: espesor de diseno t = {p['t']:.4f} cm = {FACTOR_ESPESOR_HSS:g} x t nominal "
-                         f"{p['t_nominal']:.4f} cm (AISC 360-22 B4.2); propiedades de diseno con esquinas vivas")
+                         f"{p['t_nominal']:.4f} cm (AISC 360-22 B4.2); propiedades de diseno = catalogo x razon de espesores; el analisis usa las mismas")
         if p is not None and p.get('alerta_catalogo'):      # R04-11: la alerta del catalogo llega a resultados
             notas.append('CATALOGO (alerta sin corregir): ' + str(p['alerta_catalogo']))
         if familia == 'LI':

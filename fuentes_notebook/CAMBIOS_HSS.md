@@ -113,8 +113,8 @@ LI cambia (ver sección 4).
   Iy, Sx, Sy, Zx, Zy y J; rx = rx,catálogo · √(razón I / razón A). Con factor 1.0 se reproduce el catálogo exacto.
   Con esta razón solo cambia el espesor: no se mezclan los radios de esquina del catálogo con una fórmula sin radios.
 - Ancho y peralte planos (bp = B − 3t, hp = H − 3t) con el t de diseño. La masa por metro no cambia.
-- El análisis (OpenSees) usa las propiedades nominales del catálogo. Pendiente: confirmar si el análisis también debe
-  usar el espesor de diseño.
+- El análisis (OpenSees) usa las mismas propiedades de diseño (decisión del proyecto). El peso propio usa la masa
+  del catálogo, que es la física y no cambia.
 - Prueba: `verificacion_posterior/hss/test_b42_hss.py` (factor 1.0 exacto; factor 0.93 contra cálculo independiente;
   clave faltante; exclusión de KL/r en vigas).
 - La memoria muestra el espesor nominal y el de diseño en la sección de propiedades, y una nota de B4.2 en la barra.
@@ -125,3 +125,6 @@ LI cambia (ver sección 4).
   resistencias (D, E, F, G, H3), interacción (H1, H2, H3) y resultado.
 - Sección 7: cada barra crítica se presenta con esos mismos pasos numerados, con ecuaciones y referencias.
 - KL/r ≤ 200 se verifica solo en miembros comprimidos; las vigas quedan fuera (decisión del proyecto).
+- Efecto en el caso de torsión (`verificacion_posterior/hss/planilla_torsion_ENTRADA.xlsx`): con B4.2 los FU de los HSS
+  suben entre 6.5 % y 9.3 % frente al espesor nominal (análisis y diseño). Los estados no cambian: 23 CUMPLE y
+  3 NO CUMPLE en ambos casos. Los números de la sección 6 corresponden al espesor nominal y son anteriores a B4.2.

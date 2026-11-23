@@ -15,7 +15,9 @@ if dib is None:
 else:
     try:
         bloques, equilibrio, casos = AO.correr_desde_planilla(dib, materiales_leidos, estados_df, nodos, barras,
-                                                              dib.id_barra_de_indice, id_de_indice, RUTA_RESULTADOS)
+                                                              dib.id_barra_de_indice, id_de_indice, RUTA_RESULTADOS,
+                                                              factor_hss=None if NOR_LEIDA is None
+                                                              else NOR_LEIDA['VALORES'].get('AISC_B42_HSS'))
     except AO.ErrorAnalisis as error:
         print('NO se analizo. Corrija lo siguiente en la planilla y vuelva a ejecutar este bloque:')
         print(error)
