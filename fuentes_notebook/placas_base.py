@@ -5,7 +5,7 @@ Chequeos (los valores vienen de la hoja NORMA; el codigo no supone ninguno):
      J8-1 y J8-2; Omega_c = 2.31 en DRP). Con excentricidad fuera del tercio medio: distribucion triangular (NO REVISADO).
   2. Espesor de la placa: voladizo de AISC Design Guide 1 (2.a ed.) en ASD: l = max(m, n, lambda n'),
      t_req = l sqrt(2 Omega f / Fy), Omega = 1.5 / 0.90 (flexion). FU = (t_req / t)^2.
-  3. Pernos a traccion: Rn = 0.75 Fu At (DG1 §3.2, factor a confirmar), Omega = 1.5 / 0.75.
+  3. Pernos a traccion: Rn = 0.7 Fu At (DG1 §3.2.1 y p. 19, segun el texto de DG1), Omega = 1.5 / 0.75.
   4. Cono de concreto: N_b = k lambda sqrt(f'c) h_ef^1.5 (ACI 318-02 Ap. D, SI, k = 10), phi = 0.70, Omega = 1.5 / 0.70.
   5. Pernos a cortante con roscas: Rn = 0.4 Fu Ab (DG1 p. 42), phi = 0.75, Omega = 1.5 / 0.75.
   6. Soldadura de filete: 0.6 F_EXX (0.707 w) (DG1 p. 42), phi = 0.75, Omega = 1.5 / 0.75.
@@ -32,7 +32,7 @@ CHEQUEOS = [
     # clave, nombre, referencia (clave de REF en memoria_asd), unidad de demanda
     ('ap', 'Aplastamiento sobre el dado (IMCA cap. J, J8)', 'BASE_J8', 'kgf/cm2'),
     ('pl', 'Espesor de la placa (AISC DG1, voladizo)', 'BASE_DG1_PL', 'cm'),
-    ('T', 'Pernos a tracción (AISC DG1 §3.2)', 'BASE_DG1_T', 'kgf por perno'),
+    ('T', 'Pernos a tracción (AISC DG1 §3.2.1)', 'BASE_DG1_T', 'kgf por perno'),
     ('cono', 'Cono de concreto de los pernos (ACI 318-02 Ap. D)', 'BASE_CONO', 'kgf (grupo de un lado)'),
     ('V', 'Pernos a cortante (AISC DG1 p. 42)', 'BASE_DG1_V', 'kgf por perno'),
     ('w', 'Soldadura columna–placa (AISC DG1 p. 42)', 'BASE_SOLD', 'kgf/cm'),
@@ -92,17 +92,34 @@ def _traccion_lado(P, e, L, W, x_T, f_adm):
 
 
 def _apoyo(P, mx, my, N, B, f_adm, c_t):
-    """Presion de apoyo y traccion en los pernos del lado de la direccion X (N) para compresion P (kgf) y momentos
-    mx, my (kgf·cm). Tercio medio: presion lineal. Fuera: distribucion triangular por direccion (NO REVISADO)."""
+    """Presion de apoyo y traccion en los pernos del lado X, para compresion P (kgf) y momentos mx, my (kgf·cm).
+    Dentro del nucleo (6e_x/N + 6e_y/B <= 1): presion lineal. Fuera: cada direccion se evalua por separado: lineal si
+    su excentricidad esta dentro de su tercio medio; triangular si queda fuera (Y = 3(L/2 − e)). La presion de diseno
+    es la mayor de las dos direcciones (aproximacion, NO REVISADA para biaxial fuera del nucleo)."""
     ex, ey = abs(my) / P, abs(mx) / P
     if 6 * ex / N + 6 * ey / B <= 1.0:
         f = P / (N * B) * (1 + 6 * ex / N + 6 * ey / B)
-        return {'f': f, 'T': 0.0, 'ok': True, 'ex': ex, 'ey': ey, 'fuera': False, 'Y': None}
-    rx = _traccion_lado(P, ex, N, B, N - c_t, f_adm)
-    ry = _traccion_lado(P, ey, B, N, B, f_adm)      # sin pernos en Y: la presion no se limita
-    f_y = ry['f0'] if ry['tension'] else ry['f']
-    return {'f': max(rx['f'], f_y), 'T': rx['T'], 'ok': rx['ok'] and f_y < math.inf, 'ex': ex, 'ey': ey,
-            'fuera': True, 'Y': rx['Y'], 'f_y': f_y, 'tension_x': rx['tension'], 'tension_y': ry['tension']}
+        return {'f': f, 'T': 0.0, 'ok': True, 'ex': ex, 'ey': ey, 'fuera': False, 'Y': None,
+                'modo_x': 'lineal', 'modo_y': 'lineal', 'f_x': f, 'f_y': f, 'tension_x': False, 'tension_y': False}
+    if 6 * ex / N <= 1.0:
+        rx = {'f': P / (N * B) * (1 + 6 * ex / N), 'T': 0.0, 'Y': None, 'ok': True, 'tension': False}
+        modo_x = 'lineal'
+    else:
+        rx = _traccion_lado(P, ex, N, B, N - c_t, f_adm)
+        modo_x = 'pernos' if rx['tension'] else 'triangular'
+    if 6 * ey / B <= 1.0:
+        f_y = P / (N * B) * (1 + 6 * ey / B)
+        ry_tension = False
+        modo_y = 'lineal'
+    else:
+        ry = _traccion_lado(P, ey, B, N, B, f_adm)     # sin pernos en Y: la presion no se limita
+        ry_tension = ry['tension']
+        f_y = ry['f0'] if ry['tension'] else ry['f']
+        modo_y = 'triangular'
+    f_x = rx['f']
+    return {'f': max(f_x, f_y), 'T': rx['T'], 'ok': rx['ok'] and math.isfinite(f_y), 'ex': ex, 'ey': ey,
+            'fuera': True, 'Y': rx['Y'] if modo_x == 'pernos' else None, 'modo_x': modo_x, 'modo_y': modo_y,
+            'f_x': f_x, 'f_y': f_y, 'tension_x': rx['tension'], 'tension_y': ry_tension}
 
 
 def _combinacion(caso, v, d, ctx):
@@ -115,7 +132,8 @@ def _combinacion(caso, v, d, ctx):
          'fu': {}, 'notas': []}
     if Pc > 0:
         ap = _apoyo(Pc, mx, my, N, B, ctx['f_adm'], c_t)
-        c.update(f=ap['f'], ex=ap['ex'], ey=ap['ey'], fuera=ap['fuera'], Y=ap['Y'], T_ap=ap['T'], ap_ok=ap['ok'])
+        c.update(f=ap['f'], ex=ap['ex'], ey=ap['ey'], fuera=ap['fuera'], Y=ap['Y'], T_ap=ap['T'], ap_ok=ap['ok'],
+                 modo_x=ap['modo_x'], modo_y=ap['modo_y'], f_x=ap['f_x'], f_y=ap['f_y'])
         c['fu']['ap'] = ap['f'] / ctx['f_adm'] if ap['ok'] else math.inf
         if ap['fuera']:
             c['notas'].append('excentricidad fuera del tercio medio: distribucion triangular (NO REVISADO)')
@@ -231,7 +249,8 @@ def verificar_nodo(datos, perfil, eje, reacciones, nrm):
     ctx = {'Wx': Wx, 'Wy': Wy, 'Oc': Oc, 'Opl': Opl, 'f_adm': f_adm, 'Pp': Pp, 'A1': A1, 'A2': A2,
            'allow_T': allow_T, 'allow_V': allow_V, 'allow_cono': allow_cono, 'allow_w': allow_w, 'Ab': Ab,
            'At': At, 'Nb': Nb, 'fexx': fexx, 'OT': OT, 'OV': OV, 'Ocono': Ocono, 'Osol': Osol, 'Oc_pl': Opl,
-           'Kc': nrm['BASE_KC_CONO'], 'Lam': nrm['BASE_LAMBDA'], 'p': p, 'perfil': perfil, 'eje': tuple(eje)}
+           'Kc': nrm['BASE_KC_CONO'], 'Lam': nrm['BASE_LAMBDA'], 'Fnt': nrm['BASE_FNT'], 'Fv': nrm['BASE_FV'],
+           'nrm': nrm, 'p': p, 'perfil': perfil, 'eje': tuple(eje)}
     res['ctx'] = ctx
     if not reacciones:
         res['estado'] = 'SIN REACCIONES'

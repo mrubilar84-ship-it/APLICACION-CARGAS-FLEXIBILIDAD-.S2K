@@ -20,6 +20,7 @@ body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; color: #1b1b1
 h1 { font-size: 16pt; margin: 0 0 4px 0; }
 h2 { font-size: 12pt; border-bottom: 1.5px solid #1F4E79; color: #1F4E79; margin: 22px 0 8px 0; padding-bottom: 2px; }
 h3 { font-size: 10.5pt; color: #1F4E79; margin: 12px 0 4px 0; }
+h4 { font-size: 9.5pt; color: #1F4E79; margin: 9px 0 3px 0; }
 table { border-collapse: collapse; width: 100%; margin: 4px 0 8px 0; font-size: 9pt; }
 th, td { border: 1px solid #b9c7d6; padding: 3px 5px; vertical-align: top; text-align: left; }
 th { background: #DDEBF7; }
@@ -543,11 +544,12 @@ REF = {
     'B4_1B': 'AISC 360-22 Tabla B4.1b (esbeltez local de elementos en flexión)',
     'PROY_KLR': 'IMCA 5ta ed., cap. E, pág. II-89 (pdf 185): nota "preferiblemente KL/r ≤ 200", verificada en imagen; aplicada como límite del proyecto',
     'L2_FLECHA': 'AISC 360-22 Comentario L2, pág. 16.1-543 (límites de flecha)',
-    'BASE_J8': 'IMCA 5ta ed., cap. J, J8-1 y J8-2 (pág. II-218, pdf 312), verificada en imagen; coincide con AISC 360-22 J8',
-    'BASE_DG1_PL': 'AISC Design Guide 1, 2.ª ed. (base AISC 2005), §3.1: voladizo m, n y λn′. Texto, NO REVISADO en imagen',
-    'BASE_DG1_T': 'AISC Design Guide 1, 2.ª ed., §3.2 y pág. 19 (pdf 26): Rn = F_nt A_t. Factor 0.75 (texto dice 0.7): NO REVISADO',
-    'BASE_CONO': 'ACI 318-02, Apéndice D, §D.5.2 (N_b, ec. D-7 en SI). φ = 0.70 (DG1 págs. 19 y 42). Texto de ACI: NO REVISADO',
+    'BASE_J8': 'IMCA 5.ª ed., cap. J, J8-1 y J8-2 (pág. II-218, pdf 312), verificada en imagen. Ω_c = 2.31 y φ_c = 0.65 (pág. II-218)',
+    'BASE_DG1_PL': 'AISC Design Guide 1, 2.ª ed., §3.1.2 (m, n, n′, λn′ y espesor; base AISC 2005). Texto extraído, NO verificado en imagen; φ = 0.90 y Ω = 1.67 tampoco verificados',
+    'BASE_DG1_T': 'AISC Design Guide 1, 2.ª ed., pág. 19 (pdf 26): R_n = 0.7 F_u (verificada en imagen) y Ω = 2.00; área A_t según §3.2.1 (texto, NO verificado en imagen)',
+    'BASE_CONO': 'ACI 318-02, Apéndice D, §D.5.2, ec. D-7 (texto NO verificado en imagen). φ = 0.70: AISC DG1 págs. 19 y 42 (verificada en imagen)',
     'BASE_DG1_V': 'AISC Design Guide 1, 2.ª ed., pág. 42 (pdf 49), ejemplo 4.10: φ(0.4)F_u A_b con roscas, φ = 0.75. Verificada en imagen',
+    'BASE_CONV': 'Conversión de factores LRFD a ASD: Ω = 1.5/φ. Reproduce Ω_c = 2.31 (IMCA, φ = 0.65), Ω = 2.00 (φ = 0.75) y Ω = 1.67 (φ = 0.90)',
     'BASE_SOLD': 'AISC Design Guide 1, 2.ª ed., pág. 42 (pdf 49): electrodo E70, φ(0.6)F_EXX, φ = 0.75. Verificada en imagen',
 }
 
@@ -850,128 +852,303 @@ def _simbologia_html():
     return f'<table><tr><th>Símbolo</th><th>Significado</th></tr>{cuerpo}</table>'
 
 
-def _valor_placa(x):
-    """Valor de demanda para la memoria de placas base: '—' si no hay, 'fuera de la placa' si es infinito."""
+def _vp(x, dec=2):
+    """Valor de la memoria de placas base: '—' si falta; 'fuera de la placa' si el valor es infinito."""
     if x is None:
         return '—'
-    if not math.isfinite(x):
+    if isinstance(x, float) and not math.isfinite(x):
         return 'fuera de la placa'
-    return f'{x:.2f}'
+    return _v(x, dec)
 
 
-_CHEQUEO_BASE_CAMPO = {'ap': 'ap', 'pl': 'pl', 'T': 'T', 'cono': 'cono', 'V': 'V', 'w': 'w'}
+def _kg(x, unidad, dec=1):
+    """Resultado con unidad para la memoria de placas base."""
+    if x is None:
+        return '—'
+    if isinstance(x, float) and not math.isfinite(x):
+        return 'fuera de la placa'
+    return f'{_v(x, dec)} {unidad}'
 
 
-def _detalle_base(v, r):
-    """Ecuaciones con los valores sustituidos del caso que gobierna la verificacion v de una placa base."""
+_MPA_POR_KGCM2 = 0.0980665
+
+
+def _pasos_base(v, r):
+    """Pasos ordenados de una verificacion de placa base para el caso que la controla.
+    Devuelve [(paso, ecuacion, calculo sustituido, resultado)]. El FU se agrega aparte."""
     c, k, d = v['combo'], r['ctx'], r['datos']
-    N, B = d['pl_n'], d['pl_b']
+    N, B, n, ct = d['pl_n'], d['pl_b'], d['n'], d['c_t']
+    Pc, Pt = c.get('Pc', 0.0), c.get('Pt', 0.0)
+    mx, my = c.get('mx', 0.0), c.get('my', 0.0)
+    fx, fy, V = c.get('fx', 0.0), c.get('fy', 0.0), c.get('V', 0.0)
+    ex, ey = c.get('ex', 0.0), c.get('ey', 0.0)
     cl = v['clave']
+    out = []
     if cl == 'ap':
-        out = [f"A1 = N·B = {N:g}·{B:g} = {k['A1']:.0f} cm²; A2 = dado = {k['A2']:.0f} cm²",
-               f"P_p = min(0.85·f′c·A1·√(A2/A1); 1.7·f′c·A1) = {k['Pp']:.0f} kgf",
-               f"f_adm = P_p / (Ω_c·A1) = {k['Pp']:.0f} / ({k['Oc']:g}·{k['A1']:.0f}) = {k['f_adm']:.1f} kgf/cm²",
-               f"Caso {c['caso']}: P = {c['Pc']:.0f} kgf; e_x = |M_y|/P = {c.get('ex', 0):.2f} cm; "
-               f"e_y = |M_x|/P = {c.get('ey', 0):.2f} cm; N/6 = {N / 6:.2f} cm; B/6 = {B / 6:.2f} cm"]
-        if c.get('fuera') and not math.isfinite(c.get('f', 0.0)):
-            out.append('La resultante queda fuera de la placa (e > mitad de la placa en una dirección): no hay apoyo. '
-                       'FU no admisible (NO CUMPLE): aumentar la placa o revisar pernos en esa dirección.')
-        elif c.get('fuera'):
-            out.append(f"Fuera del tercio medio: presión triangular f0 = 2P/(B·Y), Y = 3(N/2 − e) (NO REVISADO). "
-                       f"Presión de diseño f = {c.get('f', 0):.1f} kgf/cm²"
-                       + ('; con pernos en tracción la presión se limita a f_adm.' if c.get('T_ap') else '.'))
+        if Pc <= 0:
+            return [('Sin compresión', 'F_Z ≤ 0: no hay apoyo sobre el dado en esta combinación', '—', 'no aplica')]
+        out.append(('Área de la placa', 'A1 = N · B', f'{N:g} · {B:g}', _kg(k['A1'], 'cm²', 0)))
+        out.append(('Área de apoyo del dado', 'A2 = N_d · B_d', f'{d["dado_n"]:g} · {d["dado_b"]:g}',
+                    _kg(k['A2'], 'cm²', 0)))
+        out.append(('Resistencia nominal de aplastamiento',
+                    'P_p = mín[0.85 · f′c · A1 · √(A2/A1) ; 1.7 · f′c · A1]   (IMCA J8-1 y J8-2)',
+                    f'mín[0.85 · {d["fc"]:g} · {k["A1"]:.0f} · √({k["A2"] / k["A1"]:.3f}) ; 1.7 · {d["fc"]:g} · {k["A1"]:.0f}]',
+                    _kg(k['Pp'], 'kgf', 0)))
+        out.append(('Resistencia admisible de aplastamiento', f'f_adm = P_p / (Ω_c · A1),  Ω_c = {k["Oc"]:g}',
+                    f'{k["Pp"]:.0f} / ({k["Oc"]:g} · {k["A1"]:.0f})', _kg(k['f_adm'], 'kgf/cm²', 1)))
+        out.append(('Carga y excentricidades de la combinación', 'P = F_Z ;  e_x = |M_y| / P ;  e_y = |M_x| / P',
+                    f'P = {Pc:.0f} kgf ;  e_x = {ex:.2f} cm ;  e_y = {ey:.2f} cm', f'{Pc:.0f} kgf'))
+        if not c.get('fuera'):
+            out.append(('Presión máxima (dentro del núcleo)', 'f = P / (N · B) · (1 + 6 e_x / N + 6 e_y / B)',
+                        f'{Pc:.0f} / ({N:g} · {B:g}) · (1 + 6 · {ex:.2f} / {N:g} + 6 · {ey:.2f} / {B:g})',
+                        _kg(c['f'], 'kgf/cm²', 1)))
         else:
-            out.append(f"f_max = P/(N·B)·(1 + 6e_x/N + 6e_y/B) = {c['Pc']:.0f}/({N:g}·{B:g})·(1 + 6·{c.get('ex', 0):.2f}/{N:g}"
-                       f" + 6·{c.get('ey', 0):.2f}/{B:g}) = {c.get('f', 0):.1f} kgf/cm²")
-        if math.isfinite(c.get('f', 0.0)):
-            out.append(f"FU = f / f_adm = {c.get('f', 0):.1f} / {k['f_adm']:.1f} = {v['fu']:.3f}")
+            for eje, L, e, W, modo, fd in [('X', N, ex, B, c['modo_x'], c['f_x']),
+                                            ('Y', B, ey, N, c['modo_y'], c['f_y'])]:
+                if modo == 'lineal':
+                    out.append((f'Dirección {eje} dentro de su tercio medio', f'f_{eje} = P / (N · B) · (1 + 6 e_{eje.lower()} / {"N" if eje == "X" else "B"})',
+                                f'{Pc:.0f} / ({N:g} · {B:g}) · (1 + 6 · {e:.2f} / {L:g})', _kg(fd, 'kgf/cm²', 1)))
+                elif modo == 'triangular':
+                    Y = 3 * (L / 2 - e)
+                    if Y <= 0:
+                        out.append((f'Dirección {eje}: e ≥ L/2', 'la resultante queda fuera de la placa en esta dirección',
+                                    f'e = {e:.2f} cm ;  L/2 = {L / 2:.2f} cm', 'fuera de la placa'))
+                    else:
+                        out.append((f'Dirección {eje} fuera de su tercio medio (triangular)',
+                                    f'Y = 3 · (L/2 − e_{eje.lower()}) ;  f_{eje} = 2P / (W · Y)   (NO REVISADO)',
+                                    f'L = {L:g} ; W = {W:g} ; Y = 3 · ({L / 2:.2f} − {e:.2f}) = {Y:.2f} cm ;  '
+                                    f'f_{eje} = 2 · {Pc:.0f} / ({W:g} · {Y:.2f})', _kg(fd, 'kgf/cm²', 1)))
+                else:
+                    out.append((f'Dirección {eje} con pernos en tracción',
+                                'C = f_adm · B · Y / 2 = P + T ;  C · (x_T − Y/3) = P · (x_T − x_P)  →  Y ;  x_T = N − c_anclas ;  x_P = N/2 − e_x',
+                                f'x_T = {N - ct:.2f} cm ;  x_P = {N / 2 - ex:.2f} cm ;  f_adm = {k["f_adm"]:.1f} kgf/cm²',
+                                f'Y = {c["Y"]:.2f} cm ;  f_X = f_adm'))
+            out.append(('Presión de diseño del apoyo', 'f = máx(f_X ; f_Y)   (aproximación fuera del núcleo, NO REVISADA)',
+                        f'máx({_vp(c["f_x"], 1)} ; {_vp(c["f_y"], 1)})', _kg(c['f'], 'kgf/cm²', 1)))
         return out
     if cl == 'pl':
         if 'treq' not in c:
-            return ['Sin compresión en esta combinación: la placa no se verifica por flexión de aplastamiento.']
+            return [('Sin compresión', 'F_Z ≤ 0: la placa no se verifica por flexión de aplastamiento', '—', 'no aplica')]
         if not math.isfinite(c['treq']):
-            return ['No calculable: la presión de apoyo no existe (la resultante queda fuera de la placa). NO CUMPLE.']
-        return [f"m = (N − 0.95·W_x)/2 = ({N:g} − 0.95·{k['Wx']:.2f})/2 = {c['m']:.2f} cm",
-                f"n = (B − 0.8·W_y)/2 = ({B:g} − 0.8·{k['Wy']:.2f})/2 = {c['n']:.2f} cm",
-                f"n′ = √(W_x·W_y)/4 = √({k['Wx']:.2f}·{k['Wy']:.2f})/4 = {c['np']:.2f} cm",
-                f"X = 4·W_x·W_y/(W_x + W_y)²·Ω_c·P/P_p = {c['X']:.4f}; λ = 2√X/(1 + √(1 − X)) = {c['lam']:.4f}",
-                f"l = máx(m; n; λ·n′) = {c['l']:.2f} cm",
-                f"t_req = l·√(2·Ω_pl·f/F_y) = {c['l']:.2f}·√(2·{k['Opl']:.2f}·{c['f']:.1f}/{d['fy']:g}) = {c['treq']:.3f} cm "
-                f"(t = {d['pl_t']:g} cm)",
-                f"FU = (t_req/t)² = ({c['treq']:.3f}/{d['pl_t']:g})² = {v['fu']:.3f}"]
+            return [('Presión inexistente', 'la resultante queda fuera de la placa: no hay presión que transmitir',
+                     '—', 'fuera de la placa')]
+        Wx, Wy, X, lam = k['Wx'], k['Wy'], c['X'], c['lam']
+        out.append(('Voladizo m (dirección N)', 'm = (N − 0.95 · W_x) / 2', f'({N:g} − 0.95 · {Wx:.2f}) / 2',
+                    _kg(c['m'], 'cm', 2)))
+        out.append(('Voladizo n (dirección B)', 'n = (B − 0.8 · W_y) / 2', f'({B:g} − 0.8 · {Wy:.2f}) / 2',
+                    _kg(c['n'], 'cm', 2)))
+        out.append(('Voladizo n′', 'n′ = √(W_x · W_y) / 4', f'√({Wx:.2f} · {Wy:.2f}) / 4', _kg(c['np'], 'cm', 2)))
+        out.append(('Parámetro X', 'X = 4 · W_x · W_y / (W_x + W_y)² · Ω_c · P / P_p',
+                    f'4 · {Wx:.2f} · {Wy:.2f} / ({Wx:.2f} + {Wy:.2f})² · {k["Oc"]:g} · {Pc:.0f} / {k["Pp"]:.0f}',
+                    f'{X:.4f}'))
+        out.append(('Factor λ', 'λ = 2√X / (1 + √(1 − X))   (λ = 1 si X ≥ 1)',
+                    f'2 · √{X:.4f} / (1 + √(1 − {X:.4f}))', f'{lam:.4f}'))
+        out.append(('Voladizo crítico', 'l = máx(m ; n ; λ · n′)',
+                    f'máx({c["m"]:.2f} ; {c["n"]:.2f} ; {lam:.4f} · {c["np"]:.2f})', _kg(c['l'], 'cm', 2)))
+        out.append(('Espesor requerido de la placa', f't_req = l · √(2 · Ω_pl · f / F_y),  Ω_pl = {k["Opl"]:.2f}',
+                    f'{c["l"]:.2f} · √(2 · {k["Opl"]:.2f} · {c["f"]:.1f} / {d["fy"]:g})', _kg(c['treq'], 'cm', 3)))
+        return out
+    if cl in ('T', 'cono'):
+        if 'Ta' not in c:
+            return [('Sin equilibrio', 'la presión admisible no se alcanza dentro de la placa (Y > N)', '—',
+                     'fuera de la placa')]
     if cl == 'T':
-        return [f"Tracción total del lado de pernos: T = {c.get('Tside', 0):.1f} kgf "
-                f"(levantamiento: P_t/2 + |M_y|/(N − 2c_t); compresión fuera del tercio medio: equilibrio con f_adm)",
-                f"Por perno (n/2 = {d['n'] / 2:g} por lado): T_a = {c.get('Ta', 0):.1f} kgf",
-                f"Resistencia admisible por perno: F_nt·F_u·A_t/Ω_T = 0.75·{d['fu']:g}·{k['At']:.3f}/{k['OT']:.2f} = "
-                f"{k['allow_T']:.1f} kgf",
-                f"FU = T_a / admisible = {c.get('Ta', 0):.1f} / {k['allow_T']:.1f} = {v['fu']:.3f}"]
+        Tside = c['Tside']
+        if (c.get('T_ap') or 0) > 0 and c.get('Y') is not None:
+            out.append(('Equilibrio con pernos en tracción (dirección X)',
+                        'C = f_adm · B · Y / 2 = P + T ;  C · (x_T − Y/3) = P · (x_T − x_P)  →  Y',
+                        f'x_T = {N - ct:.2f} cm ;  x_P = {N / 2 - ex:.2f} cm ;  f_adm = {k["f_adm"]:.1f} kgf/cm²',
+                        f'Y = {c["Y"]:.2f} cm'))
+            out.append(('Tracción total del lado de pernos', 'T = C − P = f_adm · B · Y / 2 − P',
+                        f'{k["f_adm"]:.1f} · {B:g} · {c["Y"]:.2f} / 2 − {Pc:.0f}', _kg(Tside, 'kgf', 1)))
+        elif Pt > 0:
+            out.append(('Tracción total del lado de pernos (levantamiento)', 'T = P_t / 2 + |M_y| / (N − 2 · c_anclas)',
+                        f'{Pt:.0f} / 2 + {abs(my):.0f} / ({N:g} − 2 · {ct:g})', _kg(Tside, 'kgf', 1)))
+        else:
+            out.append(('Tracción en pernos', 'sin tracción: compresión dentro del núcleo, T = 0', '—', _kg(0.0, 'kgf', 1)))
+        out.append(('Tracción por perno', f'T_a = T / (n/2),  n/2 = {n / 2:g} pernos por lado',
+                    f'{Tside:.1f} / {n / 2:g}', _kg(c['Ta'], 'kgf', 1)))
+        out.append(('Área de tensión de la rosca', 'A_t = π/4 · (D − 0.9743 / n_h)² · 6.4516   (ASME B1.1)',
+                    f'π/4 · ({d["diam"]:g} − 0.9743 / {d["hilos"]:g})² · 6.4516', _kg(k['At'], 'cm²', 3)))
+        out.append(('Área bruta del perno (referencia)', 'A_b = π/4 · D² · 6.4516',
+                    f'π/4 · {d["diam"]:g}² · 6.4516', _kg(k['Ab'], 'cm²', 3)))
+        out.append(('Resistencia nominal a tracción', f'R_n = F_nt · F_u · A_t,  F_nt = {k["Fnt"]:g}  (DG1 pág. 19)',
+                    f'{k["Fnt"]:g} · {d["fu"]:g} · {k["At"]:.3f}', _kg(k['Fnt'] * d['fu'] * k['At'], 'kgf', 0)))
+        out.append(('Resistencia admisible a tracción', f'R_n / Ω_T,  Ω_T = {k["OT"]:.2f}',
+                    f'{k["Fnt"] * d["fu"] * k["At"]:,.0f} / {k["OT"]:.2f}', _kg(k['allow_T'], 'kgf', 0)))
+        return out
     if cl == 'cono':
-        return [f"N_b = k·λ·√(f′c)·h_ef^1.5 = {k['Kc']:g}·{k['Lam']:g}·√({d['fc'] * 0.0980665:.2f} MPa)·"
-                f"({d['hef'] * 10:g} mm)^1.5 / 9.81 = {k['Nb']:.1f} kgf",
-                f"Admisible = φ·N_b/1.5 = N_b/Ω_cono = {k['Nb']:.1f}/{k['Ocono']:.2f} = {k['allow_cono']:.1f} kgf",
-                f"Tracción del lado = {c.get('Tside', 0):.1f} kgf; FU = {v['fu']:.3f}"]
+        out.append(('Resistencia nominal del cono de concreto',
+                    'N_b = k · λ · √f′c · h_ef^1.5   (ACI 318-02 Ap. D, ec. D-7, SI)',
+                    f'{k["Kc"]:g} · {k["Lam"]:g} · √({d["fc"] * _MPA_POR_KGCM2:.2f} MPa) · ({d["hef"] * 10:g} mm)^1.5 / 9.81',
+                    _kg(k['Nb'], 'kgf', 0)))
+        out.append(('Resistencia admisible del cono', f'φ · N_b / 1.5 = N_b / Ω_cono,  φ = 0.70,  Ω_cono = {k["Ocono"]:.2f}',
+                    f'{k["Nb"]:,.0f} / {k["Ocono"]:.2f}', _kg(k['allow_cono'], 'kgf', 0)))
+        out.append(('Tracción del grupo de pernos de un lado', 'T (lado de pernos, de la verificación de tracción)',
+                    f'{c["Tside"]:.1f} kgf', _kg(c['Tside'], 'kgf', 1)))
+        return out
     if cl == 'V':
-        return [f"V = √(F_X² + F_Y²) = {c['V']:.1f} kgf; por perno V/n = {c.get('Va', 0):.1f} kgf",
-                f"Admisible por perno: 0.4·F_u·A_b/Ω_V = 0.4·{d['fu']:g}·{k['Ab']:.3f}/{k['OV']:.2f} = {k['allow_V']:.1f} kgf",
-                f"FU = {c.get('Va', 0):.1f} / {k['allow_V']:.1f} = {v['fu']:.3f}"]
+        out.append(('Cortante total en la base', 'V = √(F_X² + F_Y²)', f'√({fx:.1f}² + {fy:.1f}²)', _kg(V, 'kgf', 1)))
+        out.append(('Cortante por perno', f'V_a = V / n,  n = {n:g}', f'{V:.1f} / {n:g}', _kg(c['Va'], 'kgf', 1)))
+        out.append(('Resistencia nominal a cortante (roscas incluidas)', f'R_n = F_v · F_u · A_b,  F_v = {k["Fv"]:g}  (DG1 pág. 42)',
+                    f'{k["Fv"]:g} · {d["fu"]:g} · {k["Ab"]:.3f}', _kg(k['Fv'] * d['fu'] * k['Ab'], 'kgf', 0)))
+        out.append(('Resistencia admisible a cortante', f'R_n / Ω_V,  Ω_V = {k["OV"]:.2f}',
+                    f'{k["Fv"] * d["fu"] * k["Ab"]:,.0f} / {k["OV"]:.2f}', _kg(k['allow_V'], 'kgf', 0)))
+        return out
     if cl == 'w':
-        return [f"T_w = P_t + máx(|M_x|/W_y; |M_y|/W_x) = {c.get('Tw', 0):.1f} kgf",
-                f"R_w = √(T_w² + V²) = {c.get('Rw', 0):.1f} kgf; por longitud R_w/L = {c.get('Rw', 0):.1f}/{d['sold_l']:g} "
-                f"= {c.get('Rw_L', 0):.1f} kgf/cm",
-                f"Admisible: 0.6·F_EXX·0.707·w/Ω_s = 0.6·{k['fexx']:.0f}·0.707·{d['sold_w']:g}/{k['Osol']:.2f} = "
-                f"{k['allow_w']:.1f} kgf/cm",
-                f"FU = {c.get('Rw_L', 0):.1f} / {k['allow_w']:.1f} = {v['fu']:.3f}"]
-    return []
+        Wx, Wy = k['Wx'], k['Wy']
+        out.append(('Tracción transferida a la soldadura', 'T_w = P_t + máx(|M_x| / W_y ; |M_y| / W_x)   (conservador)',
+                    f'{Pt:.0f} + máx({abs(mx):.0f} / {Wy:.2f} ; {abs(my):.0f} / {Wx:.2f})', _kg(c['Tw'], 'kgf', 1)))
+        out.append(('Resultante en la soldadura', 'R_w = √(T_w² + V²)', f'√({c["Tw"]:.1f}² + {V:.1f}²)',
+                    _kg(c['Rw'], 'kgf', 1)))
+        out.append(('Fuerza por longitud de soldadura', 'R_w / L', f'{c["Rw"]:.1f} / {d["sold_l"]:g}',
+                    _kg(c['Rw_L'], 'kgf/cm', 2)))
+        out.append(('Resistencia admisible por longitud',
+                    f'0.6 · F_EXX · 0.707 · w / Ω_s,  F_EXX = {k["fexx"]:,.0f} kgf/cm²,  Ω_s = {k["Osol"]:.2f}  (DG1 pág. 42)',
+                    f'0.6 · {k["fexx"]:,.0f} · 0.707 · {d["sold_w"]:g} / {k["Osol"]:.2f}', _kg(k['allow_w'], 'kgf/cm', 1)))
+        return out
+    return out
+
+
+_REF_FACTOR = {'BASE_J8_085': 'BASE_J8', 'BASE_J8_LIM': 'BASE_J8', 'BASE_OMEGA_C': 'BASE_J8',
+               'BASE_FACTOR_ASD': 'BASE_CONV', 'BASE_PHI_PL': 'BASE_DG1_PL', 'BASE_PHI_ANCLA_T': 'BASE_DG1_T',
+               'BASE_FNT': 'BASE_DG1_T', 'BASE_PHI_ANCLA_V': 'BASE_DG1_V', 'BASE_FV': 'BASE_DG1_V',
+               'BASE_PHI_CONO': 'BASE_CONO', 'BASE_KC_CONO': 'BASE_CONO', 'BASE_LAMBDA': 'BASE_CONO',
+               'BASE_PHI_SOLD': 'BASE_SOLD', 'BASE_SOLD_FRAC': 'BASE_SOLD', 'BASE_FEXX_KSI': 'BASE_SOLD'}
+_REF_CORTA = {'BASE_J8': 'IMCA cap. J, J8 (pág. II-218, pdf 312)', 'BASE_CONV': 'Conversión LRFD a ASD',
+              'BASE_DG1_PL': 'DG1 §3.1.2 (no verificado en imagen)', 'BASE_DG1_T': 'DG1 pág. 19 (pdf 26); §3.2.1',
+              'BASE_DG1_V': 'DG1 pág. 42 (pdf 49)', 'BASE_CONO': 'ACI 318-02 Ap. D (D-7); DG1 págs. 19 y 42',
+              'BASE_SOLD': 'DG1 pág. 42 (pdf 49)'}
+_USO_FACTOR = {'BASE_J8_085': 'P_p = 0.85 f′c A1 √(A2/A1)', 'BASE_J8_LIM': 'límite P_p ≤ 1.7 f′c A1',
+               'BASE_OMEGA_C': 'Ω_c del aplastamiento', 'BASE_FACTOR_ASD': 'Ω = 1.5/φ (conversión a ASD)',
+               'BASE_PHI_PL': 'Ω_pl = 1.5/φ (flexión de la placa)', 'BASE_PHI_ANCLA_T': 'Ω_T = 1.5/φ (tracción)',
+               'BASE_FNT': 'R_n = F_nt · F_u · A_t', 'BASE_PHI_ANCLA_V': 'Ω_V = 1.5/φ (cortante)',
+               'BASE_FV': 'R_n = F_v · F_u · A_b', 'BASE_PHI_CONO': 'Ω_cono = 1.5/φ (cono)',
+               'BASE_KC_CONO': 'k del cono (SI)', 'BASE_LAMBDA': 'λ del concreto',
+               'BASE_PHI_SOLD': 'Ω_s = 1.5/φ (soldadura)', 'BASE_SOLD_FRAC': 'F_w = 0.6 · F_EXX',
+               'BASE_FEXX_KSI': 'F_EXX del electrodo (ksi)'}
+
+
+def _factores_placa_html(resultados):
+    """Tabla de factores de NORMA usados en placas base, con su referencia."""
+    nrm = next((r['ctx']['nrm'] for r in resultados if r.get('ctx')), None)
+    if nrm is None:
+        return ''
+    filas = ''.join(f'<tr><td>{clave}</td><td class="num">{nrm[clave]:g}</td><td>{_USO_FACTOR[clave]}</td>'
+                    f'<td>{_REF_CORTA[_REF_FACTOR[clave]]}</td></tr>'
+                    for clave in _REF_FACTOR if clave in nrm)
+    return ('<h4>8.0 Factores de placas base usados (hoja NORMA)</h4>'
+            '<table><tr><th>Clave NORMA</th><th>Valor</th><th>Uso</th><th>Referencia</th></tr>'
+            + filas + '</table>')
+
+
+def _datos_placa_html(r):
+    """8.i.1 Datos de entrada y propiedades calculadas, con su fuente."""
+    d, k = r['datos'], r['ctx']
+    filas = [
+        ('Perfil de la columna (base Gerdau)', f'{r["perfil"]}  ·  H = {k["p"]["H"]:g} cm ; B = {k["p"]["B"]:g} cm',
+         '—', 'Base Gerdau'),
+        ('Dirección del peralte (EJE_FUERTE)', f'({k["eje"][0]:.3f} ; {k["eje"][1]:.3f} ; {k["eje"][2]:.3f})', '—', 'hoja BARRAS'),
+        ('Envolvente en planta W_x ; W_y', f'{k["Wx"]:.2f} ; {k["Wy"]:.2f}', 'cm',
+         'W_x = H·|u_x| + B·|u_y| ;  W_y = H·|u_y| + B·|u_x|  (u = peralte en planta)'),
+        ('Resistencia del concreto f′c', _v(d['fc'], 0), 'kgf/cm²', 'hoja BASES'),
+        ('Dado N_d × B_d  →  A2', f'{d["dado_n"]:g} × {d["dado_b"]:g}  →  {_v(k["A2"], 0)}', 'cm ; cm²', 'hoja BASES'),
+        ('Placa N × B × t  →  A1', f'{d["pl_n"]:g} × {d["pl_b"]:g} × {d["pl_t"]:g}  →  {_v(k["A1"], 0)}', 'cm ; cm²', 'hoja BASES'),
+        ('Fluencia de la placa F_y', _v(d['fy'], 0), 'kgf/cm²', 'hoja BASES'),
+        ('Pernos: número total n ; distancia c_anclas', f'{d["n"]:g} ; {d["c_t"]:g}', '— ; cm', 'hoja BASES'),
+        ('Pernos: diámetro D ; hilos por pulgada n_h', f'{d["diam"]:g} pulg ({d["diam"] * 25.4:.1f} mm) ; {d["hilos"]:g}',
+         '—', 'hoja BASES'),
+        ('Pernos: F_u', _v(d['fu'], 0), 'kgf/cm²', 'hoja BASES'),
+        ('Pernos: longitud de embebido h_ef', _v(d['hef'], 1), 'cm', 'hoja BASES'),
+        ('Soldadura: tamaño w ; longitud L', f'{d["sold_w"]:g} ; {d["sold_l"]:g}', 'cm', 'hoja BASES'),
+        ('Coeficiente de fricción μ (informativo)', f'{d["mu"]:g}', '—', 'hoja BASES'),
+        ('Presión admisible de aplastamiento f_adm', _v(k['f_adm'], 1), 'kgf/cm²', 'calculado (8.i.4)'),
+    ]
+    cuerpo = ''.join(f'<tr><td>{html.escape(a)}</td><td class="num">{html.escape(str(b))}</td>'
+                     f'<td>{html.escape(u)}</td><td>{html.escape(f)}</td></tr>' for a, b, u, f in filas)
+    return ('<h4>8.{i}.1 Datos de entrada y propiedades</h4>'
+            '<table><tr><th>Concepto</th><th>Valor</th><th>Unidad</th><th>Fuente / ecuación</th></tr>'
+            + cuerpo + '</table>')
+
+
+def _combos_placa_html(r):
+    """8.i.2 Combinaciones de servicio y FU de cada verificacion, por combinacion."""
+    cab = ('<tr><th>Combinación</th><th>F_Z (kgf)</th><th>P_t (kgf)</th><th>M_x (kgf·cm)</th><th>M_y (kgf·cm)</th>'
+           '<th>V (kgf)</th><th>FU aplast.</th><th>FU espesor</th><th>FU tracción</th><th>FU cono</th>'
+           '<th>FU cortante</th><th>FU soldadura</th></tr>')
+    filas = []
+    for c in r['combos']:
+        celdas = [f'<td>{html.escape(c["caso"])}</td>', f'<td class="num">{_v(c["fz"], 1)}</td>',
+                  f'<td class="num">{_v(c["Pt"], 1)}</td>', f'<td class="num">{_v(c["mx"], 0)}</td>',
+                  f'<td class="num">{_v(c["my"], 0)}</td>', f'<td class="num">{_v(c["V"], 1)}</td>']
+        celdas += [f'<td class="num">{_fu(c["fu"].get(cl, 0.0))}</td>' for cl in ['ap', 'pl', 'T', 'cono', 'V', 'w']]
+        filas.append('<tr>' + ''.join(celdas) + '</tr>')
+    return ('<h4>8.{i}.2 Combinaciones de servicio ASD (REACCIONES) y FU por verificación</h4>'
+            '<p class="nota">FU = demanda / capacidad; cumple si FU ≤ 1.0. El FU que controla cada verificación es el máximo de la columna.</p>'
+            '<table>' + cab + ''.join(filas) + '</table>')
+
+
+def _resumen_placa_html(r):
+    """8.i.3 Resumen: verificacion que controla, caso, demanda, capacidad y FU."""
+    filas = []
+    for v in r['verif']:
+        cc, k, d = v['combo'], r['ctx'], r['datos']
+        dem = {'ap': cc.get('f'), 'pl': cc.get('treq'), 'T': cc.get('Ta'), 'cono': cc.get('Tside'),
+               'V': cc.get('Va'), 'w': cc.get('Rw_L')}[v['clave']]
+        cap = {'ap': k['f_adm'], 'pl': d['pl_t'], 'T': k['allow_T'], 'cono': k['allow_cono'],
+               'V': k['allow_V'], 'w': k['allow_w']}[v['clave']]
+        unidad = {'ap': 'kgf/cm²', 'pl': 'cm', 'T': 'kgf por perno', 'cono': 'kgf (grupo de un lado)',
+                  'V': 'kgf por perno', 'w': 'kgf/cm'}[v['clave']]
+        estado = 'CUMPLE' if v['fu'] <= 1.0 else 'NO CUMPLE'
+        clase = 'cumple' if estado == 'CUMPLE' else 'nocumple'
+        filas.append(f'<tr><td>{html.escape(v["nombre"])}</td><td>{html.escape(v["caso"])}</td>'
+                     f'<td class="num">{_vp(dem, 2)} {unidad}</td><td class="num">{_vp(cap, 2)}</td>'
+                     f'<td class="num">{_fu(v["fu"])}</td><td class="{clase}">{estado}</td></tr>')
+    return ('<h4>8.{i}.3 Resumen de verificaciones</h4>'
+            '<table><tr><th>Verificación</th><th>Caso que controla</th><th>Demanda</th><th>Capacidad</th>'
+            '<th>FU</th><th>Estado</th></tr>' + ''.join(filas) + '</table>')
+
+
+def _detalle_placa_html(r):
+    """8.i.4 Detalle paso a paso de cada verificacion (caso que la controla), con su referencia."""
+    bloques = []
+    for j, v in enumerate(r['verif'], 1):
+        pasos = _pasos_base(v, r)
+        filas = ''.join(f'<tr><td>{html.escape(p)}</td><td class="ec">{html.escape(e)}</td>'
+                        f'<td class="ec">{html.escape(c)}</td><td class="num">{html.escape(res)}</td></tr>'
+                        for p, e, c, res in pasos)
+        filas += (f'<tr><td><b>FU</b></td><td class="ec">FU = demanda / capacidad (cumple si ≤ 1.0)</td>'
+                  f'<td class="ec">caso: {html.escape(v["caso"])}</td><td class="num">{_fu(v["fu"])}</td></tr>')
+        bloques.append(f'<h4>8.{{i}}.4.{j} {html.escape(v["nombre"])}{_ref_html(v["ref"])}</h4>'
+                       '<table><tr><th>Paso</th><th>Ecuación</th><th>Cálculo sustituido</th><th>Resultado</th></tr>'
+                       + filas + '</table>')
+    return ''.join(bloques)
 
 
 def _seccion_placas(resultados):
-    """Seccion 8: placas base (hoja BASES). Por nodo: datos, verificaciones con su caso que gobierna y el detalle."""
+    """Seccion 8: placas base, ordenada por nodo. Por nodo: 8.i.1 datos, 8.i.2 combinaciones, 8.i.3 resumen,
+    8.i.4 detalle paso a paso con referencia, 8.i.5 notas y puntos no revisados."""
     if resultados is None:
         return ('<p class="nota">No se ingresaron datos de placas base (hoja BASES vacía o la planilla no la tiene). '
                 'Este apartado no verifica placas base.</p>')
     if not resultados:
         return '<p class="nota">La hoja BASES no tiene filas con datos.</p>'
-    bloques = []
-    for r in resultados:
+    bloques = [_factores_placa_html(resultados)]
+    for i, r in enumerate(resultados, 1):
         estado = r['estado']
         clase = 'cumple' if estado == 'CUMPLE' else 'nocumple'
-        encab = (f"<h3>Nodo {r['id']} · perfil {html.escape(str(r['perfil'] or '—'))} · "
-                 f"<span class=\"{clase}\">{estado}</span></h3>")
-        if estado in ('CUMPLE', 'NO CUMPLE'):
-            k, d = r['ctx'], r['datos']
-            datos = (f"<p class=\"nota\">Envolvente de la sección en planta: W_x = {k['Wx']:.2f} cm, W_y = {k['Wy']:.2f} cm. "
-                     f"Placa {d['pl_n']:g} × {d['pl_b']:g} × {d['pl_t']:g} cm (F_y = {d['fy']:g} kgf/cm²); "
-                     f"dado {d['dado_n']:g} × {d['dado_b']:g} cm, f′c = {d['fc']:g} kgf/cm²; "
-                     f"{d['n']:g} pernos Ø{d['diam']:g}\" con {d['hilos']:g} hilos/pulg, F_u = {d['fu']:g} kgf/cm², "
-                     f"h_ef = {d['hef']:g} cm; soldadura w = {d['sold_w']:g} cm, L = {d['sold_l']:g} cm.</p>")
-            filas = []
-            for v in r['verif']:
-                cc = v['combo']
-                dem = {'ap': cc.get('f'), 'pl': cc.get('treq'), 'T': cc.get('Ta'), 'cono': cc.get('Tside'),
-                       'V': cc.get('Va'), 'w': cc.get('Rw_L')}[v['clave']]
-                cap = {'ap': k['f_adm'], 'pl': d['pl_t'], 'T': k['allow_T'], 'cono': k['allow_cono'],
-                       'V': k['allow_V'], 'w': k['allow_w']}[v['clave']]
-                unidad = v['unidad']
-                fu = v['fu']
-                estado_v = 'CUMPLE' if fu <= 1.0 else 'NO CUMPLE'
-                filas.append(f"<tr><td>{html.escape(v['nombre'])}</td><td>{_ref_html(v['ref'])}</td>"
-                             f"<td>{html.escape(v['caso'])}</td>"
-                             f"<td class=\"num\">{_valor_placa(dem)} {unidad}</td>"
-                             f"<td class=\"num\">{cap:.2f}</td><td class=\"num\">{_fu(fu)}</td>"
-                             f"<td class=\"{'cumple' if estado_v == 'CUMPLE' else 'nocumple'}\">{estado_v}</td></tr>")
-            tabla = ('<table><tr><th>Verificación</th><th>Referencia</th><th>Caso que gobierna</th>'
-                     '<th>Demanda</th><th>Capacidad</th><th>FU</th><th>Estado</th></tr>' + ''.join(filas) + '</table>')
-            detalle = ''.join(f"<h3>{html.escape(v['nombre'])}: caso {html.escape(v['caso'])}</h3><ul>"
-                              + ''.join(f"<li>{html.escape(t)}</li>" for t in _detalle_base(v, r)) + '</ul>'
-                              for v in r['verif'])
-            notas = ''.join(f"<li>{html.escape(n)}</li>" for n in r['notas'])
-            cuerpo = datos + tabla + detalle + (f"<p class=\"nota\"><b>Notas y puntos no revisados:</b></p><ul>{notas}</ul>"
-                                                if notas else '')
-            bloques.append(encab + cuerpo)
-        else:
+        perfil = html.escape(str(r['perfil'] or '—'))
+        bloques.append(f'<h3>8.{i} Nodo {r["id"]} · perfil {perfil} · <span class="{clase}">{estado}</span></h3>')
+        if estado not in ('CUMPLE', 'NO CUMPLE'):
             motivo = ', '.join(r['faltan'] + r['norma']) or '; '.join(r['notas'])
-            bloques.append(encab + f"<p class=\"nota\">No se verifica: {html.escape(motivo)}.</p>")
+            bloques.append(f'<p class="nota">No se verifica: {html.escape(motivo)}.</p>')
+            continue
+        bloques.append(_datos_placa_html(r).replace('{i}', str(i)))
+        bloques.append(_combos_placa_html(r).replace('{i}', str(i)))
+        bloques.append(_resumen_placa_html(r).replace('{i}', str(i)))
+        bloques.append(_detalle_placa_html(r).replace('{i}', str(i)))
+        notas = ''.join(f'<li>{html.escape(n)}</li>' for n in r['notas'])
+        bloques.append(f'<h4>8.{i}.5 Notas y puntos no revisados</h4><ul class="nota">{notas}</ul>')
     return ''.join(bloques)
 
 

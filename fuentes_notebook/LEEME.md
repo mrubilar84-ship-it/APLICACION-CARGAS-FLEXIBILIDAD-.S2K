@@ -36,7 +36,7 @@ Chequeos por combinación de servicio (cargas de REACCIONES, solo combinaciones)
 |---|---|---|
 | aplastamiento sobre el dado | IMCA 5.ª ed., cap. J, J8-1 y J8-2 (pág. II-218, verificada en imagen) | Ω_c = 2.31 |
 | espesor de la placa (voladizo m, n, λn′) | AISC Design Guide 1, 2.ª ed. (texto; no verificado en imagen) | Ω = 1.5/0.90 |
-| pernos a tracción | AISC DG1 §3.2 y pág. 19 | Ω = 1.5/0.75; factor F_nt = 0.75 (texto dice 0.7: NO REVISADO) |
+| pernos a tracción | AISC DG1 §3.2.1 (A_t de la rosca) y pág. 19: Rn = 0.7 F_u A_t | Ω = 1.5/0.75 = 2.00 |
 | cono de concreto | ACI 318-02 Ap. D (N_b, k = 10 en SI; texto no verificado) y φ = 0.70 (DG1) | Ω = 1.5/0.70 |
 | pernos a cortante con roscas | AISC DG1 pág. 42 (verificada) | Ω = 1.5/0.75 |
 | soldadura de filete E70 | AISC DG1 pág. 42 (verificada) | Ω = 1.5/0.75 |
