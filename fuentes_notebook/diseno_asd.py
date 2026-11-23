@@ -745,6 +745,12 @@ def _demanda_fila(fila):
 # ---------------------------------------------------------------- planilla -> diseno ASD (IR, CE, LI)
 GRUPOS_ELEMENTO = ['COLUMNA', 'VIGA', 'ARRIOSTRE', 'DIAGONAL']
 COMPRESION_GRUPOS = ('COLUMNA', 'ARRIOSTRE', 'DIAGONAL')
+
+
+def en_compresion(grupo, demandas_list):
+    """Verificacion de compresion (KL/r y esbeltez local en compresion): por grupo, o si la barra tiene
+    compresion en alguna combinacion de servicio (criterio IMCA/AISC: aplica a cualquier miembro comprimido)."""
+    return grupo in COMPRESION_GRUPOS or any((d.get('Pr_c') or 0.0) > 0 for d in demandas_list)
 FAMILIAS_ASD = ('IR', 'CE', 'LI', 'HSS')
 FAMILIA_ORDEN = ['IR', 'CE', 'LI', 'HSS']
 CHEQUEOS_DEMANDA_BASE = ['T traccion', 'C compresion', 'F flexion eje mayor', 'F flexion eje menor',
@@ -807,7 +813,7 @@ def _chequear(p, familia, fy, fu, E, nu, Lx, Ly, Lb, kx, ky, grupo, demandas_lis
     filas (una por demanda) y motivo (si no se puede verificar)."""
     res = resistencias_asd(p, familia, fy, fu, E, nu, Lx, Ly, Lb, kx, ky, max(Lx, Ly), Cb=cb, e5=e5, U=u_t)
     klr = res['klr']
-    compr = grupo in COMPRESION_GRUPOS
+    compr = en_compresion(grupo, demandas_list)
     fu_el, el_det = esbeltez_local(p, familia, fy, E, compresion=compr)
     const = {CHEQUEO_EL: max(fu_el.values())}
     if compr:
@@ -1068,8 +1074,8 @@ def diseno_asd_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id
             notas.append('E5(a) verificado en LONGITUDES: se usa Lc/rz de E5' if e5_b
                          else 'E5 no verificado (LONGITUDES): K L/rz y H2')
             notas.append(f'tension: U = {u_b:.3f} (D3)' if not e['conexion'] == 'DOS PATAS' else 'tension: U = 1.0 (ambas patas)')
-        if grupo not in COMPRESION_GRUPOS:
-            notas.append('sin verificacion KL/r (elemento sin compresion)')
+        if not en_compresion(grupo, demandas_list):
+            notas.append('sin verificacion KL/r (sin compresion en ninguna combinacion)')
         cap = {'ID': id_, 'PERFIL': perfil, 'FAMILIA': familia, 'MATERIAL': b.get('material'), 'GRUPO': grupo,
                'L (m)': L / 100.0, 'LX (m)': lx, 'LY (m)': ly, 'LB (m)': lb, 'KX': kx, 'KY': ky, 'CB': cb,
                'Pa traccion (kgf)': res['Pa_t'], 'Pa compresion (kgf)': res['Pa_c'],

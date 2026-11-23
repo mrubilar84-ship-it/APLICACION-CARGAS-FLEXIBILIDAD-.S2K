@@ -307,7 +307,7 @@ def _tabla_verif(v):
                       f'<td class="ec">λ = {_v(lam, 2)}; λr = {_v(lr, 2)}</td>'
                       f'<td class="num">{_v(lr, 2)}</td><td class="num">{_v(lam, 2)}</td>'
                       f'<td class="num">{_estado_txt(lam <= lr)}</td></tr>')
-    if v['grupo'] in DA.COMPRESION_GRUPOS:
+    if DA.CHEQUEO_EG in ev['const']:
         lim = DA.LIMITE_KLR
         cuerpo.append(f'<tr><td>Esbeltez global{_ref_html("PROY_KLR")}</td>'
                       f'<td class="ec">IMCA cap. E: KL/r ≤ {lim:.0f}</td>'
@@ -315,7 +315,7 @@ def _tabla_verif(v):
                       f'<td class="num">{_v(v["klr"], 1)}</td><td class="num">{_estado_txt(v["klr"] <= lim)}</td></tr>')
     else:
         cuerpo.append('<tr><td>Esbeltez global</td><td class="ec">IMCA cap. E: KL/r ≤ 200</td>'
-                      '<td class="ec">no aplica: elemento sin compresión</td><td class="num">—</td>'
+                      '<td class="ec">no aplica: sin compresión en ninguna combinación</td><td class="num">—</td>'
                       '<td class="num">—</td><td class="num">—</td></tr>')
     cabecera = ('<tr><th>Verificación</th><th>Ecuación</th><th>Cálculo</th><th>Límite / capacidad</th>'
                 '<th>Calculado / demanda</th><th>FU o estado</th></tr>')
@@ -349,14 +349,14 @@ def _fila_grupo(v):
     ev = v['ev']
     crit, lam_c, lam_l = max(((n, l, r) for n, (l, r) in ev['el_det'].items()), key=lambda t: t[1] / t[2])
     klr_c = klr_l = None
-    if v['grupo'] in DA.COMPRESION_GRUPOS:
+    if DA.CHEQUEO_EG in v['ev']['const']:
         klr_c = round(v['klr'], 2)
         klr_l = DA.LIMITE_KLR
     nota = []
-    if v['familia'] == 'LI' and not v['e5_b'] and v['grupo'] in DA.COMPRESION_GRUPOS:
+    if v['familia'] == 'LI' and not v['e5_b'] and DA.CHEQUEO_EG in v['ev']['const']:
         nota.append('E5 no verificado: K L/rz y H2')
-    if v['grupo'] not in DA.COMPRESION_GRUPOS:
-        nota.append('sin compresión: KL/r no aplica')
+    if DA.CHEQUEO_EG not in v['ev']['const']:
+        nota.append('sin compresión en ninguna combinación: KL/r no aplica')
     clasif = (DA.clasificacion_flexion(v['p'], v['familia'], v['fy'], v['E']) if v['grupo'] == 'VIGA'
               else DA.clasificacion_compresion(v['p'], v['familia'], v['fy'], v['E']))
     fr = v['fu_res']
@@ -569,18 +569,18 @@ def _refs_verif(nombre, familia):
 
 def _ref_local(v):
     """Referencia AISC de la esbeltez local: Tabla B4.1a en compresion, Tabla B4.1b en flexion."""
-    return _ref_html('B4_1A' if v['grupo'] in DA.COMPRESION_GRUPOS else 'B4_1B')
+    return _ref_html('B4_1A' if DA.CHEQUEO_EG in (v.get('ev') or {}).get('const', {}) else 'B4_1B')
 
 
 def _nota_normativa():
     """Nota de la memoria: diseno AISC 360-22 ASD. No se aplica la NTC-Acero ni la NTC de sismo (criterio del revisor)."""
     filas = [
         ('Esbeltez global en compresión (IMCA cap. E)', REF['PROY_KLR'], 'KL/r ≤ 200',
-         'COLUMNA, ARRIOSTRE, DIAGONAL'),
+         'Cualquier miembro con compresión (COLUMNA, ARRIOSTRE, DIAGONAL y barras comprimidas)'),
         ('Esbeltez local en compresión: patín', REF['B4_1A'],
-         'b/t ≤ 0.56·√(E/Fy) (I y canal); ala de ángulo b/t ≤ 0.45·√(E/Fy)', 'COLUMNA, ARRIOSTRE, DIAGONAL'),
+         'b/t ≤ 0.56·√(E/Fy) (I y canal); ala de ángulo b/t ≤ 0.45·√(E/Fy)', 'Cualquier miembro con compresión (COLUMNA, ARRIOSTRE, DIAGONAL y barras comprimidas)'),
         ('Esbeltez local en compresión: alma', REF['B4_1A'], 'h/t ≤ 1.49·√(E/Fy)',
-         'COLUMNA, ARRIOSTRE, DIAGONAL'),
+         'Cualquier miembro con compresión (COLUMNA, ARRIOSTRE, DIAGONAL y barras comprimidas)'),
         ('Esbeltez local en flexión: patín', REF['B4_1B'],
          'b/t ≤ 1.00·√(E/Fy) (λr); 0.38·√(E/Fy) (λp)', 'VIGA'),
         ('Esbeltez local en flexión: alma', REF['B4_1B'],
