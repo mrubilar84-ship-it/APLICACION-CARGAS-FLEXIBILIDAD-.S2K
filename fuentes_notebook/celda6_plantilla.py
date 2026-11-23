@@ -920,7 +920,7 @@ NORMA_VALORES = [
     ('AISC_B41A_C1_PATA', 0.22, '', 'AISC 360-22, Tabla B4.1a', 'Coeficiente c1 de pata (E7).'),
     ('AISC_B41A_C2_PATA', 1.49, '', 'AISC 360-22, Tabla B4.1a', 'Coeficiente c2 de pata (E7).'),
     ('AISC_LR_PATA_B41A', 0.45, 'sqrt(E/Fy)', 'AISC 360-22, Tabla B4.1a', 'lambda_r de pata de angulo (E7).'),
-    ('PROY_KLR_COMP', 200, '', 'IMCA 5ta ed., cap. E (pag. 185 aprox., texto OCR: KL/r no mayor de 200; verificar en la imagen). Igual al criterio de AISC.',
+    ('PROY_KLR_COMP', 200, '', 'IMCA 5ta ed., cap. E, pag. II-89 (pdf 185): nota "preferiblemente KL/r no mayor de 200", verificada en imagen. Aplicada como limite del proyecto.',
      'KL/r maximo en compresion (criterio del proyecto, no NTC).'),
     ('AISC_LR_PATIN_COMP', 0.56, 'sqrt(E/Fy)', 'AISC 360-22, Tabla B4.1a (patin de I en compresion uniforme)',
      'lambda_r de patin de I y canal en compresion (E7).'),

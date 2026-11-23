@@ -36,7 +36,7 @@ import numpy as np
 import pandas as pd
 import perfiles_gerdau as G
 # DECISION D18 (cerrada por el revisor): el diseno usa solo AISC 360-22 (ASD) y los requisitos del IMCA. No se aplica la
-# Esbelteces: local con AISC B4.1; KL/r <= 200 como criterio del proyecto (hasta la lista del IMCA). Sin ductilidad.
+# Esbelteces: local con AISC B4.1; KL/r <= 200 segun IMCA cap. E (nota II-89), aplicado como limite del proyecto. Sin ductilidad.
 
 # Valores de norma (AISC 360-22): se leen de la hoja NORMA de la planilla con cargar_norma().
 # Este modulo no trae valores de norma ni supuestos: si falta un valor, el calculo se detiene.
@@ -44,7 +44,7 @@ OMEGA_T_FLU = OMEGA_T_FRA = OMEGA_C = OMEGA_B = OMEGA_V = OMEGA_V_LAMINADA = Non
 KV_I = KV_ANGULO = CB_MAX_ANGULO = None
 AISC_LP_PATIN = AISC_LR_PATIN = AISC_CV_LIM = AISC_HTW_LAM = AISC_LIM_ANG_E4 = AISC_E5_RAT_LIM = None
 AISC_B41A = AISC_LR_COMP = AISC_LIMITES_FLEXION = None
-LIMITE_KLR = None                         # KL/r maximo en compresion: criterio del proyecto (200), hasta la lista del IMCA
+LIMITE_KLR = None                         # KL/r maximo en compresion: IMCA cap. E (200), aplicado como limite del proyecto
 KZ_TORSION = None
 AISC_HSS_LP_PATIN = AISC_HSS_LR_PATIN = AISC_HSS_LP_ALMA = AISC_HSS_LR_ALMA = AISC_HSS_LR_COMP = None
 AISC_HSS_C1 = AISC_HSS_C2 = AISC_HSS_FLEX = None

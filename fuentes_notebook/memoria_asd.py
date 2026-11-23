@@ -526,7 +526,7 @@ REF = {
     'F7': 'AISC 360-22 §F7 (HSS cuadradas y rectangulares), ecs. F7-1 a F7-11, pág. 16.1-63 a 16.1-65',
     'B4_1A': 'AISC 360-22 Tabla B4.1a (esbeltez local de elementos comprimidos), con E7 para anchos efectivos',
     'B4_1B': 'AISC 360-22 Tabla B4.1b (esbeltez local de elementos en flexión)',
-    'PROY_KLR': 'IMCA 5ta ed., cap. E (pág. 185 aprox.; verificar en la imagen): KL/r ≤ 200',
+    'PROY_KLR': 'IMCA 5ta ed., cap. E, pág. II-89 (pdf 185): nota "preferiblemente KL/r ≤ 200", verificada en imagen; aplicada como límite del proyecto',
     'L2_FLECHA': 'AISC 360-22 Comentario L2, pág. 16.1-543 (límites de flecha)',
 }
 
@@ -581,7 +581,7 @@ def _nota_normativa():
     return ('<h2>Nota normativa: diseño AISC 360-22 (ASD)</h2>'
             '<p>El diseño de resistencia (tracción, compresión, flexión, cortante e interacción) y la esbeltez local se hacen '
             'con AISC 360-22 (ASD). No se aplica la NTC-Acero CDMX ni la NTC de diseño por sismo (criterio del revisor). '
-            'El límite KL/r ≤ 200 proviene del capítulo E del IMCA 5ta ed. (texto OCR; verificar en la imagen de la página). '
+            'El límite KL/r ≤ 200 proviene del capítulo E del IMCA 5ta ed. (pág. II-89, nota verificada en imagen); el proyecto lo aplica como límite. '
             'Cada límite indica el apartado y la página del documento.</p>'
             '<table><tr><th>Verificación</th><th>Referencia (documento, apartado y página)</th><th>Límite</th>'
             '<th>Aplica a</th></tr>' + cuerpo + '</table>'
@@ -673,8 +673,8 @@ def _criterios_html():
         'primer orden: no incluye efectos P-Δ. Cada barra se revisa con todas sus combinaciones.',
         'Una sola sección por grupo (COLUMNA, VIGA, ARRIOSTRE, DIAGONAL): todas las barras de un grupo usan el mismo '
         'perfil. Cada barra se revisa con sus propias demandas.',
-        'Criterio de aceptación: FU ≤ 1.0 en todas las verificaciones; λ ≤ λr (AISC B4.1); KL/r ≤ 200 (criterio del '
-        'proyecto, hasta la lista del IMCA).',
+        'Criterio de aceptación: FU ≤ 1.0 en todas las verificaciones; λ ≤ λr (AISC B4.1); KL/r ≤ 200 (IMCA cap. E, '
+        'aplicado como límite del proyecto).',
         'Elementos esbeltos en compresión: anchos efectivos de AISC E7. Elementos con λ &gt; λr en flexión quedan fuera '
         'de la lista de perfiles.',
         'Perfiles macizos (CS, OS, SOL) eliminados de la base; LM no se incluye.',
@@ -702,7 +702,7 @@ def _parametros_html(cf):
     resultantes = (
         '<table><tr><th>Valor resultante</th><th>Valor</th><th>Cómo se obtiene</th></tr>'
         f'<tr><td>Límite de flecha de vigas</td><td class="num">L/{cf["flecha_divisor"]:g}</td><td>AISC 360-22, Comentario L2 (pisos: L/360)</td></tr>'
-        f'<tr><td>Límite KL/r en compresión</td><td class="num">{cf["klr_limite"]:g}</td><td>IMCA 5ta ed., cap. E (verificar en la imagen)</td></tr>'
+        f'<tr><td>Límite KL/r en compresión</td><td class="num">{cf["klr_limite"]:g}</td><td>IMCA 5ta ed., cap. E, pág. II-89 (aplicado como límite)</td></tr>'
         f'<tr><td>Kz (pandeo torsional)</td><td class="num">{cf["kz"]:g}</td><td>AISC 360-22, E4: elegido en PARAMETROS</td></tr>'
         f'<tr><td>Viento en el diseño</td><td>{html.escape(cf["viento"])}</td><td>Esta versión no considera viento</td></tr>'
         '</table>')
