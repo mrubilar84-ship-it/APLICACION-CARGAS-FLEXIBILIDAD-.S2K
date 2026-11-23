@@ -45,6 +45,7 @@ KV_I = KV_ANGULO = CB_MAX_ANGULO = None
 AISC_LP_PATIN = AISC_LR_PATIN = AISC_CV_LIM = AISC_HTW_LAM = AISC_LIM_ANG_E4 = AISC_E5_RAT_LIM = None
 AISC_B41A = AISC_LR_COMP = AISC_LIMITES_FLEXION = None
 LIMITE_KLR = None                         # KL/r maximo en compresion: IMCA cap. E (200), aplicado como limite del proyecto
+FACTOR_ESPESOR_HSS = None                 # AISC 360-22 B4.2: espesor de diseno de HSS = factor x t nominal (hoja NORMA)
 KZ_TORSION = None
 AISC_HSS_LP_PATIN = AISC_HSS_LR_PATIN = AISC_HSS_LP_ALMA = AISC_HSS_LR_ALMA = AISC_HSS_LR_COMP = None
 AISC_HSS_C1 = AISC_HSS_C2 = AISC_HSS_FLEX = None
@@ -61,7 +62,7 @@ def _req(valor, campo_nombre, barra=''):
 
 def cargar_norma(v, kz):
     """Carga los valores de norma desde la hoja NORMA ({CLAVE: valor}) y el Kz elegido en PARAMETROS."""
-    global KZ_TORSION
+    global KZ_TORSION, FACTOR_ESPESOR_HSS
     KZ_TORSION = kz
     global OMEGA_T_FLU, OMEGA_T_FRA, OMEGA_C, OMEGA_B, OMEGA_V, OMEGA_V_LAMINADA, KV_I, KV_ANGULO, CB_MAX_ANGULO
     global AISC_LP_PATIN, AISC_LR_PATIN, AISC_CV_LIM, AISC_HTW_LAM, AISC_LIM_ANG_E4, AISC_E5_RAT_LIM, AISC_B41A
@@ -95,6 +96,7 @@ def cargar_norma(v, kz):
         AISC_OMEGA_T_HSS = v['AISC_OMEGA_T_HSS']
         AISC_H3_LIM1, AISC_H3_LIM2, AISC_H3_LIM3 = v['AISC_H3_LIM1'], v['AISC_H3_LIM2'], v['AISC_H3_LIM3']
         AISC_H3_K, AISC_H3_FCR_Y, AISC_H3_20PCT = v['AISC_H3_K'], v['AISC_H3_FCR_Y'], v['AISC_H3_20PCT']
+        FACTOR_ESPESOR_HSS = v['AISC_B42_HSS']
     except KeyError as falta:
         raise ErrorAsd(f'falta el valor de norma {falta} en la hoja NORMA de la planilla')
 
@@ -718,6 +720,40 @@ def factor_u_angulo(xc, l_cm, conexion):
     return max(0.0, min(1.0, 1.0 - xc / l_cm))
 
 
+def _hss_esquina_viva(B, H, t):
+    """Propiedades de un HSS rectangular de esquinas vivas: solo sirven para la razon entre dos espesores
+    (la base del catalogo tiene radio de esquina; su valor absoluto no se usa)."""
+    bi, hi = B - 2.0 * t, H - 2.0 * t
+    return {'A': B * H - bi * hi,
+            'Ix': (B * H ** 3 - bi * hi ** 3) / 12.0,
+            'Iy': (H * B ** 3 - hi * bi ** 3) / 12.0,
+            'Zx': (B * H ** 2 - bi * hi ** 2) / 4.0,
+            'Zy': (H * B ** 2 - hi * bi ** 2) / 4.0,
+            'J': 2.0 * t * (B - t) ** 2 * (H - t) ** 2 / (B + H - 2.0 * t)}
+
+
+def _hss_diseno(p):
+    """AISC 360-22 B4.2: espesor de diseno t = FACTOR x t_nominal para HSS de norma distinta de ASTM A1065/A1085.
+    Propiedades de diseno = propiedades del catalogo x razon (seccion de esquina viva con t_diseno) /
+    (seccion de esquina viva con t_nominal). Asi solo cambia el espesor: con t nominal la razon es 1 y se
+    conserva el catalogo. La masa por metro es la fisica y no cambia."""
+    if FACTOR_ESPESOR_HSS is None:
+        raise ErrorAsd('falta el factor de espesor de diseno de HSS (AISC_B42_HSS) en la hoja NORMA')
+    B, H, tn = p['B'], p['H'], p['t']
+    t = FACTOR_ESPESOR_HSS * tn
+    if 2.0 * t >= min(B, H):
+        raise ErrorAsd('HSS con espesor de diseno mayor que la mitad de la dimension exterior: revisar la base')
+    n, d = _hss_esquina_viva(B, H, tn), _hss_esquina_viva(B, H, t)
+    r = {k: d[k] / n[k] for k in n}
+    A, Ix, Iy = p['A'] * r['A'], p['Ix'] * r['Ix'], p['Iy'] * r['Iy']
+    q = dict(p)
+    q.update(t_nominal=tn, t=t, e=t, A=A, Ix=Ix, Iy=Iy,
+             Sx=p['Sx'] * r['Ix'], Sy=p['Sy'] * r['Iy'], Zx=p['Zx'] * r['Zx'], Zy=p['Zy'] * r['Zy'],
+             rx=p['rx'] * math.sqrt(r['Ix'] / r['A']), ry=p['ry'] * math.sqrt(r['Iy'] / r['A']),
+             J=p['J'] * r['J'], razon_espesor_hss=FACTOR_ESPESOR_HSS)
+    return q
+
+
 def _props_asd(nombre, familia):
     """Propiedades para ASD desde la base Gerdau. No se estima ninguna propiedad: lo que falta queda NO REVISADO."""
     p = G.obtener_perfil(nombre)
@@ -739,6 +775,8 @@ def _props_asd(nombre, familia):
         return None, 'NO REVISADO: faltan datos ' + ', '.join(falta)
     if familia == 'LI':
         p.update(propiedades_angulo(p))
+    if familia == 'HSS':
+        p = _hss_diseno(p)                      # AISC B4.2 (espesor de diseno)
     p['_estimados'] = estimados
     return p, ''
 
@@ -787,6 +825,12 @@ CHEQUEOS_TORSION = ['T torsion (H3.1)', 'H3 interaccion (H3-6)', CHEQUEO_TORSION
 CHEQUEOS_DEMANDA = CHEQUEOS_DEMANDA_BASE + CHEQUEOS_TORSION
 INTERACCION = ('H1 flexocompresion', 'H1 flexotension', 'H2 angulo (H2-1)', 'H3 interaccion (H3-6)')
 CHEQUEO_EL = 'EL esbeltez local (B4.1)'
+def aplica_klr(grupo, demandas_list):
+    """KL/r <= 200 (criterio del proyecto): solo para miembros comprimidos (COLUMNA, ARRIOSTRE, DIAGONAL) con
+    compresion en alguna combinacion. Las VIGAS son elementos a flexion: no se verifican por KL/r (decision del usuario)."""
+    return grupo != 'VIGA' and en_compresion(grupo, demandas_list)
+
+
 CHEQUEO_EG = 'EG KL/r <= 200 (criterio del proyecto)'
 CHEQUEOS_ESBELTEZ = [CHEQUEO_EL, CHEQUEO_EG]
 CHEQUEOS_ASD = CHEQUEOS_DEMANDA_BASE + CHEQUEOS_ESBELTEZ
@@ -841,11 +885,12 @@ def _chequear(p, familia, fy, fu, E, nu, Lx, Ly, Lb, kx, ky, grupo, demandas_lis
     res = resistencias_asd(p, familia, fy, fu, E, nu, Lx, Ly, Lb, kx, ky, max(Lx, Ly), Cb=cb, e5=e5, U=u_t)
     klr = res['klr']
     compr = en_compresion(grupo, demandas_list)
+    klr_aplica = aplica_klr(grupo, demandas_list)
     # Esbeltez local (AISC B4.1): VIGA se revisa a flexion (Tabla B4.1b) aunque tenga compresion secundaria;
     # COLUMNA, ARRIOSTRE y DIAGONAL con compresion se revisan a compresion (Tabla B4.1a). La KL/r usa 'compr'.
     fu_el, el_det = esbeltez_local(p, familia, fy, E, compresion=compr and grupo != 'VIGA')
     const = {CHEQUEO_EL: max(fu_el.values())}
-    if compr:
+    if klr_aplica:
         const[CHEQUEO_EG] = klr / LIMITE_KLR
     out = dict(res=res, klr=klr, el=fu_el, el_det=el_det, const=const, filas=[], motivo=res.get('motivo'))
     if res.get('motivo_fu') and any(d['Pr_t'] > 0 for d in demandas_list):      # R04-08
@@ -1103,14 +1148,20 @@ def diseno_asd_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id
                                   ESTADO='NO REVISADO', NOTAS=motivo))
             continue
         notas = []
+        if p is not None and p.get('t_nominal') is not None:       # AISC B4.2
+            notas.append(f"HSS: espesor de diseno t = {p['t']:.4f} cm = {FACTOR_ESPESOR_HSS:g} x t nominal "
+                         f"{p['t_nominal']:.4f} cm (AISC 360-22 B4.2); propiedades de diseno con esquinas vivas")
         if p is not None and p.get('alerta_catalogo'):      # R04-11: la alerta del catalogo llega a resultados
             notas.append('CATALOGO (alerta sin corregir): ' + str(p['alerta_catalogo']))
         if familia == 'LI':
             notas.append('LI: ejes principales (u mayor, v menor); H2 con momento resultante; cortante de una pata (G3)')
+            notas.append('LI, supuesto pendiente (no demostrado): Ix = Iy del catalogo; producto de inercia no modelado')
             notas.append('E5(a) verificado en LONGITUDES: se usa Lc/rz de E5' if e5_b
                          else 'E5 no verificado (LONGITUDES): K L/rz y H2')
             notas.append(f'tension: U = {u_b:.3f} (D3)' if not e['conexion'] == 'DOS PATAS' else 'tension: U = 1.0 (ambas patas)')
-        if not en_compresion(grupo, demandas_list):
+        if grupo == 'VIGA':
+            notas.append('KL/r no aplica: elemento a flexion (VIGA; el limite KL/r es para miembros comprimidos)')
+        elif not en_compresion(grupo, demandas_list):
             notas.append('sin verificacion KL/r (sin compresion en ninguna combinacion)')
         cap = {'ID': id_, 'PERFIL': perfil, 'FAMILIA': familia, 'MATERIAL': b.get('material'), 'GRUPO': grupo,
                'L (m)': L / 100.0, 'LX (m)': lx, 'LY (m)': ly, 'LB (m)': lb, 'KX': kx, 'KY': ky, 'CB': cb,
@@ -1152,7 +1203,7 @@ def diseno_asd_desde_planilla(dib, materiales_filas, longitudes_df, demandas, id
                       ['Demandas', 'combinaciones de servicio de COMBINACIONES (ASD); sin factores de carga'],
                       ['FU', 'factor de utilizacion = demanda / capacidad ASD; cumple si FU <= 1.0'],
                       ['FU esbeltez local', 'lambda / lambda_r por elemento (B4.1a en miembros comprimidos; B4.1b en VIGA; angulo: pata)'],
-                      ['FU esbeltez global', 'KL/r / 200 en miembros con compresion en alguna combinacion (incluye vigas comprimidas); sin compresion: no aplica'],
+                      ['FU esbeltez global', 'KL/r / 200 solo en COLUMNA, ARRIOSTRE y DIAGONAL con compresion en alguna combinacion; VIGA (elemento a flexion): no aplica'],
                       ['Alcance', 'IR, CE, LI (angulos de lados iguales) y HSS (tubulares rectangulares y cuadradas, catalogo ATC). Perfiles macizos (CS, OS, SOL) eliminados de la base; LM no incluido.'],
                       ['Ductilidad', 'no se aplica: criterio AISC 360-22 (la ductilidad NTC fue retirada)'],
                       ['Unidades', 'fuerzas kgf; momentos kgf·cm; longitudes cm']],

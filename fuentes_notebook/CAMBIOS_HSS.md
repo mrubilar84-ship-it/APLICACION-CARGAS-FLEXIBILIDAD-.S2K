@@ -103,3 +103,25 @@ LI cambia (ver sección 4).
 - El importador de la plataforma acepta hasta 1 MB. El notebook quedó en 0.80 MB porque la base de perfiles
   (280 registros) se guarda en el notebook como texto comprimido (zlib + base64). `perfiles_gerdau_nb.py` lo descomprime
   al cargarse. La plantilla de Excel embebida (317 KB en base64) no cambió.
+
+## 8. Espesor de diseño de HSS (AISC 360-22 B4.2)
+
+- Regla: t de diseño = 0.93 × t nominal para HSS distinto de ASTM A1065/A1085 (AISC 360-22 B4.2). El catálogo ATC no
+  indica la norma del producto: se supone que no es A1065/A1085. Por confirmar con el fabricante.
+- Valor en la hoja NORMA: `AISC_B42_HSS` = 0.93, con su cláusula. Si falta, `cargar_norma` da error (no se supone).
+- Propiedades de diseño: catálogo × razón de la sección de esquina viva con t de diseño y con t nominal, para A, Ix,
+  Iy, Sx, Sy, Zx, Zy y J; rx = rx,catálogo · √(razón I / razón A). Con factor 1.0 se reproduce el catálogo exacto.
+  Con esta razón solo cambia el espesor: no se mezclan los radios de esquina del catálogo con una fórmula sin radios.
+- Ancho y peralte planos (bp = B − 3t, hp = H − 3t) con el t de diseño. La masa por metro no cambia.
+- El análisis (OpenSees) usa las propiedades nominales del catálogo. Pendiente: confirmar si el análisis también debe
+  usar el espesor de diseño.
+- Prueba: `verificacion_posterior/hss/test_b42_hss.py` (factor 1.0 exacto; factor 0.93 contra cálculo independiente;
+  clave faltante; exclusión de KL/r en vigas).
+- La memoria muestra el espesor nominal y el de diseño en la sección de propiedades, y una nota de B4.2 en la barra.
+
+## 9. Memoria: orden del cálculo por barra
+
+- Sección 1: "Orden del cálculo por barra" con seis pasos: datos y propiedades, demandas, esbeltez (B4.1 y KL/r),
+  resistencias (D, E, F, G, H3), interacción (H1, H2, H3) y resultado.
+- Sección 7: cada barra crítica se presenta con esos mismos pasos numerados, con ecuaciones y referencias.
+- KL/r ≤ 200 se verifica solo en miembros comprimidos; las vigas quedan fuera (decisión del proyecto).

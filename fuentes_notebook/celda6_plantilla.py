@@ -952,6 +952,8 @@ NORMA_VALORES = [
     ('AISC_H3_K', 0.458, '', 'AISC 360-22, H3.1(b)(3), ec. H3-5', 'Constante 0.458 pi^2 E/(h/t)^2 del Fcr elastico de torsion.'),
     ('AISC_H3_FCR_Y', 0.6, '', 'AISC 360-22, H3.1, ec. H3-3', 'Factor de fluencia de la torsion: Fcr = 0.6 Fy.'),
     ('AISC_H3_20PCT', 0.2, '', 'AISC 360-22, H3.2', 'Fraccion Tr/Tc a partir de la cual se aplica H3-6 en lugar de H1.'),
+    ('AISC_B42_HSS', 0.93, '', 'AISC 360-22, B4.2 (espesor de diseno de HSS: 0.93 t nominal salvo ASTM A1065/A1085)',
+     'Factor del espesor de diseno de HSS. Se aplica a las propiedades de diseno (A, I, S, Z, r, J); el analisis usa las nominales del catalogo.'),
     # Placas base (bloque 10b): IMCA cap. J para aplastamiento; AISC DG1 2.a ed. (AISC 2005) para placa, anclas y soldadura
     ('BASE_J8_085', 0.85, '', 'IMCA 5ta ed., cap. J, J8-1 (II-218, pdf 312), verificada en imagen', 'Coeficiente 0.85 de P_p = 0.85 f′c A1.'),
     ('BASE_J8_LIM', 1.7, '', 'IMCA 5ta ed., cap. J, J8-2 (II-218, pdf 312), verificada en imagen', 'Limite P_p <= 1.7 f′c A1.'),

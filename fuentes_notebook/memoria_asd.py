@@ -134,11 +134,16 @@ def _props_tabla(v):
                  ('Iv (eje menor principal)', p['Iv'], 'cm⁴'), ('ru', p['ru'], 'cm'), ('rz', p['rz'], 'cm'),
                  ('Su (u)', p['Su'], 'cm³'), ('Sv (v)', p['Sv'], 'cm³'), ('J (catálogo)', p.get('J'), 'cm⁴')]
     elif familia == 'HSS':
-        filas = [('Peralte H', p['H'], 'cm'), ('Ancho B', p['B'], 'cm'), ('Espesor t (paredes)', p['t'], 'cm'),
-                 ('Ancho plano bp = B − 3t', p['B'] - 3.0 * p['t'], 'cm'), ('Peralte plano hp = H − 3t', p['H'] - 3.0 * p['t'], 'cm'),
-                 ('Área Ag', p['A'], 'cm²'), ('Ix', p['Ix'], 'cm⁴'), ('Iy', p['Iy'], 'cm⁴'), ('Sx', p['Sx'], 'cm³'),
-                 ('Sy', p['Sy'], 'cm³'), ('Zx (sin radios de esquina)', p['Zx'], 'cm³'), ('Zy (sin radios de esquina)', p['Zy'], 'cm³'),
-                 ('rx', p['rx'], 'cm'), ('ry', p['ry'], 'cm'), ('J (pared delgada, fórmula)', p['J'], 'cm⁴')]
+        tn = p.get('t_nominal', p['t'])
+        filas = [('Peralte H', p['H'], 'cm'), ('Ancho B', p['B'], 'cm'),
+                 ('Espesor nominal t (catálogo)', tn, 'cm'),
+                 (f'Espesor de diseño t = {DA.FACTOR_ESPESOR_HSS:g} · t nominal (B4.2)', p['t'], 'cm'),
+                 ('Ancho plano bp = B − 3t (con t de diseño)', p['B'] - 3.0 * p['t'], 'cm'),
+                 ('Peralte plano hp = H − 3t (con t de diseño)', p['H'] - 3.0 * p['t'], 'cm'),
+                 ('Área Ag (diseño)', p['A'], 'cm²'), ('Ix (diseño)', p['Ix'], 'cm⁴'), ('Iy (diseño)', p['Iy'], 'cm⁴'),
+                 ('Sx (diseño)', p['Sx'], 'cm³'), ('Sy (diseño)', p['Sy'], 'cm³'),
+                 ('Zx (diseño)', p['Zx'], 'cm³'), ('Zy (diseño)', p['Zy'], 'cm³'),
+                 ('rx (diseño)', p['rx'], 'cm'), ('ry (diseño)', p['ry'], 'cm'), ('J (diseño)', p['J'], 'cm⁴')]
     else:
         filas = [('Peralte H', p['H'], 'cm'), ('Ancho B', p['B'], 'cm'), ('Espesor del alma e', p['e'], 'cm'),
                  ('Espesor del patín t', p['t'], 'cm'), ('Area Ag', p['A'], 'cm²'), ('Ix', p['Ix'], 'cm⁴'),
@@ -149,6 +154,10 @@ def _props_tabla(v):
             filas.append(('ro', p.get('ro'), 'cm'))
     body = ''.join(f'<tr><td>{html.escape(n)}</td><td class="num">{_v(x, 3)}</td><td>{u}</td></tr>'
                    for n, x, u in filas)
+    if familia == 'HSS' and p.get('t_nominal') is not None:
+        body += ('<tr><td colspan="3" class="nota">AISC 360-22 B4.2: propiedades de diseño = catálogo × razón entre la '
+                 'sección de esquina viva con t de diseño y con t nominal (A, I, S, Z, J); r = r catálogo · √(razón I / '
+                 'razón A). Con t nominal la razón es 1. Masa sin cambio. El análisis usa el catálogo nominal.</td></tr>')
     if p.get('pagina_manual') is not None:
         body += f'<tr><td colspan="3" class="nota">Catálogo Gerdau rev04, pág. impresa {p["pagina_manual"]}.</td></tr>'
     if p.get('pagina_catalogo_atc'):
@@ -296,15 +305,21 @@ def _estado_txt(ok):
     return f'<span class="{"cumple" if ok else "nocumple"}">{"CUMPLE" if ok else "NO CUMPLE"}</span>'
 
 
-def _tabla_verif(v):
-    filas = _verificaciones(v)
-    cuerpo = []
-    for nombre, ecu, calc, cap, dem, fu in filas:
-        cuerpo.append(f'<tr><td>{nombre}{_refs_verif(nombre, v["familia"])}</td><td class="ec">{html.escape(ecu)}</td>'
-                      f'<td class="ec">{calc}</td><td class="num">{_v(cap, 1) if cap is not None else "—"}</td>'
-                      f'<td class="num">{_v(dem, 1) if dem is not None else "—"}</td>'
-                      f'<td class="num">{_fu(fu)}</td></tr>')
+CAB_VERIF = ('<tr><th>Verificación</th><th>Ecuación</th><th>Cálculo</th><th>Límite / capacidad</th>'
+             '<th>Calculado / demanda</th><th>FU o estado</th></tr>')
+
+
+def _fila_verif(nombre, ecu, calc, cap, dem, fu, familia):
+    return (f'<tr><td>{nombre}{_refs_verif(nombre, familia)}</td><td class="ec">{html.escape(ecu)}</td>'
+            f'<td class="ec">{calc}</td><td class="num">{_v(cap, 1) if cap is not None else "—"}</td>'
+            f'<td class="num">{_v(dem, 1) if dem is not None else "—"}</td>'
+            f'<td class="num">{_fu(fu)}</td></tr>')
+
+
+def _tabla_esbeltez(v):
+    """Paso 3: clasificacion de elementos (AISC B4.1) y esbeltez global KL/r (IMCA cap. E)."""
     ev = v['ev']
+    cuerpo = []
     for nombre, (lam, lr) in ev['el_det'].items():
         cuerpo.append(f'<tr><td>Esbeltez local: {html.escape(nombre)}{_ref_local(v)}</td>'
                       f'<td class="ec">AISC 360-22 Tabla B4.1a (compresión) / B4.1b (flexión): λ ≤ λr</td>'
@@ -318,12 +333,41 @@ def _tabla_verif(v):
                       f'<td class="ec">KL/r máx = {_v(v["klr"], 1)}</td><td class="num">{_v(lim, 0)}</td>'
                       f'<td class="num">{_v(v["klr"], 1)}</td><td class="num">{_estado_txt(v["klr"] <= lim)}</td></tr>')
     else:
+        motivo = ('no aplica: elemento a flexión (VIGA); el límite de KL/r es para miembros comprimidos'
+                  if v.get('grupo') == 'VIGA' else 'no aplica: sin compresión en ninguna combinación')
         cuerpo.append('<tr><td>Esbeltez global</td><td class="ec">IMCA cap. E: KL/r ≤ 200</td>'
-                      '<td class="ec">no aplica: sin compresión en ninguna combinación</td><td class="num">—</td>'
+                      f'<td class="ec">{motivo}</td><td class="num">—</td>'
                       '<td class="num">—</td><td class="num">—</td></tr>')
-    cabecera = ('<tr><th>Verificación</th><th>Ecuación</th><th>Cálculo</th><th>Límite / capacidad</th>'
-                '<th>Calculado / demanda</th><th>FU o estado</th></tr>')
-    return f'<table>{cabecera}{"".join(cuerpo)}</table>'
+    return f'<table>{CAB_VERIF}{"".join(cuerpo)}</table>'
+
+
+def _tabla_resistencias(v):
+    """Paso 4: resistencias admisibles ASD (D traccion, E compresion, F flexion, G cortante, H3 torsion)."""
+    cuerpo = [_fila_verif(n, e, c, cap, dem, fu, v['familia'])
+              for n, e, c, cap, dem, fu in _verificaciones(v) if n != 'Interacción']
+    return f'<table>{CAB_VERIF}{"".join(cuerpo)}</table>'
+
+
+def _tabla_interaccion(v):
+    """Paso 5: interaccion de flexocompresion y flexotension (H1, H2) o torsion combinada (H3)."""
+    cuerpo = [_fila_verif(n, e, c, cap, dem, fu, v['familia'])
+              for n, e, c, cap, dem, fu in _verificaciones(v) if n == 'Interacción']
+    return f'<table>{CAB_VERIF}{"".join(cuerpo)}</table>'
+
+
+def _resultado_barra(v):
+    """Paso 6: FU de esfuerzos y de esbeltez, FU maximo, verificacion que gobierna y combinacion que controla."""
+    fr = v['fu_res']
+
+    def fila(concepto, valor, gobierna):
+        return (f'<tr><td>{concepto}</td><td class="num">{_fu(valor)}</td>'
+                f'<td>{html.escape(str(gobierna)) if gobierna else "—"}</td></tr>')
+    cuerpo = (fila('FU de esfuerzos (D, E, F, G, H3)', fr.get('FU ESFUERZOS'), fr.get('ESFUERZO QUE GOBIERNA'))
+              + fila('FU de esbeltez (B4.1 y KL/r)', fr.get('FU ESBELTEZ'), fr.get('ESBELTEZ QUE GOBIERNA')))
+    return (f'<table><tr><th>Concepto</th><th>FU</th><th>Verificación que gobierna</th></tr>{cuerpo}</table>'
+            f'<p>FU máximo de la barra = máx(FU de esfuerzos; FU de esbeltez) = <b>{_fu(fu_max(v))}</b>. '
+            f'Estado: {_estado_txt(v["estado"] == "CUMPLE")}. Combinación que controla: '
+            f'<b>{html.escape(str(v.get("caso_dem")))}</b>.</p>')
 
 
 COLS_GRUPO = ['ID', 'PERFIL', 'FU ESFUERZOS', 'ESFUERZO QUE GOBIERNA', 'FU ESBELTEZ', 'ESBELTEZ QUE GOBIERNA',
@@ -360,7 +404,8 @@ def _fila_grupo(v):
     if v['familia'] == 'LI' and not v['e5_b'] and DA.CHEQUEO_EG in v['ev']['const']:
         nota.append('E5 no verificado: K L/rz y H2')
     if DA.CHEQUEO_EG not in v['ev']['const']:
-        nota.append('sin compresión en ninguna combinación: KL/r no aplica')
+        nota.append('KL/r no aplica (VIGA: elemento a flexión)' if v['grupo'] == 'VIGA'
+                    else 'sin compresión en ninguna combinación: KL/r no aplica')
     clasif = (DA.clasificacion_flexion(v['p'], v['familia'], v['fy'], v['E']) if v['grupo'] == 'VIGA'
               else DA.clasificacion_compresion(v['p'], v['familia'], v['fy'], v['E']))
     fr = v['fu_res']
@@ -438,12 +483,12 @@ def _tabla_combinaciones(v):
 
 
 def _bloque_barra(v):
-    """Detalle de una barra: datos, propiedades, combinaciones y verificaciones con ecuaciones y referencias."""
+    """Detalle de una barra en los pasos del calculo (seccion 1): 1 datos y propiedades, 2 demandas, 3 esbeltez,
+    4 resistencias, 5 interaccion y 6 resultado. Cada paso lleva su ecuacion y su referencia."""
     if 'res' not in v or not v.get('fu_res'):
         return (f'<section class="barra"><h2>Barra {v["id"]} · {html.escape(v["perfil"])} · {v["grupo"]} · '
                 f'{v["estado"]}</h2><p>{html.escape(v.get("motivo", ""))}</p></section>')
     cl = 'cumple' if v['estado'] == 'CUMPLE' else 'nocumple'
-    dem = v.get('dem') or {}
     datos = (f'<table class="meta"><tr><td><b>Material</b>: {html.escape(str(v["material"]))} · '
              f'Fy = {_v(v["fy"], 0)} kgf/cm² · Fu = {_v(v["fu"], 0)} kgf/cm² · E = {_v(v["E"], 0)} kgf/cm² · '
              f'ν = {_v(v["nu"], 2)}</td></tr>'
@@ -459,17 +504,25 @@ def _bloque_barra(v):
     return (f'<section class="barra" id="barra-{v["id"]}">'
             f'<h2>Barra {v["id"]} · {html.escape(v["perfil"])} · {html.escape(v["grupo"])} · '
             f'<span class="{cl}">{v["estado"]}</span> · FU máximo {_v(fu_max(v), 3)}</h2>'
-            f'{datos}'
-            f'<h3>Propiedades de la sección</h3>{_props_tabla(v)}'
-            f'<h3>Combinaciones de servicio de la barra</h3>'
+            '<h3>Paso 1. Datos y propiedades de la sección</h3>'
+            f'{datos}{_props_tabla(v)}'
+            + (f'<h4>Supuestos de esta barra</h4><ul class="nota">{sup}</ul>' if sup else '')
+            + '<h3>Paso 2. Demandas: combinaciones de servicio ASD</h3>'
             f'<p class="nota">Cada combinación se revisa con sus propias demandas. Resaltada: la que controla '
             f'(<b>{html.escape(str(v.get("caso_dem")))}</b>).</p>{_tabla_combinaciones(v)}'
-            f'<h3>Verificaciones (AISC 360-22 ASD), combinación que controla</h3>'
-            f'<p class="nota">Capacidad = resistencia admisible; demanda = la de la combinación que controla. '
-            f'FU = demanda / capacidad (cumple si FU ≤ 1.0). Las filas de esbeltez comparan λ calculado con λ límite (AISC B4.1).</p>'
-            f'{_tabla_verif(v)}'
-            + (f'<h3>Supuestos de esta barra</h3><ul class="nota">{sup}</ul>' if sup else '')
-            + '</section>')
+            '<h3>Paso 3. Esbeltez: clasificación local (AISC B4.1) y KL/r (IMCA cap. E)</h3>'
+            '<p class="nota">λ calculado frente a λr. KL/r ≤ 200 se verifica en miembros comprimidos; las vigas '
+            '(elementos a flexión) están exentas.</p>'
+            f'{_tabla_esbeltez(v)}'
+            '<h3>Paso 4. Resistencias admisibles (ASD): D, E, F, G y H3</h3>'
+            '<p class="nota">Capacidad = resistencia admisible; demanda = la de la combinación que controla esa '
+            'verificación. FU = demanda / capacidad (cumple si FU ≤ 1.0).</p>'
+            f'{_tabla_resistencias(v)}'
+            '<h3>Paso 5. Interacción (H1, H2 o H3)</h3>'
+            f'{_tabla_interaccion(v)}'
+            '<h3>Paso 6. Resultado de la barra</h3>'
+            f'{_resultado_barra(v)}'
+            '</section>')
 
 
 def fu_max(v):
@@ -588,7 +641,7 @@ def _nota_normativa():
     """Nota de la memoria: diseno AISC 360-22 ASD. No se aplica la NTC-Acero ni la NTC de sismo (criterio del revisor)."""
     filas = [
         ('Esbeltez global en compresión (IMCA cap. E)', REF['PROY_KLR'], 'KL/r ≤ 200',
-         'Cualquier miembro con compresión (COLUMNA, ARRIOSTRE, DIAGONAL y barras comprimidas)'),
+         'COLUMNA, ARRIOSTRE y DIAGONAL con compresión en alguna combinación (la VIGA, elemento a flexión, no se verifica por KL/r)'),
         ('Esbeltez local en compresión: patín', REF['B4_1A'],
          'b/t ≤ 0.56·√(E/Fy) (I y canal); ala de ángulo b/t ≤ 0.45·√(E/Fy)', 'COLUMNA, ARRIOSTRE y DIAGONAL con compresión (la VIGA se revisa a flexión)'),
         ('Esbeltez local en compresión: alma', REF['B4_1A'], 'h/t ≤ 1.49·√(E/Fy)',
@@ -699,19 +752,41 @@ def _criterios_html():
         'Una sola sección por grupo (COLUMNA, VIGA, ARRIOSTRE, DIAGONAL): todas las barras de un grupo usan el mismo '
         'perfil. Cada barra se revisa con sus propias demandas.',
         'Criterio de aceptación: FU ≤ 1.0 en todas las verificaciones; λ ≤ λr (AISC B4.1); KL/r ≤ 200 (IMCA cap. E, '
-        'aplicado como límite del proyecto).',
+        'aplicado como límite del proyecto) solo en miembros comprimidos. Las vigas (elementos a flexión) no se '
+        'verifican con KL/r (decisión del proyecto).',
         'Elementos esbeltos en compresión: anchos efectivos de AISC E7. Elementos con λ &gt; λr en flexión quedan fuera '
         'de la lista de perfiles.',
         'Perfiles macizos (CS, OS, SOL) eliminados de la base; LM no se incluye.',
         'Fu: de la hoja MATERIALES de la planilla. Un material sin Fu deja sus barras como NO REVISADO.',
         f'Ángulos (LI): E5 solo si LONGITUDES marca las cuatro condiciones ({REF["E5"]}). Si no, K·L/rz y H2 '
         f'({REF["H2"]}). Tracción con Ae = U·Ag, U de D3 ({REF["D3"]}): una pata U = 1 − x̄/l; dos patas U = 1.0.',
+        'Espesor de diseño de HSS (AISC 360-22 B4.2): t = 0.93·t nominal para HSS salvo ASTM A1065/A1085. Las '
+        'propiedades de diseño se obtienen del catálogo por la razón de espesores; el análisis usa el catálogo nominal.',
         'Estimaciones: IR con Zx, Zy o Cw faltantes se estiman por geometría; LI con propiedades geométricas. Cada '
         'barra lista sus supuestos.',
         f'Interacción: H1-1 para I y canal ({REF["H1"]}); H2-1 para ángulos ({REF["H2"]}), con el momento resultante '
         'sobre cada eje principal (criterio conservador).',
     ]
     return '<ul>' + ''.join(f'<li>{t}</li>' for t in items) + '</ul>'
+
+
+def _orden_calculo_html():
+    """Orden del calculo por barra (seccion 1). Los mismos seis pasos aparecen en el detalle de la seccion 7."""
+    pasos = [
+        ('Datos y propiedades', 'material, longitudes y sección de la base. En HSS, espesor de diseño '
+         't = 0.93·t nominal (AISC 360-22 B4.2) y propiedades de diseño (ver sección 2).'),
+        ('Demandas', 'Pr, Mr, Vr y torsión de cada combinación de servicio ASD (hoja COMBINACIONES). Cada '
+         'verificación toma la combinación que la controla.'),
+        ('Esbeltez', 'clasificación de elementos (AISC B4.1: tabla B4.1a en compresión y B4.1b en flexión) y '
+         'KL/r ≤ 200 para miembros comprimidos (IMCA cap. E). Las vigas no se verifican con KL/r.'),
+        ('Resistencias', 'tracción (D), compresión (E, con ancho efectivo de E7), flexión (F), cortante (G) y '
+         'torsión (H3).'),
+        ('Interacción', 'H1 para I, canal y HSS; H2 para ángulos; H3 cuando la torsión es significativa '
+         '(Tr > 0.2·Tc).'),
+        ('Resultado', 'FU máximo = máx(FU de esfuerzos; FU de esbeltez). La barra cumple si FU ≤ 1.0 en todos los pasos.'),
+    ]
+    items = ''.join(f'<li><b>Paso {i}. {nombre}</b>: {texto}</li>' for i, (nombre, texto) in enumerate(pasos, 1))
+    return f'<h3>Orden del cálculo por barra</h3><ol>{items}</ol>'
 
 
 def _parametros_html(cf):
@@ -813,6 +888,16 @@ def _pendientes_html(evals, materiales_filas, proyecto, dib=None):
     items.append('Analisis elastico de primer orden (OpenSees, lineal): los efectos de segundo orden (P-Δ, P-δ) y las '
                  'imperfecciones no se incluyen. La estabilidad del marco queda NO REVISADA; el criterio KL/r y los '
                  'factores K son supuestos del proyecto.')
+    items.append('No se aplica AISC C2 (B1/B2, segundo orden): requiere el K2 del pandeo elástico del piso, que la '
+                 'planilla no contiene. Los momentos de segundo orden no están en el diseño.')
+    items.append('Predimensionamiento: las secciones de esta memoria son de predimensionamiento. Cambiar la sección de un '
+                 'grupo cambia la rigidez y, por tanto, las demandas: el análisis debe volver a correrse con la sección '
+                 'elegida antes de aceptar el diseño.')
+    items.append('Placas base (sección 8): alcance de predimensionamiento. Momento en la base, torsión y contacto biaxial '
+                 'quedan NO REVISADO donde corresponde (ver cada nodo).')
+    if any(v.get('familia') == 'HSS' for v in evals):
+        items.append('HSS: espesor de diseño 0.93·t (AISC 360-22 B4.2) aplicado a todos los HSS. La norma del producto no '
+                     'figura en el catálogo: se supone que no es ASTM A1065/A1085. Pendiente de confirmar con el fabricante.')
     no_rev = {}
     for v in evals:
         if v['estado'] == 'NO REVISADO':
@@ -834,8 +919,8 @@ def _pendientes_html(evals, materiales_filas, proyecto, dib=None):
         items.append('La planilla no tiene estado sísmico (TIPO E): el diseño usa solo combinaciones gravitacionales.')
     items.append('No se verifican conexiones, placas, soldaduras ni pernos.')
     if any(v.get('familia') == 'LI' for v in evals):
-        items.append('Ángulos (LI): el análisis usa Ix = Iy del catálogo, sin producto de inercia (decisión del proyecto: se mantiene); '
-                     'el diseño verifica con las propiedades principales Iu y Iv.')
+        items.append('Ángulos (LI), supuesto pendiente (no demostrado): el análisis usa Ix = Iy del catálogo, sin producto '
+                     'de inercia (decisión del proyecto: se mantiene). El diseño verifica con las propiedades principales Iu y Iv.')
     items.append('Ángulos: el pandeo flexotorsional (E4) no está implementado; si b/t &gt; 0.71·√(E/Fy) la barra queda '
                  'como NO REVISADO.')
     return '<ul>' + ''.join(f'<li>{t}</li>' for t in items) + '</ul>'
@@ -1196,6 +1281,7 @@ def memoria_html(dib, materiales_filas, longitudes_df, demandas, id_barra, ruta_
 valores sustituidos, la capacidad admisible, la demanda de la combinación que controla y el FU. FU = demanda /
 capacidad: cumple si FU ≤ 1.0. El resumen por grupo presenta el FU de interacción flexocompresión y las esbelteces;
 el detalle completo de cada elemento está en diseno_asd.xlsx (RESULTADOS).</p>
+{_orden_calculo_html()}
 <h2>2. Criterios de diseño adoptados</h2>{_criterios_html()}
 <h2>3. Datos de entrada</h2>{_parametros_html(proyecto['conf'])}{_datos_entrada_html(dib, materiales_filas, id_barra, lon, mat, equilibrio)}
 <h2>4. Modelo de análisis</h2>{_modelo_html(dib, equilibrio)}
@@ -1206,7 +1292,7 @@ el detalle completo de cada elemento está en diseno_asd.xlsx (RESULTADOS).</p>
 <h2>6. Desplazamientos máximos por combinación</h2>
 {desp_html}
 <h2>7. Detalle de barras críticas (FU máximo de cada grupo)</h2>
-<p class="nota">Se detalla solo la barra que controla cada grupo. Las demás barras de cada grupo están en la tabla por
+<p class="nota">Se detalla solo la barra que controla cada grupo, con los pasos 1 a 6 de la sección 1. Las demás barras de cada grupo están en la tabla por
 grupo (sección 5) y en diseno_asd.xlsx (RESULTADOS).</p>
 {"".join(_bloque_barra(v) for v in criticas)}
 <h2>8. Placas base</h2>
