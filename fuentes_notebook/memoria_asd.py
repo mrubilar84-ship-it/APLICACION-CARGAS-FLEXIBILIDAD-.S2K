@@ -1152,7 +1152,6 @@ def _datos_placa_html(r):
         ('Pernos: F_u', _v(d['fu'], 0), 'kgf/cm²', 'hoja BASES'),
         ('Pernos: longitud de embebido h_ef', _v(d['hef'], 1), 'cm', 'hoja BASES'),
         ('Soldadura: tamaño w ; longitud L', f'{d["sold_w"]:g} ; {d["sold_l"]:g}', 'cm', 'hoja BASES'),
-        ('Coeficiente de fricción μ (informativo)', f'{d["mu"]:g}', '—', 'hoja BASES'),
         ('Presión admisible de aplastamiento f_adm', _v(k['f_adm'], 1), 'kgf/cm²', 'calculado (8.i.4)'),
     ]
     cuerpo = ''.join(f'<tr><td>{html.escape(a)}</td><td class="num">{html.escape(str(b))}</td>'

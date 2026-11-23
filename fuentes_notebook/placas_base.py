@@ -19,7 +19,7 @@ import perfiles_gerdau as G
 # Campos de la hoja BASES, en el mismo orden que sus columnas (BASES_COLS de la plantilla).
 CAMPOS = ['id', 'fc', 'dado_n', 'dado_b', 'pl_n', 'pl_b', 'pl_t', 'fy', 'n', 'c_t', 'diam', 'hilos', 'fu', 'hef',
           'sold_w', 'sold_l', 'mu', 'nota']
-OBLIGATORIOS = [c for c in CAMPOS if c not in ('id', 'nota')]
+OBLIGATORIOS = [c for c in CAMPOS if c not in ('id', 'nota', 'mu')]   # sin friccion: mu no es dato del calculo
 ETIQUETA = {'fc': "f'c (kgf/cm2)", 'dado_n': 'dado N (cm)', 'dado_b': 'dado B (cm)', 'pl_n': 'placa N (cm)',
             'pl_b': 'placa B (cm)', 'pl_t': 'placa t (cm)', 'fy': 'Fy placa (kgf/cm2)', 'n': 'anclas totales n',
             'c_t': 'c anclas (cm)', 'diam': 'diametro ancla (pulg)', 'hilos': 'hilos por pulg', 'fu': 'Fu ancla (kgf/cm2)',
@@ -50,6 +50,7 @@ LIMITACIONES = [
     'soldadura: modelo simplificado (cortante y tension); no es un modelo de grupo de soldadura ni verifica el momento '
     '(NO REVISADO)',
     'transferencia de compresion por contacto (columna a placa) no verificada (NO REVISADO)',
+    'cortante: se resiste con pernos y soldadura; no se considera friccion entre placa y concreto (practica chilena)',
     'valores de NORMA marcados NO REVISADO en la hoja NORMA: ver referencia',
 ]
 
@@ -204,7 +205,6 @@ def _combinacion(caso, v, d, ctx):
     Rw = math.hypot(Tw, V)
     c.update(Tw=Tw, Rw=Rw, Rw_L=Rw / d['sold_l'])
     c['fu']['w'] = (Rw / d['sold_l']) / ctx['allow_w'] if Rw > 0 else 0.0
-    c['friccion'] = d['mu'] * Pc - V
     return c
 
 
@@ -226,15 +226,13 @@ def verificar_nodo(datos, perfil, eje, reacciones, nrm):
     N, B = d['pl_n'], d['pl_b']
     invalidos = []
     # R04-07: datos fisicamente validos antes de calcular: finitos, positivos, enteros donde corresponde
-    for k in OBLIGATORIOS + ['mu']:
+    for k in OBLIGATORIOS:
         if not math.isfinite(d[k]):
             invalidos.append(f'{ETIQUETA.get(k, k)}: valor no finito')
     for k in ('fc', 'dado_n', 'dado_b', 'pl_n', 'pl_b', 'pl_t', 'fy', 'c_t', 'diam', 'hilos', 'fu', 'hef',
               'sold_w', 'sold_l'):
         if math.isfinite(d[k]) and d[k] <= 0:
             invalidos.append(f'{ETIQUETA.get(k, k)} debe ser mayor que cero')
-    if math.isfinite(d['mu']) and d['mu'] < 0:
-        invalidos.append('coeficiente de friccion negativo')
     if math.isfinite(d['n']) and (not float(d['n']).is_integer() or d['n'] < 2 or int(d['n']) % 2):
         invalidos.append('anclas totales n debe ser un entero par y al menos 2 (dos lados)')
     if math.isfinite(d['c_t']) and math.isfinite(N) and d['c_t'] >= N / 2.0:
