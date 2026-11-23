@@ -126,6 +126,7 @@ BLOQUE_8 = leer('celda8_dibujo.py')
 BLOQUE_9 = leer('celda9_analisis.py')
 BLOQUE_9B = leer('celda9b_deformada.py')
 BLOQUE_10 = leer('celda10_diseno.py')
+BLOQUE_10B = leer('celda10b_placas.py')
 BLOQUE_11 = leer('celda11_memoria.py')
 
 
@@ -159,9 +160,12 @@ def construir():
     celdas.append(md('## Bloque 9b. Deformada con escala editable\n\nCambie `ESCALA_DEFORMADA` y ejecute solo esta celda: no vuelve a resolver el análisis.'))
     celdas.append(code(BLOQUE_9B, oculto=False))
     celdas.append(md('## Bloque 10. Diseño por AISC 360-22 (ASD)\n\nCapacidades de IR, CE y LI (tensión, compresión, flexión, cortante, interacción H1 o H2) con las combinaciones de servicio del bloque 9 (sin las que incluyen viento: las combinaciones con sismo usan las cargas sísmicas que usted ingresa en CARGAS) y las longitudes de la hoja LONGITUDES. Escribe `diseno_asd.xlsx` y `planilla_con_diseno.xlsx`. Los perfiles macizos (CS, OS y SOL) fueron eliminados de la base y no se diseñan. Las barras CS quedan fuera del diseño. Los resultados salen **por grupo**: elija la sección de cada grupo en su desplegable (ordenado por tipo y sección); la tabla se recalcula y el botón **Aplicar** actualiza el Excel por elemento y la planilla (hoja PERFIL_GRUPO).'))
+    celdas.append(code('%%writefile placas_base.py\n' + leer('placas_base.py')))
     celdas.append(code('%%writefile diseno_asd.py\n' + leer('diseno_asd.py')))
     celdas.append(code('%%writefile memoria_asd.py\n' + leer('memoria_asd.py')))
     celdas.append(code(BLOQUE_10))
+    celdas.append(md('## Bloque 10b. Placas base (placas_base.py)\n\nVerifica las placas base de la hoja BASES con las combinaciones de servicio: aplastamiento (IMCA cap. J), espesor, pernos, cono de concreto y soldadura (AISC DG1 y ACI 318-02). Sin datos en BASES, este bloque no verifica placas.'))
+    celdas.append(code(BLOQUE_10B))
     celdas.append(md('## Bloque 11. Memoria de cálculo (HTML)\n\nGenera `memoria_calculo.html` con los datos, las propiedades y cada verificación de cada barra, con su ecuación, los valores sustituidos y el FU. Incluye la nota normativa: diseño AISC 360-22 (ASD) y esbeltez local (AISC B4.1) y KL/r ≤ 200 como criterio del proyecto. No se aplica la NTC-Acero ni la NTC de sismo. Para PDF: abra el archivo y use Imprimir > Guardar como PDF. Edite PROYECTO dentro del bloque.'))
     celdas.append(code(BLOQUE_11))
     nb = {'cells': celdas,

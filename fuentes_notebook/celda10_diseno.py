@@ -34,7 +34,7 @@ def _escribir_planilla(perfiles, listas, fu_matriz):
                       longitudes=filas_longitudes_para_excel(longitudes_df),
                       estados=[[None if _vacio(v) else v for v in f] for f in estados_df.values.tolist()],
                       listas=listas, grupos_perfil=perfiles, fu_matriz=fu_matriz,
-                      perfiles_analizados=_perfiles_analizados())
+                      perfiles_analizados=_perfiles_analizados(), bases=BASES_FILAS)
     guardar_con_valores(RUTA_PLANILLA_DISENO)
 
 

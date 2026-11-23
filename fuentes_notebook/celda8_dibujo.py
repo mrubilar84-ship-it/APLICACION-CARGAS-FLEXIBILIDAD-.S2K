@@ -106,6 +106,7 @@ else:
                       filas_cargas=filas_cargas_para_excel(cargas), materiales=materiales_filas,
                       combinaciones=comb_crudas,
                       longitudes=filas_longitudes_para_excel(longitudes_df),
-                      estados=[[None if _vacio(v) else v for v in f] for f in estados_df.values.tolist()])
+                      estados=[[None if _vacio(v) else v for v in f] for f in estados_df.values.tolist()],
+                      bases=BASES_FILAS)
     guardar_con_valores('planilla_con_vista.xlsx')
     print('Planilla regenerada: planilla_con_vista.xlsx (hoja VISTA_VIVA)')

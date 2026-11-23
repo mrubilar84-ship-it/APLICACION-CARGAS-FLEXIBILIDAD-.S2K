@@ -19,7 +19,8 @@ if dib is None or 'bloques' not in globals() or 'DISENO_BARRAS' not in bloques:
 else:
     try:
         MA.memoria_html(dib, materiales_leidos, longitudes_df, bloques['DISENO_BARRAS'], dib.id_barra_de_indice,
-                        RUTA_MEMORIA, PROYECTO, casos=casos, id_de_indice=id_de_indice, equilibrio=equilibrio)
+                        RUTA_MEMORIA, PROYECTO, casos=casos, id_de_indice=id_de_indice, equilibrio=equilibrio,
+                        bases=BASES_RESULTADOS)
     except DA.ErrorAsd as error:
         print('NO se genero la memoria. Corrija lo siguiente y vuelva a ejecutar este bloque:')
         print(error)

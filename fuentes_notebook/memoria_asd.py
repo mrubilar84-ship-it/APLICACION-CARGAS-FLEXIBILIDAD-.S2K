@@ -55,6 +55,8 @@ def _fu(x):
     if x is None or isinstance(x, str):
         return '—' if x is None else html.escape(x)
     cls = 'cumple' if x <= 1.0 else 'nocumple'
+    if not math.isfinite(x):
+        return f'<span class="{cls}">no admisible</span>'
     return f'<span class="{cls}">{x:.3f}</span>'
 
 
@@ -541,6 +543,12 @@ REF = {
     'B4_1B': 'AISC 360-22 Tabla B4.1b (esbeltez local de elementos en flexión)',
     'PROY_KLR': 'IMCA 5ta ed., cap. E, pág. II-89 (pdf 185): nota "preferiblemente KL/r ≤ 200", verificada en imagen; aplicada como límite del proyecto',
     'L2_FLECHA': 'AISC 360-22 Comentario L2, pág. 16.1-543 (límites de flecha)',
+    'BASE_J8': 'IMCA 5ta ed., cap. J, J8-1 y J8-2 (pág. II-218, pdf 312), verificada en imagen; coincide con AISC 360-22 J8',
+    'BASE_DG1_PL': 'AISC Design Guide 1, 2.ª ed. (base AISC 2005), §3.1: voladizo m, n y λn′. Texto, NO REVISADO en imagen',
+    'BASE_DG1_T': 'AISC Design Guide 1, 2.ª ed., §3.2 y pág. 19 (pdf 26): Rn = F_nt A_t. Factor 0.75 (texto dice 0.7): NO REVISADO',
+    'BASE_CONO': 'ACI 318-02, Apéndice D, §D.5.2 (N_b, ec. D-7 en SI). φ = 0.70 (DG1 págs. 19 y 42). Texto de ACI: NO REVISADO',
+    'BASE_DG1_V': 'AISC Design Guide 1, 2.ª ed., pág. 42 (pdf 49), ejemplo 4.10: φ(0.4)F_u A_b con roscas, φ = 0.75. Verificada en imagen',
+    'BASE_SOLD': 'AISC Design Guide 1, 2.ª ed., pág. 42 (pdf 49): electrodo E70, φ(0.6)F_EXX, φ = 0.75. Verificada en imagen',
 }
 
 
@@ -842,8 +850,133 @@ def _simbologia_html():
     return f'<table><tr><th>Símbolo</th><th>Significado</th></tr>{cuerpo}</table>'
 
 
+def _valor_placa(x):
+    """Valor de demanda para la memoria de placas base: '—' si no hay, 'fuera de la placa' si es infinito."""
+    if x is None:
+        return '—'
+    if not math.isfinite(x):
+        return 'fuera de la placa'
+    return f'{x:.2f}'
+
+
+_CHEQUEO_BASE_CAMPO = {'ap': 'ap', 'pl': 'pl', 'T': 'T', 'cono': 'cono', 'V': 'V', 'w': 'w'}
+
+
+def _detalle_base(v, r):
+    """Ecuaciones con los valores sustituidos del caso que gobierna la verificacion v de una placa base."""
+    c, k, d = v['combo'], r['ctx'], r['datos']
+    N, B = d['pl_n'], d['pl_b']
+    cl = v['clave']
+    if cl == 'ap':
+        out = [f"A1 = N·B = {N:g}·{B:g} = {k['A1']:.0f} cm²; A2 = dado = {k['A2']:.0f} cm²",
+               f"P_p = min(0.85·f′c·A1·√(A2/A1); 1.7·f′c·A1) = {k['Pp']:.0f} kgf",
+               f"f_adm = P_p / (Ω_c·A1) = {k['Pp']:.0f} / ({k['Oc']:g}·{k['A1']:.0f}) = {k['f_adm']:.1f} kgf/cm²",
+               f"Caso {c['caso']}: P = {c['Pc']:.0f} kgf; e_x = |M_y|/P = {c.get('ex', 0):.2f} cm; "
+               f"e_y = |M_x|/P = {c.get('ey', 0):.2f} cm; N/6 = {N / 6:.2f} cm; B/6 = {B / 6:.2f} cm"]
+        if c.get('fuera') and not math.isfinite(c.get('f', 0.0)):
+            out.append('La resultante queda fuera de la placa (e > mitad de la placa en una dirección): no hay apoyo. '
+                       'FU no admisible (NO CUMPLE): aumentar la placa o revisar pernos en esa dirección.')
+        elif c.get('fuera'):
+            out.append(f"Fuera del tercio medio: presión triangular f0 = 2P/(B·Y), Y = 3(N/2 − e) (NO REVISADO). "
+                       f"Presión de diseño f = {c.get('f', 0):.1f} kgf/cm²"
+                       + ('; con pernos en tracción la presión se limita a f_adm.' if c.get('T_ap') else '.'))
+        else:
+            out.append(f"f_max = P/(N·B)·(1 + 6e_x/N + 6e_y/B) = {c['Pc']:.0f}/({N:g}·{B:g})·(1 + 6·{c.get('ex', 0):.2f}/{N:g}"
+                       f" + 6·{c.get('ey', 0):.2f}/{B:g}) = {c.get('f', 0):.1f} kgf/cm²")
+        if math.isfinite(c.get('f', 0.0)):
+            out.append(f"FU = f / f_adm = {c.get('f', 0):.1f} / {k['f_adm']:.1f} = {v['fu']:.3f}")
+        return out
+    if cl == 'pl':
+        if 'treq' not in c:
+            return ['Sin compresión en esta combinación: la placa no se verifica por flexión de aplastamiento.']
+        if not math.isfinite(c['treq']):
+            return ['No calculable: la presión de apoyo no existe (la resultante queda fuera de la placa). NO CUMPLE.']
+        return [f"m = (N − 0.95·W_x)/2 = ({N:g} − 0.95·{k['Wx']:.2f})/2 = {c['m']:.2f} cm",
+                f"n = (B − 0.8·W_y)/2 = ({B:g} − 0.8·{k['Wy']:.2f})/2 = {c['n']:.2f} cm",
+                f"n′ = √(W_x·W_y)/4 = √({k['Wx']:.2f}·{k['Wy']:.2f})/4 = {c['np']:.2f} cm",
+                f"X = 4·W_x·W_y/(W_x + W_y)²·Ω_c·P/P_p = {c['X']:.4f}; λ = 2√X/(1 + √(1 − X)) = {c['lam']:.4f}",
+                f"l = máx(m; n; λ·n′) = {c['l']:.2f} cm",
+                f"t_req = l·√(2·Ω_pl·f/F_y) = {c['l']:.2f}·√(2·{k['Opl']:.2f}·{c['f']:.1f}/{d['fy']:g}) = {c['treq']:.3f} cm "
+                f"(t = {d['pl_t']:g} cm)",
+                f"FU = (t_req/t)² = ({c['treq']:.3f}/{d['pl_t']:g})² = {v['fu']:.3f}"]
+    if cl == 'T':
+        return [f"Tracción total del lado de pernos: T = {c.get('Tside', 0):.1f} kgf "
+                f"(levantamiento: P_t/2 + |M_y|/(N − 2c_t); compresión fuera del tercio medio: equilibrio con f_adm)",
+                f"Por perno (n/2 = {d['n'] / 2:g} por lado): T_a = {c.get('Ta', 0):.1f} kgf",
+                f"Resistencia admisible por perno: F_nt·F_u·A_t/Ω_T = 0.75·{d['fu']:g}·{k['At']:.3f}/{k['OT']:.2f} = "
+                f"{k['allow_T']:.1f} kgf",
+                f"FU = T_a / admisible = {c.get('Ta', 0):.1f} / {k['allow_T']:.1f} = {v['fu']:.3f}"]
+    if cl == 'cono':
+        return [f"N_b = k·λ·√(f′c)·h_ef^1.5 = {k['Kc']:g}·{k['Lam']:g}·√({d['fc'] * 0.0980665:.2f} MPa)·"
+                f"({d['hef'] * 10:g} mm)^1.5 / 9.81 = {k['Nb']:.1f} kgf",
+                f"Admisible = φ·N_b/1.5 = N_b/Ω_cono = {k['Nb']:.1f}/{k['Ocono']:.2f} = {k['allow_cono']:.1f} kgf",
+                f"Tracción del lado = {c.get('Tside', 0):.1f} kgf; FU = {v['fu']:.3f}"]
+    if cl == 'V':
+        return [f"V = √(F_X² + F_Y²) = {c['V']:.1f} kgf; por perno V/n = {c.get('Va', 0):.1f} kgf",
+                f"Admisible por perno: 0.4·F_u·A_b/Ω_V = 0.4·{d['fu']:g}·{k['Ab']:.3f}/{k['OV']:.2f} = {k['allow_V']:.1f} kgf",
+                f"FU = {c.get('Va', 0):.1f} / {k['allow_V']:.1f} = {v['fu']:.3f}"]
+    if cl == 'w':
+        return [f"T_w = P_t + máx(|M_x|/W_y; |M_y|/W_x) = {c.get('Tw', 0):.1f} kgf",
+                f"R_w = √(T_w² + V²) = {c.get('Rw', 0):.1f} kgf; por longitud R_w/L = {c.get('Rw', 0):.1f}/{d['sold_l']:g} "
+                f"= {c.get('Rw_L', 0):.1f} kgf/cm",
+                f"Admisible: 0.6·F_EXX·0.707·w/Ω_s = 0.6·{k['fexx']:.0f}·0.707·{d['sold_w']:g}/{k['Osol']:.2f} = "
+                f"{k['allow_w']:.1f} kgf/cm",
+                f"FU = {c.get('Rw_L', 0):.1f} / {k['allow_w']:.1f} = {v['fu']:.3f}"]
+    return []
+
+
+def _seccion_placas(resultados):
+    """Seccion 8: placas base (hoja BASES). Por nodo: datos, verificaciones con su caso que gobierna y el detalle."""
+    if resultados is None:
+        return ('<p class="nota">No se ingresaron datos de placas base (hoja BASES vacía o la planilla no la tiene). '
+                'Este apartado no verifica placas base.</p>')
+    if not resultados:
+        return '<p class="nota">La hoja BASES no tiene filas con datos.</p>'
+    bloques = []
+    for r in resultados:
+        estado = r['estado']
+        clase = 'cumple' if estado == 'CUMPLE' else 'nocumple'
+        encab = (f"<h3>Nodo {r['id']} · perfil {html.escape(str(r['perfil'] or '—'))} · "
+                 f"<span class=\"{clase}\">{estado}</span></h3>")
+        if estado in ('CUMPLE', 'NO CUMPLE'):
+            k, d = r['ctx'], r['datos']
+            datos = (f"<p class=\"nota\">Envolvente de la sección en planta: W_x = {k['Wx']:.2f} cm, W_y = {k['Wy']:.2f} cm. "
+                     f"Placa {d['pl_n']:g} × {d['pl_b']:g} × {d['pl_t']:g} cm (F_y = {d['fy']:g} kgf/cm²); "
+                     f"dado {d['dado_n']:g} × {d['dado_b']:g} cm, f′c = {d['fc']:g} kgf/cm²; "
+                     f"{d['n']:g} pernos Ø{d['diam']:g}\" con {d['hilos']:g} hilos/pulg, F_u = {d['fu']:g} kgf/cm², "
+                     f"h_ef = {d['hef']:g} cm; soldadura w = {d['sold_w']:g} cm, L = {d['sold_l']:g} cm.</p>")
+            filas = []
+            for v in r['verif']:
+                cc = v['combo']
+                dem = {'ap': cc.get('f'), 'pl': cc.get('treq'), 'T': cc.get('Ta'), 'cono': cc.get('Tside'),
+                       'V': cc.get('Va'), 'w': cc.get('Rw_L')}[v['clave']]
+                cap = {'ap': k['f_adm'], 'pl': d['pl_t'], 'T': k['allow_T'], 'cono': k['allow_cono'],
+                       'V': k['allow_V'], 'w': k['allow_w']}[v['clave']]
+                unidad = v['unidad']
+                fu = v['fu']
+                estado_v = 'CUMPLE' if fu <= 1.0 else 'NO CUMPLE'
+                filas.append(f"<tr><td>{html.escape(v['nombre'])}</td><td>{_ref_html(v['ref'])}</td>"
+                             f"<td>{html.escape(v['caso'])}</td>"
+                             f"<td class=\"num\">{_valor_placa(dem)} {unidad}</td>"
+                             f"<td class=\"num\">{cap:.2f}</td><td class=\"num\">{_fu(fu)}</td>"
+                             f"<td class=\"{'cumple' if estado_v == 'CUMPLE' else 'nocumple'}\">{estado_v}</td></tr>")
+            tabla = ('<table><tr><th>Verificación</th><th>Referencia</th><th>Caso que gobierna</th>'
+                     '<th>Demanda</th><th>Capacidad</th><th>FU</th><th>Estado</th></tr>' + ''.join(filas) + '</table>')
+            detalle = ''.join(f"<h3>{html.escape(v['nombre'])}: caso {html.escape(v['caso'])}</h3><ul>"
+                              + ''.join(f"<li>{html.escape(t)}</li>" for t in _detalle_base(v, r)) + '</ul>'
+                              for v in r['verif'])
+            notas = ''.join(f"<li>{html.escape(n)}</li>" for n in r['notas'])
+            cuerpo = datos + tabla + detalle + (f"<p class=\"nota\"><b>Notas y puntos no revisados:</b></p><ul>{notas}</ul>"
+                                                if notas else '')
+            bloques.append(encab + cuerpo)
+        else:
+            motivo = ', '.join(r['faltan'] + r['norma']) or '; '.join(r['notas'])
+            bloques.append(encab + f"<p class=\"nota\">No se verifica: {html.escape(motivo)}.</p>")
+    return ''.join(bloques)
+
+
 def memoria_html(dib, materiales_filas, longitudes_df, demandas, id_barra, ruta_salida, proyecto=None,
-                 casos=None, id_de_indice=None, equilibrio=None):
+                 casos=None, id_de_indice=None, equilibrio=None, bases=None):
     """Escribe la memoria de calculo completa (HTML imprimible) del diseno de todas las barras del modelo."""
     proyecto = dict(proyecto or {})
     if not proyecto.get('conf'):
@@ -893,7 +1026,12 @@ el detalle completo de cada elemento está en diseno_asd.xlsx (RESULTADOS).</p>
 <p class="nota">Se detalla solo la barra que controla cada grupo. Las demás barras de cada grupo están en la tabla por
 grupo (sección 5) y en diseno_asd.xlsx (RESULTADOS).</p>
 {"".join(_bloque_barra(v) for v in criticas)}
-<h2>8. Pendientes y limitaciones</h2>{_pendientes_html(evals, materiales_filas, proyecto, dib)}
+<h2>8. Placas base</h2>
+<p class="nota">Placas base con las combinaciones de servicio ASD (REACCIONES). Aplastamiento: IMCA cap. J (Ω = 2.31).
+Espesor, pernos, cono de concreto y soldadura: AISC Design Guide 1, 2.ª ed., y ACI 318-02 Ap. D, en ASD (Ω = 1.5/φ).
+Los datos (placa, dado, pernos, soldadura) son entradas de la hoja BASES.</p>
+{_seccion_placas(bases)}
+<h2>9. Pendientes y limitaciones</h2>{_pendientes_html(evals, materiales_filas, proyecto, dib)}
 <h2>Anexo. Simbología</h2>{_simbologia_html()}
 </body></html>'''
     with open(ruta_salida, 'w', encoding='utf-8') as f:

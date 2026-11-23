@@ -343,6 +343,23 @@ def leer_norma(ruta):
     return {'VALORES': valores}
 
 
+def leer_bases(ruta):
+    """Hoja BASES (placas base): filas con datos, en el orden de BASES_COLS. None si la planilla no tiene la hoja.
+    Vacia = el nodo no se verifica; no es error."""
+    import openpyxl
+    try:
+        ws = openpyxl.load_workbook(ruta, data_only=True)['BASES']
+    except KeyError:
+        return None
+    filas = []
+    for fila in range(5, 5 + BASES_MAX):
+        valores = [ws.cell(row=fila, column=c + 1).value for c in range(len(BASES_COLS))]
+        if all(_vacio(v) for v in valores):
+            continue
+        filas.append(valores)
+    return filas
+
+
 def validar_datos_diseno(barras, longitudes):
     """Datos obligatorios para el diseno de cada barra: LX, LY, LB, KX, KY, CB en LONGITUDES. Sin estos datos no se
     supone nada: aparece como ERROR."""
@@ -519,6 +536,7 @@ mensajes += validar_datos_diseno(barras, longitudes_df)
 import parametros as P
 PAR_LEIDA = leer_parametros(RUTA_PLANILLA_LEIDA)     # hoja PARAMETROS (listas desplegables del Excel)
 NOR_LEIDA = leer_norma(RUTA_PLANILLA_LEIDA)          # hoja NORMA (valores de norma con su referencia)
+BASES_FILAS = leer_bases(RUTA_PLANILLA_LEIDA)        # hoja BASES (placas base); None si la planilla no la tiene
 CONF = None
 if PAR_LEIDA is None or NOR_LEIDA is None:
     mensajes.append(('PARAMETROS', '', 'ERROR', 'la planilla no tiene las hojas PARAMETROS y NORMA: use la plantilla nueva'))

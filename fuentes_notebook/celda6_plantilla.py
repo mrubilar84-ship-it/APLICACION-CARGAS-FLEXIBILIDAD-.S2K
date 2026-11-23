@@ -952,7 +952,30 @@ NORMA_VALORES = [
     ('AISC_H3_K', 0.458, '', 'AISC 360-22, H3.1(b)(3), ec. H3-5', 'Constante 0.458 pi^2 E/(h/t)^2 del Fcr elastico de torsion.'),
     ('AISC_H3_FCR_Y', 0.6, '', 'AISC 360-22, H3.1, ec. H3-3', 'Factor de fluencia de la torsion: Fcr = 0.6 Fy.'),
     ('AISC_H3_20PCT', 0.2, '', 'AISC 360-22, H3.2', 'Fraccion Tr/Tc a partir de la cual se aplica H3-6 en lugar de H1.'),
+    # Placas base (bloque 10b): IMCA cap. J para aplastamiento; AISC DG1 2.a ed. (AISC 2005) para placa, anclas y soldadura
+    ('BASE_J8_085', 0.85, '', 'IMCA 5ta ed., cap. J, J8-1 (II-218, pdf 312), verificada en imagen', 'Coeficiente 0.85 de P_p = 0.85 f′c A1.'),
+    ('BASE_J8_LIM', 1.7, '', 'IMCA 5ta ed., cap. J, J8-2 (II-218, pdf 312), verificada en imagen', 'Limite P_p <= 1.7 f′c A1.'),
+    ('BASE_OMEGA_C', 2.31, '', 'IMCA 5ta ed., cap. J, J8 (II-218, pdf 312), DRP, verificada en imagen', 'Factor de seguridad en DRP para aplastamiento sobre concreto (phi_c = 0.65).'),
+    ('BASE_FACTOR_ASD', 1.5, '', 'Conversion LRFD a ASD: Omega = 1.5 / phi (con IMCA: 1.5/0.65 = 2.31)', 'Omega = 1.5 / phi para cada factor de resistencia de placa base.'),
+    ('BASE_PHI_PL', 0.90, '', 'AISC DG1 2.a ed., flexion de placa (texto, NO REVISADO en imagen)', 'phi de flexion de la placa (Omega = 1.5/0.90 = 1.67).'),
+    ('BASE_PHI_ANCLA_T', 0.75, '', 'AISC DG1 2.a ed., p. 19 (pdf 26), verificada en imagen', 'phi de traccion en varilla (Omega = 1.5/0.75 = 2.00).'),
+    ('BASE_FNT', 0.75, '', 'AISC DG1 2.a ed., p. 19 (pdf 26): el texto dice "Rn = 0.7 F_u A_b" y la linea siguiente usa (0.75)(0.75) = 0.5625. NO REVISADO: confirmar en el original',
+     'Rn = F_nt A_t con F_nt = 0.75 F_u (sobre el area roscada At, conservador).'),
+    ('BASE_PHI_ANCLA_V', 0.75, '', 'AISC DG1 2.a ed., p. 42 (pdf 49), verificada en imagen', 'phi de cortante en varilla con roscas (Omega = 1.5/0.75 = 2.00).'),
+    ('BASE_FV', 0.40, '', 'AISC DG1 2.a ed., p. 42 (pdf 49), verificada en imagen: phi Rn = phi (0.4) F_u A_b', 'Rn = 0.4 F_u A_b (cortante con roscas incluidas).'),
+    ('BASE_PHI_CONO', 0.70, '', 'ACI 318-02 Ap. D; AISC DG1 pp. 19 y 42, verificada en imagen', 'phi del cono de concreto (Omega = 1.5/0.70 = 2.14, derivado).'),
+    ('BASE_KC_CONO', 10, '', 'ACI 318-02 Ap. D, ec. D-7 en SI, anclas coladas: NO REVISADO en imagen', 'N_b = k lambda sqrt(f′c) h_ef^1.5 con f′c en MPa y h_ef en mm.'),
+    ('BASE_LAMBDA', 1.0, '', 'ACI 318-02 Ap. D: concreto de peso normal', 'Factor lambda: 1.0 para concreto de peso normal; ajustar si el concreto es ligero.'),
+    ('BASE_PHI_SOLD', 0.75, '', 'AISC DG1 2.a ed., p. 42 (pdf 49), verificada en imagen', 'phi de soldadura de filete (Omega = 1.5/0.75 = 2.00).'),
+    ('BASE_SOLD_FRAC', 0.60, '', 'AISC DG1 2.a ed., p. 42 (pdf 49), verificada en imagen: phi (0.6) F_EXX', 'Resistencia nominal del metal de soldadura 0.6 F_EXX sobre la garganta 0.707 w.'),
+    ('BASE_FEXX_KSI', 70, 'ksi', 'AISC DG1 2.a ed., p. 42 (ejemplo E70), verificada en imagen', 'F_EXX del electrodo (E70 = 70 ksi).'),
 ]
+
+# Hoja BASES (placas base): una fila por nodo de apoyo. Mismo orden que CAMPOS de placas_base.py.
+BASES_COLS = ['ID NODO', 'FC (kgf/cm2)', 'DADO N (cm)', 'DADO B (cm)', 'PLACA N (cm)', 'PLACA B (cm)', 'PLACA t (cm)',
+              'FY PLACA (kgf/cm2)', 'ANCLAS TOTALES (n)', 'C ANCLAS (cm)', 'DIAMETRO ANCLA (pulg)', 'HILOS POR PULG',
+              'FU ANCLA (kgf/cm2)', 'h_ef ANCLA (cm)', 'SOLDADURA w (cm)', 'LONG. SOLDADURA (cm)', 'COEF. FRICCION', 'NOTA']
+BASES_MAX = 10
 
 
 def _cabecera_en(ws, fila, columnas, anchos):
@@ -1010,10 +1033,35 @@ def _hoja_normas_y_parametros(wb):
     return ws_p, ws_n
 
 
+def _hoja_bases(wb, filas=None):
+    """Hoja BASES: datos de entrada de las placas base (bloque 10b). Todo es dato de entrada: no hay valores por
+    defecto. Vacia = ese nodo no se verifica. filas: filas ya existentes (BASES_COLS), para regenerar el libro."""
+    from openpyxl.worksheet.datavalidation import DataValidation as DV
+    ws = wb.create_sheet('BASES')
+    ws['A1'] = 'BASES: datos de entrada de las placas base (bloque 10b). Una fila por nodo de apoyo (maximo 10).'
+    ws['A1'].font = NEGRITA
+    ws['A2'] = ('Cargas: combinaciones de servicio ASD (hoja REACCIONES). Unidades: cm, kgf, kgf/cm2. Ancla: diametro en '
+                'pulgadas; hilos por pulgada de la rosca. C ANCLAS = distancia del borde de la placa (en N) al centro de los pernos.')
+    _cabecera_en(ws, 4, BASES_COLS, [10, 14, 12, 12, 12, 12, 12, 16, 16, 14, 18, 14, 18, 14, 16, 18, 14, 30])
+    ws.row_dimensions[4].height = 45
+    for k in range(BASES_MAX):
+        fila = 5 + k
+        valores = filas[k] if filas and k < len(filas) else []
+        for c in range(len(BASES_COLS)):
+            celda = ws.cell(row=fila, column=c + 1, value=(valores[c] if c < len(valores) else None))
+            if c < len(BASES_COLS) - 1:
+                celda.fill = ENTRADA
+    dv = DV(type='decimal', operator='greaterThanOrEqual', formula1='0', allow_blank=True)
+    ws.add_data_validation(dv)
+    dv.add(f'A5:Q{4 + BASES_MAX}')
+    ws.freeze_panes = 'B5'
+
+
 def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas=None, estados=None,
                       materiales=None, combinaciones=None, longitudes=None, listas=None,
-                      grupos_perfil=None, fu_matriz=None, perfiles_analizados=None):
-    """Escribe el libro completo con los datos dados. Cada fila de NODOS: NODOS_COLS; de BARRAS: BARRAS_COLS."""
+                      grupos_perfil=None, fu_matriz=None, perfiles_analizados=None, bases=None):
+    """Escribe el libro completo con los datos dados. Cada fila de NODOS: NODOS_COLS; de BARRAS: BARRAS_COLS.
+    bases: filas de la hoja BASES (BASES_COLS); None = hoja vacia."""
     wb = openpyxl.Workbook()
     ws_i = wb.active; ws_i.title = 'INSTRUCCIONES'
     texto = [
@@ -1039,6 +1087,9 @@ def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas
         'MATERIALES: E (modulo de elasticidad, kgf/cm2) y NU (Poisson) de cada calidad. Son datos suyos: el analisis los lee de aqui.',
         'ESTADOS: PESO PROPIO = SI en el estado donde OpenSees aplica el peso de la seccion (masa Gerdau, kgf/m).',
         'LONGITUDES: por barra, LX y LY (m) longitud no arriostrada en X e Y, KX y KY (factor K), LB (m) para pandeo lateral, CB. Vacio = supuesto.',
+        'BASES: placas base. Una fila por nodo de apoyo (maximo 10). Todo es dato de entrada: sin valores por defecto.',
+        '   Placa N x B x t y dado N x B (cm); f′c (kgf/cm2); anclas: n totales (par), distancia C ANCLAS (cm), diametro (pulg) e hilos por pulg.',
+        '   Soldadura: tamaño w y longitud (cm); coeficiente de friccion. Vacia la fila = ese nodo no se verifica (el resto del diseño no cambia).',
         'E5 (angulos LI): SI en las cuatro columnas solo si la pata cumple: (1) carga en los extremos por una pata; (2) union soldada o con 2 pernos o mas; '
         '(3) sin cargas transversales intermedias; (4) miembro individual o alma de armadura plana. Vacio o NO = K L/rz y H2.',
         'LI CONEXION: UNA PATA o DOS PATAS (ambas patas conectadas). LI LONGITUD CONEXION (m): longitud de la conexion; vacio = longitud de la barra.',
@@ -1090,6 +1141,7 @@ def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas
         ws_b.add_data_validation(dv); dv.add(rango)
 
     _hoja_longitudes(wb, longitudes)
+    _hoja_bases(wb, bases)
     ws_c = wb.create_sheet('CONEXIONES')
     _encabezado(ws_c, ['TIPO', 'EN NODOS (UX a RZ = SI)', 'EN EXTREMOS DE BARRA (CONEXION_I / CONEXION_J)',
                        'USO TIPICO'], [14, 44, 50, 46])
