@@ -1,0 +1,12 @@
+Identificacion de la revision 05 de la auditoria de soportes
+=============================================================
+
+Rama:                       claude/eloquent-turing-cwpcd8
+Commit de codigo y paquete: b22b480896132ffed00bede892b117f435e5bc4a
+Commit de la revision 04:   35f53da8c685792f822035645e138fe6c1457b18 (identificacion del paquete rev04)
+Manifiesto:                 auditoria_rev05/manifiesto_sha256.txt (verificado contra el commit de codigo y paquete)
+
+Verificacion, desde la raiz del repositorio en el commit indicado:
+    grep -E '^[0-9a-f]{64}  ' auditoria_rev05/manifiesto_sha256.txt | sha256sum -c
+
+Este archivo se escribio en un commit posterior al de codigo y paquete y no esta en el manifiesto.
