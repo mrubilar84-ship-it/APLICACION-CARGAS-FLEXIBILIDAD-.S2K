@@ -989,33 +989,38 @@ def _pasos_base(v, r):
                     f'{k["Pp"]:.0f} / ({k["Oc"]:g} · {k["A1"]:.0f})', _kg(k['f_adm'], 'kgf/cm²', 1)))
         out.append(('Carga y excentricidades de la combinación', 'P = F_Z ;  e_x = |M_y| / P ;  e_y = |M_x| / P',
                     f'P = {Pc:.0f} kgf ;  e_x = {ex:.2f} cm ;  e_y = {ey:.2f} cm', f'{Pc:.0f} kgf'))
-        if not c.get('fuera'):
-            out.append(('Presión máxima (dentro del núcleo)', 'f = P / (N · B) · (1 + 6 e_x / N + 6 e_y / B)',
-                        f'{Pc:.0f} / ({N:g} · {B:g}) · (1 + 6 · {ex:.2f} / {N:g} + 6 · {ey:.2f} / {B:g})',
-                        _kg(c['f'], 'kgf/cm²', 1)))
-        else:
-            for eje, L, e, W, modo, fd in [('X', N, ex, B, c['modo_x'], c['f_x']),
-                                            ('Y', B, ey, N, c['modo_y'], c['f_y'])]:
-                if modo == 'lineal':
-                    out.append((f'Dirección {eje} dentro de su tercio medio', f'f_{eje} = P / (N · B) · (1 + 6 e_{eje.lower()} / {"N" if eje == "X" else "B"})',
-                                f'{Pc:.0f} / ({N:g} · {B:g}) · (1 + 6 · {e:.2f} / {L:g})', _kg(fd, 'kgf/cm²', 1)))
-                elif modo == 'triangular':
-                    Y = 3 * (L / 2 - e)
-                    if Y <= 0:
-                        out.append((f'Dirección {eje}: e ≥ L/2', 'la resultante queda fuera de la placa en esta dirección',
-                                    f'e = {e:.2f} cm ;  L/2 = {L / 2:.2f} cm', 'fuera de la placa'))
-                    else:
-                        out.append((f'Dirección {eje} fuera de su tercio medio (triangular)',
-                                    f'Y = 3 · (L/2 − e_{eje.lower()}) ;  f_{eje} = 2P / (W · Y)   (NO REVISADO)',
-                                    f'L = {L:g} ; W = {W:g} ; Y = 3 · ({L / 2:.2f} − {e:.2f}) = {Y:.2f} cm ;  '
-                                    f'f_{eje} = 2 · {Pc:.0f} / ({W:g} · {Y:.2f})', _kg(fd, 'kgf/cm²', 1)))
+        for eje, L, e, W, dd in [('X', N, ex, B, c['dx']), ('Y', B, ey, N, c['dy'])]:
+            minus = eje.lower()
+            if not dd['grande']:
+                if e <= L / 6.0:
+                    out.append((f'Dirección {eje}: compresión lineal (e ≤ L/6)',
+                                f'f_{minus} = P / (N · B) · (1 + 6 · e_{minus} / {"N" if eje == "X" else "B"})',
+                                f'{Pc:.0f} / ({N:g} · {B:g}) · (1 + 6 · {e:.2f} / {L:g})', _kg(dd['f'], 'kgf/cm²', 1)))
                 else:
-                    out.append((f'Dirección {eje} con pernos en tracción',
-                                'C = f_adm · B · Y / 2 = P + T ;  C · (x_T − Y/3) = P · (x_T − x_P)  →  Y ;  x_T = N − c_anclas ;  x_P = N/2 − e_x',
-                                f'x_T = {N - ct:.2f} cm ;  x_P = {N / 2 - ex:.2f} cm ;  f_adm = {k["f_adm"]:.1f} kgf/cm²',
-                                f'Y = {c["Y"]:.2f} cm ;  f_X = f_adm'))
-            out.append(('Presión de diseño del apoyo', 'f = máx(f_X ; f_Y)   (aproximación fuera del núcleo, NO REVISADA)',
-                        f'máx({_vp(c["f_x"], 1)} ; {_vp(c["f_y"], 1)})', _kg(c['f'], 'kgf/cm²', 1)))
+                    out.append((f'Dirección {eje}: compresión triangular (L/6 < e ≤ e_crit)',
+                                f'Y = 3 · (L/2 − e_{minus}) ;  f_{minus} = 2P / (W · Y)',
+                                f'Y = 3 · ({L / 2:.2f} − {e:.2f}) = {3 * (L / 2 - e):.2f} cm ;  '
+                                f'f = 2 · {Pc:.0f} / ({W:g} · {3 * (L / 2 - e):.2f})', _kg(dd['f'], 'kgf/cm²', 1)))
+            else:
+                q = dd['q']
+                out.append((f'Dirección {eje}: e_crit (momento grande)',
+                            'e_crit = L/2 − P / (2 · q) ;  q = f_adm · W',
+                            f'{L / 2:.2f} − {Pc:.0f} / (2 · {q:.0f}) ;  e = {e:.2f} cm',
+                            f'e_crit = {dd["ecrit"]:.2f} cm: e > e_crit, pernos en tracción'))
+                if dd['ok']:
+                    out.append((f'Dirección {eje}: bloque de compresión Y',
+                                'f_b = L/2 − c ;  x_T = L/2 + f_b ;  Y = x_T − √(x_T² − 2 · P · (e + f_b) / q)',
+                                f'f_b = {dd["f_b"]:.2f} cm ;  x_T = {dd["xT"]:.2f} cm ;  q = {q:.0f} kgf/cm',
+                                f'Y = {dd["Y"]:.3f} cm'))
+                    out.append((f'Dirección {eje}: tracción total de la fila de pernos', 'T = q · Y − P',
+                                f'{q:.0f} · {dd["Y"]:.3f} − {Pc:.0f}', _kg(dd['Ta'], 'kgf', 1)))
+                else:
+                    out.append((f'Dirección {eje}: sin solución', 'x_T² − 2 · P · (e + f_b) / q < 0 o Y > L',
+                                '—', 'aumentar la placa'))
+        out.append(('Utilización de aplastamiento',
+                    'FU_ap = máx(f / f_adm) en compresión; con momento grande la presión de diseño es f_adm (equilibrio)',
+                    f'máx(f_X ; f_Y) / f_adm = {c["fu"]["ap"]:.3f}' if math.isfinite(c['fu']['ap']) else 'sin solución',
+                    f'{c["fu"]["ap"]:.3f}' if math.isfinite(c['fu']['ap']) else 'inf'))
         return out
     if cl == 'pl':
         if 'treq' not in c:
@@ -1036,8 +1041,26 @@ def _pasos_base(v, r):
                     f'2 · √{X:.4f} / (1 + √(1 − {X:.4f}))', f'{lam:.4f}'))
         out.append(('Voladizo crítico', 'l = máx(m ; n ; λ · n′)',
                     f'máx({c["m"]:.2f} ; {c["n"]:.2f} ; {lam:.4f} · {c["np"]:.2f})', _kg(c['l'], 'cm', 2)))
-        out.append(('Espesor requerido de la placa', f't_req = l · √(2 · Ω_pl · f / F_y),  Ω_pl = {k["Opl"]:.2f}',
-                    f'{c["l"]:.2f} · √(2 · {k["Opl"]:.2f} · {c["f"]:.1f} / {d["fy"]:g})', _kg(c['treq'], 'cm', 3)))
+        f_peq = [dd['f'] for dd in (c['dx'], c['dy']) if not dd['grande']]
+        if f_peq:
+            fmax_peq = max(f_peq)
+            out.append(('Espesor, caso de momento pequeño', f't = l · √(2 · Ω_pl · f / F_y),  Ω_pl = {k["Opl"]:.2f}',
+                        f'{c["l"]:.2f} · √(2 · {k["Opl"]:.2f} · {fmax_peq:.2f} / {d["fy"]:g})',
+                        _kg(c['l'] * math.sqrt(2 * k['Opl'] * fmax_peq / d['fy']), 'cm', 3)))
+        for eje, dd in (('X', c['dx']), ('Y', c['dy'])):
+            if not (dd['grande'] and dd.get('ok')):
+                continue
+            cant = c['m'] if eje == 'X' else c['n']
+            W = B if eje == 'X' else N
+            out.append((f'Espesor por compresión, dirección {eje} (momento grande)',
+                        f't_comp = 2.58 · √(f_adm · Y · ({"m" if eje == "X" else "n"} − Y/2) / F_y)',
+                        f'2.58 · √({k["f_adm"]:.1f} · {dd["Y"]:.3f} · ({cant:.2f} − {dd["Y"] / 2:.3f}) / {d["fy"]:g})',
+                        _kg(dd['t_comp'], 'cm', 3)))
+            out.append((f'Espesor por tracción del voladizo del perno, dirección {eje}',
+                        f't_anc = 2.58 · √(T · x / (W · F_y)),  x = f_b − mín(W_x ; W_y)/2',
+                        f'2.58 · √({dd["Ta"]:.0f} · {dd["x"]:.2f} / ({W:g} · {d["fy"]:g}))', _kg(dd['t_anc'], 'cm', 3)))
+        out.append(('Espesor requerido: máximo de todos los casos', 't_req = máx(casos de espesor)',
+                    'máx(casos anteriores) de la combinación', _kg(c['treq'], 'cm', 3)))
         return out
     if cl in ('T', 'cono'):
         if 'Ta' not in c:
@@ -1045,13 +1068,15 @@ def _pasos_base(v, r):
                      'fuera de la placa')]
     if cl == 'T':
         Tside = c['Tside']
-        if (c.get('T_ap') or 0) > 0 and c.get('Y') is not None:
-            out.append(('Equilibrio con pernos en tracción (dirección X)',
-                        'C = f_adm · B · Y / 2 = P + T ;  C · (x_T − Y/3) = P · (x_T − x_P)  →  Y',
-                        f'x_T = {N - ct:.2f} cm ;  x_P = {N / 2 - ex:.2f} cm ;  f_adm = {k["f_adm"]:.1f} kgf/cm²',
-                        f'Y = {c["Y"]:.2f} cm'))
-            out.append(('Tracción total del lado de pernos', 'T = C − P = f_adm · B · Y / 2 − P',
-                        f'{k["f_adm"]:.1f} · {B:g} · {c["Y"]:.2f} / 2 − {Pc:.0f}', _kg(Tside, 'kgf', 1)))
+        grandes_t = [(eje, dd) for eje, dd in (('X', c['dx']), ('Y', c['dy'])) if dd['grande'] and dd.get('ok')]
+        if grandes_t:
+            for eje, dd in grandes_t:
+                out.append((f'Equilibrio con pernos en tracción (dirección {eje})',
+                            'C = q · Y ;  C · (x_T − Y/2) = P · (e + f_b)  →  Y ;  T = C − P',
+                            f'q = {dd["q"]:.0f} kgf/cm ;  x_T = {dd["xT"]:.2f} cm ;  Y = {dd["Y"]:.3f} cm',
+                            f'T = {dd["Ta"]:.0f} kgf'))
+            out.append(('Tracción total del lado de pernos', 'T = máx(T_X ; T_Y)',
+                        f'máx({c["dx"].get("Ta") or 0:.0f} ; {c["dy"].get("Ta") or 0:.0f}) kgf', _kg(Tside, 'kgf', 1)))
         elif Pt > 0:
             out.append(('Tracción total del lado de pernos (levantamiento)', 'T = P_t / 2 + |M_y| / (N − 2 · c_anclas)',
                         f'{Pt:.0f} / 2 + {abs(my):.0f} / ({N:g} − 2 · {ct:g})', _kg(Tside, 'kgf', 1)))

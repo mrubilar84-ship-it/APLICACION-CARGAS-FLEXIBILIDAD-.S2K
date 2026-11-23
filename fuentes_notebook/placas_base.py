@@ -42,7 +42,7 @@ MPA_POR_KGCM2 = 0.0980665
 KGF_POR_N = 1.0 / 9.80665
 TOL_MOMENTO = 1e-3                    # kgf·cm: ruido numerico
 LIMITACIONES = [
-    'pernos: n/2 por lado en la direccion N (X); no se modelan pernos en la direccion Y (NO REVISADO)',
+    'pernos: n/2 por fila en X y en Y (n es dato de entrada de la planilla); cada direccion se verifica por separado (NO REVISADO contra DG1 §3.2)',
     'pernos: solo predimensionamiento: no se verifican arrancamiento lateral, rotura lateral, pryout, espesor del '
     'elemento ni el efecto de grupo (NO REVISADO)',
     'pernos: cono de concreto con A_Nc = A_Nco (un cono por lado); no se verifican separacion ni distancia al borde '
@@ -78,70 +78,51 @@ def envolvente(perfil, eje):
     return perfil['H'] * abs(ux) + perfil['B'] * abs(uy), perfil['H'] * abs(uy) + perfil['B'] * abs(ux)
 
 
-def _traccion_lado(P, e, L, W, x_T, f_adm, pernos=True):
-    """Compresion P con excentricidad e en la direccion de longitud L, pernos a x_T del borde comprimido.
-    Distribucion triangular: C = f B Y / 2 a Y/3 del borde. Si la carga cae dentro del tercio medio, la presion es
-    triangular sin pernos. Si queda fuera del tercio medio, el equilibrio (C = P + T; momentos en torno a los pernos)
-    da Y y T con f = f_adm. Si la carga queda fuera de la placa (x_P <= 0), solo hay equilibrio con pernos en
-    tension (pernos=True); sin pernos en esa direccion no hay apoyo. NO REVISADO contra DG1 §3.2."""
-    x_P = L / 2.0 - e
-    if x_P > 0:
-        Y0 = 3.0 * x_P
-        f0 = 2.0 * P / (W * Y0)
-        if f0 <= f_adm:
-            return {'f': f0, 'f0': f0, 'T': 0.0, 'Y': Y0, 'ok': True, 'tension': False}
-        a = Y0
-    else:
-        if not pernos:
-            return {'f': math.inf, 'f0': math.inf, 'T': None, 'Y': None, 'ok': False, 'tension': False}
-        f0 = math.inf
-        a = 0.0
-    k = f_adm * W / 2.0
-    g = lambda Y: k * Y * (x_T - Y / 3.0) - P * (x_T - x_P)
-    if x_T - x_P <= 0 or g(L) < 0:
-        return {'f': f_adm, 'f0': f0, 'T': None, 'Y': None, 'ok': False, 'tension': True}
-    b = L
-    for _ in range(100):
-        m = (a + b) / 2.0
-        if g(m) < 0:
-            a = m
-        else:
-            b = m
-    Y = (a + b) / 2.0
-    return {'f': f_adm, 'f0': f0, 'T': k * Y - P, 'Y': Y, 'ok': True, 'tension': True}
+def _direccion(P, e, L, W, c, fp, cant, bf, Fy):
+    """Una direccion de la placa, segun la hoja SMath 'CALCULO PLACA BASE MOMENTOS GRANDES' (DG1 §3.2; NO REVISADO
+    contra DG1 en imagen). P (kgf); e, L, W, c (cm); fp = fpmax admisible (kgf/cm2); cant = voladizo DG1 (m o n);
+    bf = ancho de patin (cm); Fy (kgf/cm2).
+    Momento pequeno (e <= ecrit): compresion, lineal (e <= L/6) o triangular, sin pernos en tension.
+    Momento grande (e > ecrit): bloque rectangular fp·W sobre Y desde el borde comprimido; pernos en tension a
+    x_T = L − c del borde comprimido; Ta = fp·W·Y − P (total de la fila de pernos); espesor por DG1."""
+    q = fp * W
+    ecrit = L / 2.0 - P / (2.0 * q)
+    if e <= ecrit:
+        f = P / (L * W) * (1.0 + 6.0 * e / L) if e <= L / 6.0 else 2.0 * P / (W * 3.0 * (L / 2.0 - e))
+        return {'grande': False, 'ok': True, 'ecrit': ecrit, 'e': e, 'f': f}
+    f_b = L / 2.0 - c                        # f = Sxx/2: distancia del perno al eje de la placa
+    xT = L / 2.0 + f_b                       # distancia del borde comprimido al perno en tension
+    disc = xT * xT - 2.0 * P * (e + f_b) / q
+    if disc < 0:
+        return {'grande': True, 'ok': False, 'ecrit': ecrit, 'e': e, 'f': fp, 'Y': None, 'Ta': None, 'xT': xT,
+                'f_b': f_b, 'q': q}
+    Y = xT - math.sqrt(disc)
+    if Y > L:
+        return {'grande': True, 'ok': False, 'ecrit': ecrit, 'e': e, 'f': fp, 'Y': Y, 'Ta': None, 'xT': xT,
+                'f_b': f_b, 'q': q}
+    Ta = max(q * Y - P, 0.0)
+    t_comp = 2.58 * math.sqrt(fp * Y * (cant - Y / 2.0) / Fy)
+    x = f_b - bf / 2.0
+    t_anc = 2.58 * math.sqrt(Ta * x / (W * Fy)) if (Ta > 0 and x > 0) else 0.0
+    return {'grande': True, 'ok': True, 'ecrit': ecrit, 'e': e, 'f': fp, 'Y': Y, 'Ta': Ta, 'xT': xT, 'f_b': f_b,
+            'x': x, 'q': q, 't_comp': t_comp, 't_anc': t_anc, 'treq': max(t_comp, t_anc)}
 
 
-def _apoyo(P, mx, my, N, B, f_adm, c_t):
-    """Presion de apoyo y traccion en los pernos del lado X, para compresion P (kgf) y momentos mx, my (kgf·cm).
-    Dentro del nucleo (6e_x/N + 6e_y/B <= 1): presion lineal. Fuera: cada direccion se evalua por separado: lineal si
-    su excentricidad esta dentro de su tercio medio; triangular si queda fuera (Y = 3(L/2 − e)). La presion de diseno
-    es la mayor de las dos direcciones (aproximacion, NO REVISADA para biaxial fuera del nucleo)."""
+def _apoyo(P, mx, my, d, ctx):
+    """Verificacion en las dos direcciones, cada una con sus pernos (n/2 por fila; n es dato de entrada):
+    ex = |MY|/P a lo largo de N (X) y ey = |MX|/P a lo largo de B (Y). Ta = tension de la fila mas cargada."""
+    N, B, c_t = d['pl_n'], d['pl_b'], d['c_t']
+    fp, Wx, Wy = ctx['f_adm'], ctx['Wx'], ctx['Wy']
+    bf = min(Wx, Wy)
     ex, ey = abs(my) / P, abs(mx) / P
-    if 6 * ex / N + 6 * ey / B <= 1.0:
-        f = P / (N * B) * (1 + 6 * ex / N + 6 * ey / B)
-        return {'f': f, 'T': 0.0, 'ok': True, 'ex': ex, 'ey': ey, 'fuera': False, 'Y': None,
-                'modo_x': 'lineal', 'modo_y': 'lineal', 'f_x': f, 'f_y': f, 'tension_x': False, 'tension_y': False,
-                'biaxial_fuera': False}
-    if 6 * ex / N <= 1.0:
-        rx = {'f': P / (N * B) * (1 + 6 * ex / N), 'T': 0.0, 'Y': None, 'ok': True, 'tension': False}
-        modo_x = 'lineal'
-    else:
-        rx = _traccion_lado(P, ex, N, B, N - c_t, f_adm)
-        modo_x = 'pernos' if rx['tension'] else 'triangular'
-    if 6 * ey / B <= 1.0:
-        f_y = P / (N * B) * (1 + 6 * ey / B)
-        ry_tension = False
-        modo_y = 'lineal'
-    else:
-        ry = _traccion_lado(P, ey, B, N, B, f_adm, pernos=False)     # sin pernos en Y: no hay apoyo fuera del tercio
-        ry_tension = ry['tension']
-        f_y = ry['f0'] if ry['tension'] else ry['f']
-        modo_y = 'triangular'
-    f_x = rx['f']
-    return {'f': max(f_x, f_y), 'T': rx['T'], 'ok': rx['ok'] and math.isfinite(f_y), 'ex': ex, 'ey': ey,
-            'fuera': True, 'Y': rx['Y'] if modo_x == 'pernos' else None, 'modo_x': modo_x, 'modo_y': modo_y,
-            'f_x': f_x, 'f_y': f_y, 'tension_x': rx['tension'], 'tension_y': ry_tension,
-            'biaxial_fuera': ex > 0 and ey > 0 and (6 * ex / N + 6 * ey / B) > 1.0}
+    dx = _direccion(P, ex, N, B, c_t, fp, (N - 0.95 * Wx) / 2.0, bf, d['fy'])
+    dy = _direccion(P, ey, B, N, c_t, fp, (B - 0.8 * Wy) / 2.0, bf, d['fy'])
+    ok = dx['ok'] and dy['ok']
+    Ta = max(dx.get('Ta') or 0.0, dy.get('Ta') or 0.0) if ok else None
+    fu_ap = max([x['f'] / fp for x in (dx, dy) if not x['grande']] or [0.0])
+    if not ok:
+        fu_ap = math.inf
+    return {'ok': ok, 'ex': ex, 'ey': ey, 'dx': dx, 'dy': dy, 'Ta': Ta, 'fu_ap': fu_ap}
 
 
 def _combinacion(caso, v, d, ctx):
@@ -159,20 +140,22 @@ def _combinacion(caso, v, d, ctx):
         c['pendientes'].append('momento sin compresion en la base: transferencia al dado y anclajes no verificada '
                                '(NO REVISADO)')
     if Pc > 0:
-        ap = _apoyo(Pc, mx, my, N, B, ctx['f_adm'], c_t)
-        c.update(f=ap['f'], ex=ap['ex'], ey=ap['ey'], fuera=ap['fuera'], Y=ap['Y'], T_ap=ap['T'], ap_ok=ap['ok'],
-                 modo_x=ap['modo_x'], modo_y=ap['modo_y'], f_x=ap['f_x'], f_y=ap['f_y'])
-        c['fu']['ap'] = ap['f'] / ctx['f_adm'] if ap['ok'] else math.inf
-        if ap['fuera']:
-            c['notas'].append('excentricidad fuera del tercio medio: distribucion triangular (NO REVISADO)')
-        if ap.get('tension_y'):
-            c['notas'].append('excentricidad en Y fuera del tercio medio: sin pernos modelados en Y (NO REVISADO)')
-        if ap.get('biaxial_fuera'):
-            c['pendientes'].append('contacto biaxial fuera del nucleo: presion por direccion, sin solucion de contacto '
-                                   '(NO REVISADO)')
-        if not math.isfinite(ap['f']):
-            c['notas'].append('la resultante queda fuera de la placa (e > mitad de la placa en una direccion): no hay '
-                              'apoyo. NO CUMPLE: aumentar la placa o revisar pernos en esa direccion')
+        ap = _apoyo(Pc, mx, my, d, ctx)
+        dx, dy = ap['dx'], ap['dy']
+        c.update(ex=ap['ex'], ey=ap['ey'], ap_ok=ap['ok'], Ta_x=dx.get('Ta'), Ta_y=dy.get('Ta'), dx=dx, dy=dy,
+                 f=max(dx['f'], dy['f']), fuera=dx['grande'] or dy['grande'], Y=dx.get('Y'), T_ap=ap['Ta'],
+                 modo_x='grande' if dx['grande'] else 'pequeno', modo_y='grande' if dy['grande'] else 'pequeno',
+                 f_x=dx['f'], f_y=dy['f'])
+        c['fu']['ap'] = ap['fu_ap']
+        if dx['grande'] or dy['grande']:
+            c['notas'].append('excentricidad fuera del tercio medio: bloque rectangular fpmax con pernos en tension '
+                              '(hoja SMath; DG1 §3.2, NO REVISADO contra DG1 en imagen)')
+        if ap['ex'] > 0 and ap['ey'] > 0 and (6 * ap['ex'] / N + 6 * ap['ey'] / B) > 1.0:
+            c['pendientes'].append('contacto biaxial fuera del nucleo: cada direccion se verifica por separado, sin '
+                                   'solucion de contacto simultanea (NO REVISADO)')
+        if not ap['ok']:
+            c['notas'].append('no hay solucion con la presion admisible en alguna direccion: aumentar la placa '
+                              '(NO CUMPLE)')
         X = 4 * ctx['Wx'] * ctx['Wy'] / (ctx['Wx'] + ctx['Wy']) ** 2 * ctx['Oc'] * Pc / ctx['Pp']
         if X >= 1.0:
             c['notas'].append('parametro X >= 1: la carga excede el aplastamiento (lambda = 1)')
@@ -183,12 +166,20 @@ def _combinacion(caso, v, d, ctx):
         n_ = (B - 0.8 * ctx['Wy']) / 2.0
         np_ = math.sqrt(ctx['Wx'] * ctx['Wy']) / 4.0
         l_ = max(m_, n_, lam * np_)
-        treq = l_ * math.sqrt(2.0 * ctx['Opl'] * ap['f'] / d['fy'])
+        # Espesor: el maximo de todos los casos (combinaciones y direcciones)
+        casos_t = []
+        f_peq = [x['f'] for x in (dx, dy) if not x['grande']]
+        if f_peq:
+            casos_t.append(l_ * math.sqrt(2.0 * ctx['Opl'] * max(f_peq) / d['fy']))
+        for x in (dx, dy):
+            if x['grande']:
+                casos_t.append(x['treq'] if x['ok'] else math.inf)
+        treq = max(casos_t)
         c.update(X=X, lam=lam, m=m_, n=n_, np=np_, l=l_, treq=treq)
         c['fu']['pl'] = (treq / d['pl_t']) ** 2
     # Traccion en pernos: compresion con excentricidad fuera del tercio medio, o levantamiento (anclas al lado X)
     if Pc > 0:
-        Tside = c.get('T_ap')
+        Tside = (max(c.get('Ta_x') or 0.0, c.get('Ta_y') or 0.0) if c.get('ap_ok') else None)
     else:
         Tside = Pt / 2.0 + abs(my) / (N - 2 * c_t) if (Pt > 0 or abs(my) > 0) else 0.0
         if Pt > 0:
