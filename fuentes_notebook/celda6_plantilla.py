@@ -976,7 +976,7 @@ NORMA_VALORES = [
 # Hoja BASES (placas base): una fila por nodo de apoyo. Mismo orden que CAMPOS de placas_base.py.
 BASES_COLS = ['ID NODO', 'FC (kgf/cm2)', 'DADO N (cm)', 'DADO B (cm)', 'PLACA N (cm)', 'PLACA B (cm)', 'PLACA t (cm)',
               'FY PLACA (kgf/cm2)', 'ANCLAS TOTALES (n)', 'C ANCLAS (cm)', 'DIAMETRO ANCLA (pulg)', 'HILOS POR PULG',
-              'FU ANCLA (kgf/cm2)', 'h_ef ANCLA (cm)', 'SOLDADURA w (cm)', 'LONG. SOLDADURA (cm)', 'RESERVADA (no se usa)', 'NOTA']
+              'FU ANCLA (kgf/cm2)', 'h_ef ANCLA (cm)', 'SOLDADURA w (cm)', 'LONG. SOLDADURA (cm)', 'PERNOS EN X (Nx)', 'NOTA', 'PERNOS EN Y (Ny)']
 BASES_MAX = 10
 
 
@@ -1045,18 +1045,19 @@ def _hoja_bases(wb, filas=None):
     ws['A1'].font = NEGRITA
     ws['A2'] = ('Cargas: combinaciones de servicio ASD (hoja REACCIONES). Unidades: cm, kgf, kgf/cm2. Ancla: diametro en '
                 'pulgadas; hilos por pulgada de la rosca. C ANCLAS = distancia del borde de la placa (en N) al centro de los pernos.')
-    _cabecera_en(ws, 4, BASES_COLS, [10, 14, 12, 12, 12, 12, 12, 16, 16, 14, 18, 14, 18, 14, 16, 18, 14, 30])
+    _cabecera_en(ws, 4, BASES_COLS, [10, 14, 12, 12, 12, 12, 12, 16, 16, 14, 18, 14, 18, 14, 16, 18, 14, 30, 14])
     ws.row_dimensions[4].height = 45
     for k in range(BASES_MAX):
         fila = 5 + k
         valores = filas[k] if filas and k < len(filas) else []
         for c in range(len(BASES_COLS)):
             celda = ws.cell(row=fila, column=c + 1, value=(valores[c] if c < len(valores) else None))
-            if c < len(BASES_COLS) - 1:
+            if BASES_COLS[c] != 'NOTA':
                 celda.fill = ENTRADA
     dv = DV(type='decimal', operator='greaterThanOrEqual', formula1='0', allow_blank=True)
     ws.add_data_validation(dv)
     dv.add(f'A5:Q{4 + BASES_MAX}')
+    dv.add(f'S5:S{4 + BASES_MAX}')
     ws.freeze_panes = 'B5'
 
 
@@ -1092,7 +1093,7 @@ def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas
         'LONGITUDES: por barra, LX y LY (m) longitud no arriostrada en X e Y, KX y KY (factor K), LB (m) para pandeo lateral, CB. Vacio = supuesto.',
         'BASES: placas base. Una fila por nodo de apoyo (maximo 10). Todo es dato de entrada: sin valores por defecto.',
         '   Placa N x B x t y dado N x B (cm); f′c (kgf/cm2); anclas: n totales (par), distancia C ANCLAS (cm), diametro (pulg) e hilos por pulg.',
-        '   Soldadura: tamaño w y longitud (cm). La columna RESERVADA no se usa. Vacia la fila = ese nodo no se verifica (el resto del diseño no cambia).',
+        '   Soldadura: tamaño w y longitud (cm). Pernos: Nx = pernos por fila en X, Ny = pernos por fila en Y (2+2 = 2 y 2); n = Nx · Ny. Vacia la fila = ese nodo no se verifica (el resto del diseño no cambia).',
         'E5 (angulos LI): SI en las cuatro columnas solo si la pata cumple: (1) carga en los extremos por una pata; (2) union soldada o con 2 pernos o mas; '
         '(3) sin cargas transversales intermedias; (4) miembro individual o alma de armadura plana. Vacio o NO = K L/rz y H2.',
         'LI CONEXION: UNA PATA o DOS PATAS (ambas patas conectadas). LI LONGITUD CONEXION (m): longitud de la conexion; vacio = longitud de la barra.',

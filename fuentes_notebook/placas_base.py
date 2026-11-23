@@ -18,13 +18,13 @@ import perfiles_gerdau as G
 
 # Campos de la hoja BASES, en el mismo orden que sus columnas (BASES_COLS de la plantilla).
 CAMPOS = ['id', 'fc', 'dado_n', 'dado_b', 'pl_n', 'pl_b', 'pl_t', 'fy', 'n', 'c_t', 'diam', 'hilos', 'fu', 'hef',
-          'sold_w', 'sold_l', 'mu', 'nota']
-OBLIGATORIOS = [c for c in CAMPOS if c not in ('id', 'nota', 'mu')]   # sin friccion: mu no es dato del calculo
+          'sold_w', 'sold_l', 'nx', 'nota', 'ny']
+OBLIGATORIOS = [c for c in CAMPOS if c not in ('id', 'nota')]   # nx, ny: disposicion de pernos (dato de entrada)
 ETIQUETA = {'fc': "f'c (kgf/cm2)", 'dado_n': 'dado N (cm)', 'dado_b': 'dado B (cm)', 'pl_n': 'placa N (cm)',
             'pl_b': 'placa B (cm)', 'pl_t': 'placa t (cm)', 'fy': 'Fy placa (kgf/cm2)', 'n': 'anclas totales n',
             'c_t': 'c anclas (cm)', 'diam': 'diametro ancla (pulg)', 'hilos': 'hilos por pulg', 'fu': 'Fu ancla (kgf/cm2)',
             'hef': 'h_ef ancla (cm)', 'sold_w': 'soldadura w (cm)', 'sold_l': 'longitud soldadura (cm)',
-            'mu': 'coef. de friccion'}
+            'nx': 'pernos en X, Nx (por fila)', 'ny': 'pernos en Y, Ny (por fila)'}
 NORMA_BASE = ['BASE_J8_085', 'BASE_J8_LIM', 'BASE_OMEGA_C', 'BASE_FACTOR_ASD', 'BASE_PHI_PL', 'BASE_PHI_ANCLA_T',
               'BASE_FNT', 'BASE_PHI_ANCLA_V', 'BASE_FV', 'BASE_PHI_CONO', 'BASE_KC_CONO', 'BASE_LAMBDA',
               'BASE_PHI_SOLD', 'BASE_SOLD_FRAC', 'BASE_FEXX_KSI']
@@ -42,7 +42,7 @@ MPA_POR_KGCM2 = 0.0980665
 KGF_POR_N = 1.0 / 9.80665
 TOL_MOMENTO = 1e-3                    # kgf·cm: ruido numerico
 LIMITACIONES = [
-    'pernos: n/2 por fila en X y en Y (n es dato de entrada de la planilla); cada direccion se verifica por separado (NO REVISADO contra DG1 §3.2)',
+    'pernos: disposicion Nx x Ny es dato de entrada; cada direccion se verifica por separado; interaccion traccion-corte con la ecuacion AISC 360-22 J3-3b y coeficientes de DG1 (NO REVISADO contra DG1 en imagen)',
     'pernos: solo predimensionamiento: no se verifican arrancamiento lateral, rotura lateral, pryout, espesor del '
     'elemento ni el efecto de grupo (NO REVISADO)',
     'pernos: cono de concreto con A_Nc = A_Nco (un cono por lado); no se verifican separacion ni distancia al borde '
@@ -182,22 +182,40 @@ def _combinacion(caso, v, d, ctx):
         Tside = (max(c.get('Ta_x') or 0.0, c.get('Ta_y') or 0.0) if c.get('ap_ok') else None)
     else:
         Tside = Pt / 2.0 + abs(my) / (N - 2 * c_t) if (Pt > 0 or abs(my) > 0) else 0.0
+        c.update(Ta_x=Tside, Ta_y=0.0)
         if Pt > 0:
             c['pendientes'].append('levantamiento: flexion de la placa por los pernos no verificada (NO REVISADO)')
         if Pt > 0 and abs(mx) > 0:
             c['pendientes'].append('levantamiento con momento en X: pernos solo en la direccion N (NO REVISADO)')
-    if Tside is None:
-        c['notas'].append('placa insuficiente: no hay equilibrio con la presion admisible (NO REVISADO)')
-        c['fu'].update(T=math.inf, cono=math.inf)
-    else:
-        Ta = Tside / (n / 2.0)
-        c.update(Tside=Tside, Ta=Ta)
-        c['fu']['T'] = Ta / ctx['allow_T'] if Tside > 0 else 0.0
-        c['fu']['cono'] = Tside / ctx['allow_cono'] if Tside > 0 else 0.0
     # Cortante en pernos (reparto igual entre todos los pernos)
     Va = V / n
     c.update(Va=Va)
     c['fu']['V'] = Va / ctx['allow_V'] if V > 0 else 0.0
+    if Tside is None:
+        c['notas'].append('placa insuficiente: no hay equilibrio con la presion admisible (NO REVISADO)')
+        c['fu'].update(T=math.inf, cono=math.inf)
+    else:
+        # Fila X (en el borde X) tiene Ny pernos; fila Y tiene Nx pernos (datos de entrada)
+        nx, ny = int(d['nx']), int(d['ny'])
+        Tp_x = (c.get('Ta_x') or 0.0) / ny
+        Tp_y = (c.get('Ta_y') or 0.0) / nx
+        Tp = max(Tp_x, Tp_y)
+        Fu = d['fu']
+        Fnt = ctx['Fnt'] * Fu
+        Fnv = ctx['Fv'] * Fu
+        OT = ctx['OT']
+        fv = Va / ctx['Ab']
+        # AISC 360-22 J3-3b (ASD): F'nt = 1.3·Fnt − (Ω·Fnt/Fnv)·f_rv ≤ Fnt ; capacidad admisible = F'nt/Ω
+        Fnt_p = max(0.0, min(1.3 * Fnt / OT - Fnt * fv / Fnv, Fnt / OT))
+        T_all = Fnt_p * ctx['At']
+        c.update(Tside=Tside, Ta=Tp, Tp_x=Tp_x, Tp_y=Tp_y, fv=fv, Fnt_p=Fnt_p, T_all=T_all)
+        if Tp <= 0:
+            c['fu']['T'] = 0.0
+        elif T_all <= 0:
+            c['fu']['T'] = math.inf
+        else:
+            c['fu']['T'] = Tp / T_all
+        c['fu']['cono'] = Tside / ctx['allow_cono'] if Tside > 0 else 0.0
     # Soldadura: cortante + tension (levantamiento + momento de ala, conservador)
     Tw = Pt + max(abs(mx) / ctx['Wy'], abs(my) / ctx['Wx'])
     Rw = math.hypot(Tw, V)
@@ -231,8 +249,12 @@ def verificar_nodo(datos, perfil, eje, reacciones, nrm):
               'sold_w', 'sold_l'):
         if math.isfinite(d[k]) and d[k] <= 0:
             invalidos.append(f'{ETIQUETA.get(k, k)} debe ser mayor que cero')
-    if math.isfinite(d['n']) and (not float(d['n']).is_integer() or d['n'] < 2 or int(d['n']) % 2):
-        invalidos.append('anclas totales n debe ser un entero par y al menos 2 (dos lados)')
+    if math.isfinite(d['n']) and (not float(d['n']).is_integer() or d['n'] < 2):
+        invalidos.append('anclas totales n debe ser un entero de al menos 2')
+    if all(math.isfinite(d[k]) for k in ('nx', 'ny', 'n')):
+        if (not float(d['nx']).is_integer() or not float(d['ny']).is_integer() or d['nx'] < 1 or d['ny'] < 1
+                or d['nx'] * d['ny'] != d['n']):
+            invalidos.append('pernos: Nx y Ny deben ser enteros >= 1 con Nx · Ny = n (anclas totales)')
     if math.isfinite(d['c_t']) and math.isfinite(N) and d['c_t'] >= N / 2.0:
         invalidos.append('c anclas debe ser menor que la mitad de la placa')
     if math.isfinite(N * B) and math.isfinite(d['dado_n'] * d['dado_b']) and d['dado_n'] * d['dado_b'] < N * B:

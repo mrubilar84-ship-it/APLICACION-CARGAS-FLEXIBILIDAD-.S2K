@@ -1082,16 +1082,31 @@ def _pasos_base(v, r):
                         f'{Pt:.0f} / 2 + {abs(my):.0f} / ({N:g} − 2 · {ct:g})', _kg(Tside, 'kgf', 1)))
         else:
             out.append(('Tracción en pernos', 'sin tracción: compresión dentro del núcleo, T = 0', '—', _kg(0.0, 'kgf', 1)))
-        out.append(('Tracción por perno', f'T_a = T / (n/2),  n/2 = {n / 2:g} pernos por lado',
-                    f'{Tside:.1f} / {n / 2:g}', _kg(c['Ta'], 'kgf', 1)))
+        nx_, ny_ = int(d['nx']), int(d['ny'])
+        out.append(('Disposición de pernos (dato de entrada)',
+                    'n = N_x · N_y ;  N_x = pernos por fila en X ;  N_y = pernos por fila en Y',
+                    f'{nx_} · {ny_} = {nx_ * ny_}', f'n = {n:g}'))
+        out.append(('Tracción por perno, fila en X', 'T_p,X = T_X / N_y',
+                    f'{c.get("Ta_x") or 0:.1f} / {ny_}', _kg(c.get('Tp_x') or 0.0, 'kgf', 1)))
+        out.append(('Tracción por perno, fila en Y', 'T_p,Y = T_Y / N_x',
+                    f'{c.get("Ta_y") or 0:.1f} / {nx_}', _kg(c.get('Tp_y') or 0.0, 'kgf', 1)))
         out.append(('Área de tensión de la rosca', 'A_t = π/4 · (D − 0.9743 / n_h)² · 6.4516   (ASME B1.1)',
                     f'π/4 · ({d["diam"]:g} − 0.9743 / {d["hilos"]:g})² · 6.4516', _kg(k['At'], 'cm²', 3)))
-        out.append(('Área bruta del perno (referencia)', 'A_b = π/4 · D² · 6.4516',
+        out.append(('Área bruta del perno', 'A_b = π/4 · D² · 6.4516',
                     f'π/4 · {d["diam"]:g}² · 6.4516', _kg(k['Ab'], 'cm²', 3)))
-        out.append(('Resistencia nominal a tracción', f'R_n = F_nt · F_u · A_t,  F_nt = {k["Fnt"]:g}  (DG1 pág. 19)',
-                    f'{k["Fnt"]:g} · {d["fu"]:g} · {k["At"]:.3f}', _kg(k['Fnt'] * d['fu'] * k['At'], 'kgf', 0)))
-        out.append(('Resistencia admisible a tracción', f'R_n / Ω_T,  Ω_T = {k["OT"]:.2f}',
-                    f'{k["Fnt"] * d["fu"] * k["At"]:,.0f} / {k["OT"]:.2f}', _kg(k['allow_T'], 'kgf', 0)))
+        out.append(('Corte por perno', 'V_p = V / n ;  f_rv = V_p / A_b',
+                    f'{V:.1f} / {n:g} = {c.get("Va", 0.0):.2f} kgf ;  f_rv = {c.get("Va", 0.0):.2f} / {k["Ab"]:.3f}',
+                    _kg(c.get('fv') or 0.0, 'kgf/cm²', 2)))
+        Fnt_nom = k['Fnt'] * d['fu']
+        Fnv_nom = k['Fv'] * d['fu']
+        out.append(('Tensión admisible con corte (AISC 360-22 J3-3b, ASD)',
+                    f"F′nt / Ω = mín[1.3 · F_nt / Ω − (F_nt / F_nv) · f_rv ; F_nt / Ω],  F_nt = {k['Fnt']:g} · F_u,  F_nv = {k['Fv']:g} · F_u,  Ω = {k['OT']:.2f}",
+                    f'mín[1.3 · {Fnt_nom:.0f} / {k["OT"]:.2f} − {Fnt_nom:.0f} / {Fnv_nom:.0f} · {c.get("fv") or 0:.2f} ; {Fnt_nom:.0f} / {k["OT"]:.2f}]',
+                    _kg(c.get('Fnt_p') or 0.0, 'kgf/cm²', 1)))
+        out.append(('Resistencia admisible a tracción con corte', 'T_all = (F′nt / Ω) · A_t',
+                    f'{c.get("Fnt_p") or 0.0:.1f} · {k["At"]:.3f}', _kg(c.get('T_all') or 0.0, 'kgf', 0)))
+        out.append(('Utilización a tracción', 'FU_T = T_p / T_all  (máximo de las dos filas)',
+                    f'{c.get("Ta") or 0.0:.1f} / {c.get("T_all") or 0.0:.0f}', f'{c["fu"]["T"]:.3f}'))
         return out
     if cl == 'cono':
         out.append(('Resistencia nominal del cono de concreto',
@@ -1171,7 +1186,7 @@ def _datos_placa_html(r):
         ('Dado N_d × B_d  →  A2', f'{d["dado_n"]:g} × {d["dado_b"]:g}  →  {_v(k["A2"], 0)}', 'cm ; cm²', 'hoja BASES'),
         ('Placa N × B × t  →  A1', f'{d["pl_n"]:g} × {d["pl_b"]:g} × {d["pl_t"]:g}  →  {_v(k["A1"], 0)}', 'cm ; cm²', 'hoja BASES'),
         ('Fluencia de la placa F_y', _v(d['fy'], 0), 'kgf/cm²', 'hoja BASES'),
-        ('Pernos: número total n ; distancia c_anclas', f'{d["n"]:g} ; {d["c_t"]:g}', '— ; cm', 'hoja BASES'),
+        ('Pernos: Nx ; Ny ; n total ; distancia c_anclas', f'{d["nx"]:g} ; {d["ny"]:g} ; {d["n"]:g} ; {d["c_t"]:g}', '— ; cm', 'hoja BASES'),
         ('Pernos: diámetro D ; hilos por pulgada n_h', f'{d["diam"]:g} pulg ({d["diam"] * 25.4:.1f} mm) ; {d["hilos"]:g}',
          '—', 'hoja BASES'),
         ('Pernos: F_u', _v(d['fu'], 0), 'kgf/cm²', 'hoja BASES'),
