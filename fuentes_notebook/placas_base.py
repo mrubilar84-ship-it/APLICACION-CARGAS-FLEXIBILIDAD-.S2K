@@ -30,7 +30,7 @@ NORMA_BASE = ['BASE_J8_085', 'BASE_J8_LIM', 'BASE_OMEGA_C', 'BASE_FACTOR_ASD', '
               'BASE_PHI_SOLD', 'BASE_SOLD_FRAC', 'BASE_FEXX_KSI']
 CHEQUEOS = [
     # clave, nombre, referencia (clave de REF en memoria_asd), unidad de demanda
-    ('ap', 'Aplastamiento sobre el dado (IMCA cap. J, J8)', 'BASE_J8', 'kgf/cm2'),
+    ('ap', 'Aplastamiento sobre el dado (DG1 pag. 14, J8)', 'BASE_J8', 'kgf/cm2'),
     ('pl', 'Espesor de la placa (AISC DG1, voladizo)', 'BASE_DG1_PL', 'cm'),
     ('T', 'Pernos a tracción (AISC DG1 §3.2.1)', 'BASE_DG1_T', 'kgf por perno'),
     ('cono', 'Cono de concreto de los pernos (ACI 318-02 Ap. D)', 'BASE_CONO', 'kgf (grupo de un lado)'),
@@ -108,15 +108,15 @@ def _direccion(P, e, L, W, c, fp, cant, bf, Fy):
             'x': x, 'q': q, 't_comp': t_comp, 't_anc': t_anc, 'treq': max(t_comp, t_anc)}
 
 
-def _apoyo(P, mx, my, d, ctx):
+def _apoyo(P, mx, my, d, ctx, cant):
     """Verificacion en las dos direcciones, cada una con sus pernos (n/2 por fila; n es dato de entrada):
     ex = |MY|/P a lo largo de N (X) y ey = |MX|/P a lo largo de B (Y). Ta = tension de la fila mas cargada."""
     N, B, c_t = d['pl_n'], d['pl_b'], d['c_t']
     fp, Wx, Wy = ctx['f_adm'], ctx['Wx'], ctx['Wy']
     bf = min(Wx, Wy)
     ex, ey = abs(my) / P, abs(mx) / P
-    dx = _direccion(P, ex, N, B, c_t, fp, (N - 0.95 * Wx) / 2.0, bf, d['fy'])
-    dy = _direccion(P, ey, B, N, c_t, fp, (B - 0.8 * Wy) / 2.0, bf, d['fy'])
+    dx = _direccion(P, ex, N, B, c_t, fp, cant, bf, d['fy'])
+    dy = _direccion(P, ey, B, N, c_t, fp, cant, bf, d['fy'])
     ok = dx['ok'] and dy['ok']
     Ta = max(dx.get('Ta') or 0.0, dy.get('Ta') or 0.0) if ok else None
     fu_ap = max([x['f'] / fp for x in (dx, dy) if not x['grande']] or [0.0])
@@ -140,7 +140,14 @@ def _combinacion(caso, v, d, ctx):
         c['pendientes'].append('momento sin compresion en la base: transferencia al dado y anclajes no verificada '
                                '(NO REVISADO)')
     if Pc > 0:
-        ap = _apoyo(Pc, mx, my, d, ctx)
+        # Voladizo de DG1 para el espesor: l = max(m ; n ; lambda·n'), el mismo en las dos direcciones
+        X0 = 4 * ctx['Wx'] * ctx['Wy'] / (ctx['Wx'] + ctx['Wy']) ** 2 * ctx['Oc'] * Pc / ctx['Pp']
+        lam0 = 1.0 if X0 >= 1.0 else 2 * math.sqrt(X0) / (1 + math.sqrt(1 - X0))
+        m0 = (N - 0.95 * ctx['Wx']) / 2.0
+        n0 = (B - 0.8 * ctx['Wy']) / 2.0
+        np0 = math.sqrt(ctx['Wx'] * ctx['Wy']) / 4.0
+        l0 = max(m0, n0, lam0 * np0)
+        ap = _apoyo(Pc, mx, my, d, ctx, l0)
         dx, dy = ap['dx'], ap['dy']
         c.update(ex=ap['ex'], ey=ap['ey'], ap_ok=ap['ok'], Ta_x=dx.get('Ta'), Ta_y=dy.get('Ta'), dx=dx, dy=dy,
                  f=max(dx['f'], dy['f']), fuera=dx['grande'] or dy['grande'], Y=dx.get('Y'), T_ap=ap['Ta'],

@@ -598,12 +598,12 @@ REF = {
     'B4_1B': 'AISC 360-22 Tabla B4.1b (esbeltez local de elementos en flexión)',
     'PROY_KLR': 'IMCA 5ta ed., cap. E, pág. II-89 (pdf 185): nota "preferiblemente KL/r ≤ 200", verificada en imagen; aplicada como límite del proyecto',
     'L2_FLECHA': 'AISC 360-22 Comentario L2, pág. 16.1-543. L/360 es el criterio adoptado para este proyecto (pisos); no es un límite universal para soportes industriales (R04-22)',
-    'BASE_J8': 'IMCA 5.ª ed., cap. J, J8-1 y J8-2 (pág. II-218, pdf 312), verificada en imagen. Ω_c = 2.31 y φ_c = 0.65 (pág. II-218)',
+    'BASE_J8': 'AISC DG1 2.ª ed., pág. 14 (pdf 21), verificada en imagen: J8 con Ω_c = 2.50 y φ_c = 0.60 (AISC 2005)',
     'BASE_DG1_PL': 'AISC Design Guide 1, 2.ª ed., §3.1.2 (m, n, n′, λn′ y espesor; base AISC 2005). Texto extraído, NO verificado en imagen; φ = 0.90 y Ω = 1.67 tampoco verificados',
     'BASE_DG1_T': 'AISC Design Guide 1, 2.ª ed., pág. 19 (pdf 26): R_n = 0.7 F_u (verificada en imagen) y Ω = 2.00; área A_t según §3.2.1 (texto, NO verificado en imagen)',
     'BASE_CONO': 'ACI 318-02, Apéndice D, §D.5.2, ec. D-7 (texto NO verificado en imagen). φ = 0.70: AISC DG1 págs. 19 y 42 (verificada en imagen)',
     'BASE_DG1_V': 'AISC Design Guide 1, 2.ª ed., pág. 42 (pdf 49), ejemplo 4.10: φ(0.4)F_u A_b con roscas, φ = 0.75. Verificada en imagen',
-    'BASE_CONV': 'Conversión de factores LRFD a ASD: Ω = 1.5/φ. Reproduce Ω_c = 2.31 (IMCA, φ = 0.65), Ω = 2.00 (φ = 0.75) y Ω = 1.67 (φ = 0.90)',
+    'BASE_CONV': 'Conversión de factores LRFD a ASD: Ω = 1.5/φ. Reproduce Ω_c = 2.50 (DG1, φ = 0.60), Ω = 2.00 (φ = 0.75) y Ω = 1.67 (φ = 0.90)',
     'BASE_SOLD': 'AISC Design Guide 1, 2.ª ed., pág. 42 (pdf 49): electrodo E70, φ(0.6)F_EXX, φ = 0.75. Verificada en imagen',
 }
 
@@ -1050,10 +1050,10 @@ def _pasos_base(v, r):
         for eje, dd in (('X', c['dx']), ('Y', c['dy'])):
             if not (dd['grande'] and dd.get('ok')):
                 continue
-            cant = c['m'] if eje == 'X' else c['n']
+            cant = c['l']
             W = B if eje == 'X' else N
             out.append((f'Espesor por compresión, dirección {eje} (momento grande)',
-                        f't_comp = 2.58 · √(f_adm · Y · ({"m" if eje == "X" else "n"} − Y/2) / F_y)',
+                        f't_comp = 2.58 · √(f_adm · Y · (l − Y/2) / F_y),  l = máx(m ; n ; λ · n′)  (DG1)',
                         f'2.58 · √({k["f_adm"]:.1f} · {dd["Y"]:.3f} · ({cant:.2f} − {dd["Y"] / 2:.3f}) / {d["fy"]:g})',
                         _kg(dd['t_comp'], 'cm', 3)))
             out.append((f'Espesor por tracción del voladizo del perno, dirección {eje}',
@@ -1146,7 +1146,7 @@ _REF_FACTOR = {'BASE_J8_085': 'BASE_J8', 'BASE_J8_LIM': 'BASE_J8', 'BASE_OMEGA_C
                'BASE_FNT': 'BASE_DG1_T', 'BASE_PHI_ANCLA_V': 'BASE_DG1_V', 'BASE_FV': 'BASE_DG1_V',
                'BASE_PHI_CONO': 'BASE_CONO', 'BASE_KC_CONO': 'BASE_CONO', 'BASE_LAMBDA': 'BASE_CONO',
                'BASE_PHI_SOLD': 'BASE_SOLD', 'BASE_SOLD_FRAC': 'BASE_SOLD', 'BASE_FEXX_KSI': 'BASE_SOLD'}
-_REF_CORTA = {'BASE_J8': 'IMCA cap. J, J8 (pág. II-218, pdf 312)', 'BASE_CONV': 'Conversión LRFD a ASD',
+_REF_CORTA = {'BASE_J8': 'DG1 2.ª ed., pág. 14 (pdf 21)', 'BASE_CONV': 'Conversión LRFD a ASD',
               'BASE_DG1_PL': 'DG1 §3.1.2 (no verificado en imagen)', 'BASE_DG1_T': 'DG1 pág. 19 (pdf 26); §3.2.1',
               'BASE_DG1_V': 'DG1 pág. 42 (pdf 49)', 'BASE_CONO': 'ACI 318-02 Ap. D (D-7); DG1 págs. 19 y 42',
               'BASE_SOLD': 'DG1 pág. 42 (pdf 49)'}
@@ -1335,7 +1335,7 @@ el detalle completo de cada elemento está en diseno_asd.xlsx (RESULTADOS).</p>
 grupo (sección 5) y en diseno_asd.xlsx (RESULTADOS).</p>
 {"".join(_bloque_barra(v) for v in criticas)}
 <h2>8. Placas base</h2>
-<p class="nota">Placas base con las combinaciones de servicio ASD (REACCIONES). Aplastamiento: IMCA cap. J (Ω = 2.31).
+<p class="nota">Placas base con las combinaciones de servicio ASD (REACCIONES). Aplastamiento: AISC DG1 2.ª ed. (Ω = 2.50). Interacción tracción–corte en pernos: AISC 360-22 J3-3b.
 Espesor, pernos, cono de concreto y soldadura: AISC Design Guide 1, 2.ª ed., y ACI 318-02 Ap. D, en ASD (Ω = 1.5/φ).
 Los datos (placa, dado, pernos, soldadura) son entradas de la hoja BASES.</p>
 {_seccion_placas(bases)}

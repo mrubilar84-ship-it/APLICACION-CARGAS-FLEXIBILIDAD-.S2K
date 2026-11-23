@@ -954,11 +954,11 @@ NORMA_VALORES = [
     ('AISC_H3_20PCT', 0.2, '', 'AISC 360-22, H3.2', 'Fraccion Tr/Tc a partir de la cual se aplica H3-6 en lugar de H1.'),
     ('AISC_B42_HSS', 0.93, '', 'AISC 360-22, B4.2 (espesor de diseno de HSS: 0.93 t nominal salvo ASTM A1065/A1085)',
      'Factor del espesor de diseno de HSS. Se aplica a las propiedades de diseno (A, I, S, Z, r, J); el analisis usa estas mismas propiedades; la masa es la del catalogo.'),
-    # Placas base (bloque 10b): IMCA cap. J para aplastamiento; AISC DG1 2.a ed. (AISC 2005) para placa, anclas y soldadura
+    # Placas base (bloque 10b): AISC DG1 2.a ed. (AISC 2005) para aplastamiento, placa, anclas, cono y soldadura
     ('BASE_J8_085', 0.85, '', 'IMCA 5ta ed., cap. J, J8-1 (II-218, pdf 312), verificada en imagen', 'Coeficiente 0.85 de P_p = 0.85 f′c A1.'),
     ('BASE_J8_LIM', 1.7, '', 'IMCA 5ta ed., cap. J, J8-2 (II-218, pdf 312), verificada en imagen', 'Limite P_p <= 1.7 f′c A1.'),
-    ('BASE_OMEGA_C', 2.31, '', 'IMCA 5ta ed., cap. J, J8 (II-218, pdf 312), DRP, verificada en imagen', 'Factor de seguridad en DRP para aplastamiento sobre concreto (phi_c = 0.65).'),
-    ('BASE_FACTOR_ASD', 1.5, '', 'Conversion LRFD a ASD: Omega = 1.5 / phi (con IMCA: 1.5/0.65 = 2.31)', 'Omega = 1.5 / phi para cada factor de resistencia de placa base.'),
+    ('BASE_OMEGA_C', 2.5, '', 'AISC DG1 2.a ed. (AISC 2005), pag. 14 (pdf 21), verificada en imagen: Omega = 2.50 (ASD), phi = 0.60', 'Factor de seguridad ASD para aplastamiento sobre concreto (DG1).'),
+    ('BASE_FACTOR_ASD', 1.5, '', 'Conversion LRFD a ASD: Omega = 1.5 / phi (DG1: 1.5/0.60 = 2.50 para aplastamiento)', 'Omega = 1.5 / phi para cada factor de resistencia de placa base.'),
     ('BASE_PHI_PL', 0.90, '', 'AISC DG1 2.a ed., flexion de placa (texto, NO REVISADO en imagen)', 'phi de flexion de la placa (Omega = 1.5/0.90 = 1.67).'),
     ('BASE_PHI_ANCLA_T', 0.75, '', 'AISC DG1 2.a ed., p. 19 (pdf 26), verificada en imagen', 'phi de traccion en varilla (Omega = 1.5/0.75 = 2.00).'),
     ('BASE_FNT', 0.70, '', 'AISC DG1 2.a ed., §3.2.1 (Rn con el area de tension A_t) y p. 19 (pdf 26), Rn = 0.7 F_u (verificada en imagen)',
