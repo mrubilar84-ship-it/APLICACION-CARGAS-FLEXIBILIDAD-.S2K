@@ -687,6 +687,54 @@ def flechas_vigas(dib, props, casos, combinaciones, estados_pp, clase):
     return out
 
 
+def periodos(dib, materiales_filas, id_barra, factor_hss=None, n_modos=3):
+    """Periodos naturales del soporte (s), solo para el notebook (no va a la memoria de calculo).
+    Masa = peso propio: cada barra aporta W = masa·L (kgf; masa Gerdau en kgf/m); W/2 a cada extremo, solo como
+    traslacion (UX, UY, UZ), con m = W/g y g = 981 cm/s2. Sin sobrecarga ni cargas nodales.
+    Devuelve (DataFrame por modo: T, f y % de masa efectiva en X, Y, Z; peso propio total en kgf)."""
+    G_CM = 981.0                                                  # cm/s2
+    if materiales_filas is None:
+        raise ErrorAnalisis('la planilla no tiene la hoja MATERIALES: no se calculan periodos.')
+    materiales = materiales_desde_filas(materiales_filas)
+    props = propiedades_barras(dib, materiales, id_barra, factor_hss)
+    _modelo(dib, props, {}, False)
+    ops.system('BandGeneral')
+    ops.numberer('RCM')
+    _restricciones(dib)
+    masa, peso_total = {}, 0.0
+    for i, b in enumerate(dib.barras):
+        p1, p2 = np.array(dib.nodos[b['n1']], float), np.array(dib.nodos[b['n2']], float)
+        W = props[i]['masa'] / 100.0 * float(np.linalg.norm(p2 - p1)) * 100.0     # kgf
+        peso_total += W
+        for nodo in ops.eleNodes(i + 1):
+            masa[nodo] = masa.get(nodo, 0.0) + 0.5 * W / G_CM
+    if not masa:
+        raise ErrorAnalisis('el modelo no tiene barras con peso propio: no hay masas para el periodo.')
+    for nodo, m in masa.items():
+        ops.mass(nodo, m, m, m, 0.0, 0.0, 0.0)                    # solo traslacion
+    # Masa solo de traslacion: M es singular (giros sin masa). ARPACK no converge con eso; el solver denso de LAPACK
+    # si, y da los autovalores en orden creciente.
+    lam = ops.eigen('-fullGenLapack', n_modos)                    # omega^2 (rad/s)^2
+    def libre(tag, d):                          # traslacion d libre en ese nudo (no apoyada)
+        i = tag - 1
+        return i >= len(dib.nodos) or not dib.apoyos.get(i, (False,) * 6)[d]
+    total = [sum(m for n, m in masa.items() if libre(n, d)) for d in range(3)]
+    filas = []
+    for modo, l in enumerate(lam, 1):
+        if not l > 0:
+            raise ErrorAnalisis('autovalor no positivo: revise apoyos, rotulas y conexiones.')
+        T = 2.0 * math.pi / math.sqrt(l)
+        phi = {nodo: np.array([ops.nodeEigenvector(nodo, modo, d) for d in (1, 2, 3)], float) for nodo in masa}
+        gen = sum(m * float(phi[n] @ phi[n]) for n, m in masa.items())          # phi^T M phi
+        fila = {'Modo': modo, 'T (s)': T, 'f (Hz)': 1.0 / T}
+        for d, eje in enumerate(('X', 'Y', 'Z')):
+            s = sum(m * phi[n][d] for n, m in masa.items())
+            fila[f'Masa efectiva {eje} (%)'] = (100.0 * s * s / (gen * total[d])
+                                                if gen > 0 and total[d] > 0 else 0.0)
+        filas.append(fila)
+    return pd.DataFrame(filas), peso_total
+
+
 def correr(dib, materiales, estados, rep_barras, rep_nodos, id_barra, id_de_indice, ruta_salida, factor_hss=None):
     """Resuelve todos los estados y combinaciones y escribe el Excel de resultados.
     materiales: {nombre: {'E', 'nu'}}; estados: [(nombre, peso_propio)]; rep_barras / rep_nodos: indices a reportar.
