@@ -687,14 +687,17 @@ def flechas_vigas(dib, props, casos, combinaciones, estados_pp, clase):
     return out
 
 
-def periodos(dib, materiales_filas, id_barra, factor_hss=None, n_modos=3):
+def periodos(dib, materiales_filas, estados_df, id_barra, factor_hss=None, n_modos=3):
     """Periodos naturales del soporte (s), solo para el notebook (no va a la memoria de calculo).
-    Masa = peso propio: cada barra aporta W = masa·L (kgf; masa Gerdau en kgf/m); W/2 a cada extremo, solo como
-    traslacion (UX, UY, UZ), con m = W/g y g = 981 cm/s2. Sin sobrecarga ni cargas nodales.
+    Masa = peso propio de la seccion: cada barra aporta W = masa·L (kgf; masa del catalogo Gerdau por PERFIL, kgf/m);
+    W/2 a cada extremo, solo como traslacion (UX, UY, UZ), con m = W/g y g = 981 cm/s2. Solo si algun estado de
+    ESTADOS tiene PESO PROPIO = SI (el mismo criterio que la carga estatica). Sin sobrecarga ni cargas nodales.
     Devuelve (DataFrame por modo: T, f y % de masa efectiva en X, Y, Z; peso propio total en kgf)."""
     G_CM = 981.0                                                  # cm/s2
     if materiales_filas is None:
         raise ErrorAnalisis('la planilla no tiene la hoja MATERIALES: no se calculan periodos.')
+    if not any(pp for _, pp in estados_desde_df(estados_df)):
+        raise ErrorAnalisis('ningun estado de ESTADOS tiene PESO PROPIO = SI: no hay peso propio que llevar a la masa.')
     materiales = materiales_desde_filas(materiales_filas)
     props = propiedades_barras(dib, materiales, id_barra, factor_hss)
     _modelo(dib, props, {}, False)

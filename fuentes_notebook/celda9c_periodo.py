@@ -7,7 +7,7 @@ if dib is None or 'materiales_leidos' not in globals():
     print('Ejecute primero el bloque 9 (analisis).')
 else:
     try:
-        PERIODOS, PESO_PROPIO = AO.periodos(dib, materiales_leidos, dib.id_barra_de_indice,
+        PERIODOS, PESO_PROPIO = AO.periodos(dib, materiales_leidos, estados_df, dib.id_barra_de_indice,
                                             factor_hss=None if NOR_LEIDA is None
                                             else NOR_LEIDA['VALORES'].get('AISC_B42_HSS'))
     except AO.ErrorAnalisis as error:

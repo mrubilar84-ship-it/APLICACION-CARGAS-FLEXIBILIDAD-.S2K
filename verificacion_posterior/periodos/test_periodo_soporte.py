@@ -43,7 +43,10 @@ mod.barras = [{'n1': 0, 'n2': 1, 'perfil': PERFIL, 'material': 'ACERO', 'eje_fue
 mod.apoyos = {0: (True,) * 6}
 materiales = [['ACERO', 'ACERO', 2530.0, 4080.0, E, 0.3, 'prueba']]
 
-tabla, peso = AO.periodos(mod, materiales, {0: 1}, factor_hss=None, n_modos=3)
+import pandas as pd                    # noqa: E402
+ESTADOS_SI = pd.DataFrame([{'NOMBRE': 'Peso propio y muerta', 'PESO PROPIO': 'SI'}])
+ESTADOS_NO = pd.DataFrame([{'NOMBRE': 'Sobrecarga', 'PESO PROPIO': 'NO'}])
+tabla, peso = AO.periodos(mod, materiales, ESTADOS_SI, {0: 1}, factor_hss=None, n_modos=3)
 T = list(tabla['T (s)'])
 chequeo('peso propio total = W de la barra', abs(peso - W) < 1e-9, f'{peso:.3f} kgf')
 chequeo('los dos periodos de flexion coinciden con la solucion cerrada (0.5 %)',
@@ -55,6 +58,12 @@ chequeo('modo 1 moviliza ~100 % de la masa en una direccion', max(ef[0]) > 99.0,
 chequeo('modo 2 moviliza ~100 % en la otra direccion de flexion', max(ef[1]) > 99.0
         and ef[1].index(max(ef[1])) != ef[0].index(max(ef[0])), f'{[round(v, 2) for v in ef[1]]}')
 chequeo('ninguna fraccion supera 100 %', all(v <= 100.01 for fila in ef for v in fila))
+
+try:
+    AO.periodos(mod, materiales, ESTADOS_NO, {0: 1}, factor_hss=None, n_modos=3)
+    chequeo('sin PESO PROPIO = SI en ESTADOS no se calcula el periodo', False)
+except AO.ErrorAnalisis as error:
+    chequeo('sin PESO PROPIO = SI en ESTADOS no se calcula el periodo', 'PESO PROPIO' in str(error))
 
 print(f'FALLOS: {len(FALLOS)}')
 sys.exit(1 if FALLOS else 0)
