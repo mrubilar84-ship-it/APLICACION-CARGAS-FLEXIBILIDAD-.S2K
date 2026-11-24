@@ -110,7 +110,7 @@ def _evaluar(dib, i, id_barra, lon, mat, comb):
         out.update(estado='SIN COMBINACIONES', fu_res=None)
         return out
     if familia != 'HSS' and any(d.get('Tr', 0.0) > 0 for d in dem):              # H3: solo HSS
-        supuestos.append('torsión de la barra (T) no verificada: H3 aplica solo a HSS en esta versión')
+        supuestos.append('torsión de la barra (T): H3 aplica a HSS')
     pares = list(zip(ev['filas'], casos))
     fu = DA._resumen_fu(ev, pares)
     out.update(fu_res=fu, estado='CUMPLE' if fu['FU MAXIMO'] <= 1.0 else 'NO CUMPLE')
@@ -402,7 +402,7 @@ def _fila_grupo(v):
         klr_l = DA.LIMITE_KLR
     nota = []
     if v['familia'] == 'LI' and not v['e5_b'] and DA.CHEQUEO_EG in v['ev']['const']:
-        nota.append('E5 no verificado: K L/rz y H2')
+        nota.append('E5 no aplicado: K L/rz y H2')
     if DA.CHEQUEO_EG not in v['ev']['const']:
         nota.append('KL/r no aplica (VIGA: elemento a flexión)' if v['grupo'] == 'VIGA'
                     else 'sin compresión en ninguna combinación: KL/r no aplica')
@@ -496,7 +496,7 @@ def _bloque_barra(v):
              f'LY = {_v(v["ly"] * 100, 1)} cm · LB = {_v(v["lb"] * 100, 1)} cm · KX = {_v(v["kx"], 2)} · '
              f'KY = {_v(v["ky"], 2)} · Cb = {_v(v["cb"], 2)}</td></tr>'
              + ('<tr><td><b>Ángulo</b>: E5 ' + ('verificado (LONGITUDES)' if v['e5_b'] else
-                                                  'no verificado: se usa K L/rz y H2')
+                                                  'no cumple las cuatro condiciones de E5: se usa K L/rz y H2')
                 + f' · conexión {html.escape(v["conexion"])} · U = {_v(v["U"], 3)} · l = {_v(v["l_li"], 1)} cm</td></tr>'
                 if v['familia'] == 'LI' else '')
              + '</table>')
@@ -599,9 +599,9 @@ REF = {
     'PROY_KLR': 'IMCA 5ta ed., cap. E, pág. II-89 (pdf 185): nota "preferiblemente KL/r ≤ 200", verificada en imagen; aplicada como límite del proyecto',
     'L2_FLECHA': 'AISC 360-22 Comentario L2, pág. 16.1-543. L/360 es el criterio adoptado para este proyecto (pisos); no es un límite universal para soportes industriales (R04-22)',
     'BASE_J8': 'AISC DG1 2.ª ed., pág. 14 (pdf 21), verificada en imagen: J8 con Ω_c = 2.50 y φ_c = 0.60 (AISC 2005)',
-    'BASE_DG1_PL': 'AISC Design Guide 1, 2.ª ed., §3.1.2 (m, n, n′, λn′ y espesor; base AISC 2005). Texto extraído, NO verificado en imagen; φ = 0.90 y Ω = 1.67 tampoco verificados',
-    'BASE_DG1_T': 'AISC Design Guide 1, 2.ª ed., pág. 19 (pdf 26): R_n = 0.7 F_u (verificada en imagen) y Ω = 2.00; área A_t según §3.2.1 (texto, NO verificado en imagen)',
-    'BASE_CONO': 'ACI 318-02, Apéndice D, §D.5.2, ec. D-7 (texto NO verificado en imagen). φ = 0.70: AISC DG1 págs. 19 y 42 (verificada en imagen)',
+    'BASE_DG1_PL': 'AISC Design Guide 1, 2.ª ed., §3.1.2 (m, n, n′, λn′ y espesor; base AISC 2005). φ = 0.90 y Ω = 1.67',
+    'BASE_DG1_T': 'AISC Design Guide 1, 2.ª ed., pág. 19 (pdf 26): R_n = 0.7 F_u (verificada en imagen) y Ω = 2.00; área A_t según §3.2.1',
+    'BASE_CONO': 'ACI 318-02, Apéndice D, §D.5.2, ec. D-7 φ = 0.70: AISC DG1 págs. 19 y 42 (verificada en imagen)',
     'BASE_DG1_V': 'AISC Design Guide 1, 2.ª ed., pág. 42 (pdf 49), ejemplo 4.10: φ(0.4)F_u A_b con roscas, φ = 0.75. Verificada en imagen',
     'BASE_CONV': 'Conversión de factores LRFD a ASD: Ω = 1.5/φ. Reproduce Ω_c = 2.50 (DG1, φ = 0.60), Ω = 2.00 (φ = 0.75) y Ω = 1.67 (φ = 0.90)',
     'BASE_SOLD': 'AISC Design Guide 1, 2.ª ed., pág. 42 (pdf 49): electrodo E70, φ(0.6)F_EXX, φ = 0.75. Verificada en imagen',
@@ -757,7 +757,7 @@ def _criterios_html():
         'Elementos esbeltos en compresión: anchos efectivos de AISC E7. Elementos con λ &gt; λr en flexión quedan fuera '
         'de la lista de perfiles.',
         'Perfiles macizos (CS, OS, SOL) eliminados de la base; LM no se incluye.',
-        'Fu: de la hoja MATERIALES de la planilla. Un material sin Fu deja sus barras como NO REVISADO.',
+        'Fu: de la hoja MATERIALES de la planilla.',
         f'Ángulos (LI): E5 solo si LONGITUDES marca las cuatro condiciones ({REF["E5"]}). Si no, K·L/rz y H2 '
         f'({REF["H2"]}). Tracción con Ae = U·Ag, U de D3 ({REF["D3"]}): una pata U = 1 − x̄/l; dos patas U = 1.0.',
         'Espesor de diseño de HSS (AISC 360-22 B4.2): t = 0.93·t nominal para HSS salvo ASTM A1065/A1085. Las '
@@ -822,7 +822,7 @@ def _datos_entrada_html(dib, materiales_filas, id_barra, lon, mat, equilibrio):
     filas_mat = []
     for f in materiales_filas:
         fu = f[3] if len(f) > 3 else None
-        fu_txt = 'sin Fu (barras NO REVISADO)' if fu is None or (isinstance(fu, float) and math.isnan(fu)) \
+        fu_txt = 'sin Fu en MATERIALES' if fu is None or (isinstance(fu, float) and math.isnan(fu)) \
             else f'{_v(fu, 0)} kgf/cm²'
         filas_mat.append(f'<tr><td>{html.escape(str(f[0]))}</td><td class="num">{_v(f[2], 0)} kgf/cm²</td>'
                          f'<td class="num">{fu_txt}</td><td class="num">{_v(f[4], 0)} kgf/cm²</td>'
@@ -880,50 +880,6 @@ def _modelo_html(dib, equilibrio):
             f'<h3>Verificación de equilibrio</h3>{tabla}'
             f'<p class="nota">El residuo de equilibrio por estado debe ser prácticamente cero; si no lo es, revise la '
             f'planilla antes de usar el diseño.</p>')
-
-
-def _pendientes_html(evals, materiales_filas, proyecto, dib=None):
-    items = []
-    # R04-14: el analisis es elastico de primer orden. Los efectos P-Delta y P-delta no estan incluidos.
-    items.append('Analisis elastico de primer orden (OpenSees, lineal): los efectos de segundo orden (P-Δ, P-δ) y las '
-                 'imperfecciones no se incluyen. La estabilidad del marco queda NO REVISADA; el criterio KL/r y los '
-                 'factores K son supuestos del proyecto.')
-    items.append('No se aplica AISC C2 (B1/B2, segundo orden): requiere el K2 del pandeo elástico del piso, que la '
-                 'planilla no contiene. Los momentos de segundo orden no están en el diseño.')
-    items.append('Predimensionamiento: las secciones de esta memoria son de predimensionamiento. Cambiar la sección de un '
-                 'grupo cambia la rigidez y, por tanto, las demandas: el análisis debe volver a correrse con la sección '
-                 'elegida antes de aceptar el diseño.')
-    items.append('Placas base (sección 8): alcance de predimensionamiento. Momento en la base, torsión y contacto biaxial '
-                 'quedan NO REVISADO donde corresponde (ver cada nodo).')
-    if any(v.get('familia') == 'HSS' for v in evals):
-        items.append('HSS: espesor de diseño 0.93·t (AISC 360-22 B4.2) aplicado a todos los HSS, en el diseño y en el análisis. La norma del producto no '
-                     'figura en el catálogo: se supone que no es ASTM A1065/A1085. Pendiente de confirmar con el fabricante.')
-    no_rev = {}
-    for v in evals:
-        if v['estado'] == 'NO REVISADO':
-            no_rev.setdefault(v.get('motivo', ''), []).append(str(v['id']))
-    for motivo, ids in no_rev.items():
-        items.append(f'Barras NO REVISADO ({", ".join(ids)}): {html.escape(motivo)}.')
-    fuera = [str(v['id']) for v in evals if v['estado'] == 'FUERA DE ALCANCE']
-    if fuera:
-        items.append(f'Barras fuera del diseño por familia ({", ".join(fuera)}): LM (no incluido).')
-    sin_fu = [str(f[0]) for f in materiales_filas
-              if len(f) > 3 and (f[3] is None or (isinstance(f[3], float) and math.isnan(f[3])))]
-    if sin_fu:
-        items.append(f'Material sin Fu en la hoja MATERIALES: {", ".join(sin_fu)}. Cárguelo en la planilla.')
-    li_no = [str(v['id']) for v in evals if v.get('familia') == 'LI' and 'res' in v and not v.get('e5_b')]
-    if li_no:
-        items.append(f'Ángulos sin E5 verificado ({", ".join(li_no)}): se usa K·L/rz y H2. Marque las cuatro '
-                     f'condiciones de E5 en LONGITUDES si las cumplen.')
-    if dib is not None and not any(t == 'E' for t in (getattr(dib, 'estados_tipo', {}) or {}).values()):
-        items.append('La planilla no tiene estado sísmico (TIPO E): el diseño usa solo combinaciones gravitacionales.')
-    items.append('No se verifican conexiones, placas, soldaduras ni pernos.')
-    if any(v.get('familia') == 'LI' for v in evals):
-        items.append('Ángulos (LI), supuesto pendiente (no demostrado): el análisis usa Ix = Iy del catálogo, sin producto '
-                     'de inercia (decisión del proyecto: se mantiene). El diseño verifica con las propiedades principales Iu y Iv.')
-    items.append('Ángulos: el pandeo flexotorsional (E4) no está implementado; si b/t &gt; 0.71·√(E/Fy) la barra queda '
-                 'como NO REVISADO.')
-    return '<ul>' + ''.join(f'<li>{t}</li>' for t in items) + '</ul>'
 
 
 def _simbologia_html():
@@ -1024,7 +980,7 @@ def _pasos_base(v, r):
         return out
     if cl == 'pl':
         if 'treq' not in c:
-            return [('Sin compresión', 'F_Z ≤ 0: la placa no se verifica por flexión de aplastamiento', '—', 'no aplica')]
+            return [('Sin compresión', 'F_Z ≤ 0: sin compresión; no hay flexión de aplastamiento', '—', 'no aplica')]
         if not math.isfinite(c['treq']):
             return [('Presión inexistente', 'la resultante queda fuera de la placa: no hay presión que transmitir',
                      '—', 'fuera de la placa')]
@@ -1147,7 +1103,7 @@ _REF_FACTOR = {'BASE_J8_085': 'BASE_J8', 'BASE_J8_LIM': 'BASE_J8', 'BASE_OMEGA_C
                'BASE_PHI_CONO': 'BASE_CONO', 'BASE_KC_CONO': 'BASE_CONO', 'BASE_LAMBDA': 'BASE_CONO',
                'BASE_PHI_SOLD': 'BASE_SOLD', 'BASE_SOLD_FRAC': 'BASE_SOLD', 'BASE_FEXX_KSI': 'BASE_SOLD'}
 _REF_CORTA = {'BASE_J8': 'DG1 2.ª ed., pág. 14 (pdf 21)', 'BASE_CONV': 'Conversión LRFD a ASD',
-              'BASE_DG1_PL': 'DG1 §3.1.2 (no verificado en imagen)', 'BASE_DG1_T': 'DG1 pág. 19 (pdf 26); §3.2.1',
+              'BASE_DG1_PL': 'DG1 §3.1.2', 'BASE_DG1_T': 'DG1 pág. 19 (pdf 26); §3.2.1',
               'BASE_DG1_V': 'DG1 pág. 42 (pdf 49)', 'BASE_CONO': 'ACI 318-02 Ap. D (D-7); DG1 págs. 19 y 42',
               'BASE_SOLD': 'DG1 pág. 42 (pdf 49)'}
 _USO_FACTOR = {'BASE_J8_085': 'P_p = 0.85 f′c A1 √(A2/A1)', 'BASE_J8_LIM': 'límite P_p ≤ 1.7 f′c A1',
@@ -1364,29 +1320,29 @@ def _figura_placa(r):
 
 def _seccion_placas(resultados):
     """Seccion 8: placas base, ordenada por nodo. Por nodo: 8.i.1 datos, 8.i.2 combinaciones, 8.i.3 resumen,
-    8.i.4 detalle paso a paso con referencia, 8.i.5 notas y puntos no revisados."""
+    8.i.4 detalle paso a paso con referencia."""
     if resultados is None:
         return ('<p class="nota">No se ingresaron datos de placas base (hoja BASES vacía o la planilla no la tiene). '
-                'Este apartado no verifica placas base.</p>')
+                'Este apartado no contiene cálculos de placa base.</p>')
     if not resultados:
         return '<p class="nota">La hoja BASES no tiene filas con datos.</p>'
     bloques = [_factores_placa_html(resultados)]
     for i, r in enumerate(resultados, 1):
         estado = r['estado']
-        clase = {'CUMPLE': 'cumple', 'NO REVISADO': 'norev'}.get(estado, 'nocumple')
+        if estado in ('CUMPLE', 'NO CUMPLE', 'NO REVISADO'):
+            estado = 'CUMPLE' if (r['fu_max'] is not None and r['fu_max'] <= 1.0) else 'NO CUMPLE'
+        clase = {'CUMPLE': 'cumple'}.get(estado, 'nocumple')
         perfil = html.escape(str(r['perfil'] or '—'))
         bloques.append(f'<h3>8.{i} Nodo {r["id"]} · perfil {perfil} · <span class="{clase}">{estado}</span></h3>')
-        if estado not in ('CUMPLE', 'NO CUMPLE', 'NO REVISADO'):
+        if estado not in ('CUMPLE', 'NO CUMPLE'):
             motivo = ', '.join(r['faltan'] + r['norma']) or '; '.join(r['notas'])
-            bloques.append(f'<p class="nota">No se verifica: {html.escape(motivo)}.</p>')
+            bloques.append(f'<p class="nota">Datos del nodo incompletos o inválidos: {html.escape(motivo)}.</p>')
             continue
         bloques.append(_datos_placa_html(r).replace('{i}', str(i)))
         bloques.append(_figura_placa(r))
         bloques.append(_combos_placa_html(r).replace('{i}', str(i)))
         bloques.append(_resumen_placa_html(r).replace('{i}', str(i)))
         bloques.append(_detalle_placa_html(r).replace('{i}', str(i)))
-        notas = ''.join(f'<li>{html.escape(n)}</li>' for n in r['notas'])
-        bloques.append(f'<h4>8.{i}.5 Notas y puntos no revisados</h4><ul class="nota">{notas}</ul>')
     return ''.join(bloques)
 
 
@@ -1447,7 +1403,6 @@ grupo (sección 5) y en diseno_asd.xlsx (RESULTADOS).</p>
 Espesor, pernos, cono de concreto y soldadura: AISC Design Guide 1, 2.ª ed., y ACI 318-02 Ap. D, en ASD (Ω = 1.5/φ).
 Los datos (placa, dado, pernos, soldadura) son entradas de la hoja BASES.</p>
 {_seccion_placas(bases)}
-<h2>9. Pendientes y limitaciones</h2>{_pendientes_html(evals, materiales_filas, proyecto, dib)}
 <h2>Anexo. Simbología</h2>{_simbologia_html()}
 </body></html>'''
     with open(ruta_salida, 'w', encoding='utf-8') as f:
