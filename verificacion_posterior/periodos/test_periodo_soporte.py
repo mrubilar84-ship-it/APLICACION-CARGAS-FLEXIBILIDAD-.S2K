@@ -30,6 +30,7 @@ class Modelo:
 
 
 L_CM, G_CM, E = 300.0, 981.0, 2.04e6
+G_CM_CHK = G_CM
 PERFIL = 'IR 6 × 8.5'
 p = G.obtener_perfil(PERFIL)
 W = p['masa'] / 100.0 * L_CM                       # peso propio de la barra (kgf)
@@ -46,9 +47,10 @@ materiales = [['ACERO', 'ACERO', 2530.0, 4080.0, E, 0.3, 'prueba']]
 import pandas as pd                    # noqa: E402
 ESTADOS_SI = pd.DataFrame([{'NOMBRE': 'Peso propio y muerta', 'PESO PROPIO': 'SI'}])
 ESTADOS_NO = pd.DataFrame([{'NOMBRE': 'Sobrecarga', 'PESO PROPIO': 'NO'}])
-tabla, peso = AO.periodos(mod, materiales, ESTADOS_SI, {0: 1}, factor_hss=None, n_modos=3)
+tabla, peso, peso_nud = AO.periodos(mod, materiales, ESTADOS_SI, {0: 1}, factor_hss=None, n_modos=3)
 T = list(tabla['T (s)'])
 chequeo('peso propio total = W de la barra', abs(peso - W) < 1e-9, f'{peso:.3f} kgf')
+chequeo('sin cargas en nudos: peso de cargas = 0', peso_nud == 0.0)
 chequeo('los dos periodos de flexion coinciden con la solucion cerrada (0.5 %)',
         all(abs(a - b) / b < 0.005 for a, b in zip(sorted(T[:2], reverse=True), sorted([T_debil, T_fuerte], reverse=True))),
         f'modelo {T[0]:.5f} y {T[1]:.5f} s; cerrada {T_debil:.5f} y {T_fuerte:.5f} s')
@@ -59,6 +61,24 @@ chequeo('modo 2 moviliza ~100 % en la otra direccion de flexion', max(ef[1]) > 9
         and ef[1].index(max(ef[1])) != ef[0].index(max(ef[0])), f'{[round(v, 2) for v in ef[1]]}')
 chequeo('ninguna fraccion supera 100 %', all(v <= 100.01 for fila in ef for v in fila))
 
+ESTADOS_AMBOS = pd.DataFrame([{'NOMBRE': 'Peso propio y muerta', 'PESO PROPIO': 'SI'},
+                              {'NOMBRE': 'Sobrecarga', 'PESO PROPIO': 'NO'}])
+mod2 = Modelo()
+mod2.nodos, mod2.barras, mod2.apoyos = mod.nodos, mod.barras, mod.apoyos
+# 100 kgf hacia abajo en el nudo libre (estado con peso propio) + 500 kgf horizontales (no son masa);
+# 900 kgf hacia abajo en un estado sin PESO PROPIO (no suma).
+mod2.cargas = {'Peso propio y muerta': {1: [500.0, 0.0, -100.0, 0.0, 0.0, 0.0]},
+               'Sobrecarga': {1: [0.0, 0.0, -900.0, 0.0, 0.0, 0.0]}}
+tabla2, pb2, pn2 = AO.periodos(mod2, materiales, ESTADOS_AMBOS, {0: 1}, factor_hss=None, n_modos=3)
+m2 = (W / 2.0 + 100.0) / G_CM_CHK
+T2_f = 2 * math.pi * math.sqrt(m2 * L_CM ** 3 / (3 * E * p['Ix']))
+T2_d = 2 * math.pi * math.sqrt(m2 * L_CM ** 3 / (3 * E * p['Iy']))
+chequeo('carga de peso propio en el nudo: suma 100 kgf (FZ<0 en SI; ni fuerzas horizontales ni estados NO)',
+        abs(pn2 - 100.0) < 1e-9, f'{pn2:.3f} kgf')
+chequeo('periodos con la masa de la carga de peso propio (0.5 %)',
+        all(abs(a - b) / b < 0.005 for a, b in zip(sorted(list(tabla2['T (s)'])[:2], reverse=True),
+                                                   sorted([T2_d, T2_f], reverse=True))),
+        f"modelo {tabla2['T (s)'][0]:.5f} y {tabla2['T (s)'][1]:.5f} s; cerrada {T2_d:.5f} y {T2_f:.5f} s")
 try:
     AO.periodos(mod, materiales, ESTADOS_NO, {0: 1}, factor_hss=None, n_modos=3)
     chequeo('sin PESO PROPIO = SI en ESTADOS no se calcula el periodo', False)

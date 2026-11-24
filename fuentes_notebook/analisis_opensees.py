@@ -689,14 +689,15 @@ def flechas_vigas(dib, props, casos, combinaciones, estados_pp, clase):
 
 def periodos(dib, materiales_filas, estados_df, id_barra, factor_hss=None, n_modos=3):
     """Periodos naturales del soporte (s), solo para el notebook (no va a la memoria de calculo).
-    Masa = peso propio de la seccion: cada barra aporta W = masa·L (kgf; masa del catalogo Gerdau por PERFIL, kgf/m);
-    W/2 a cada extremo, solo como traslacion (UX, UY, UZ), con m = W/g y g = 981 cm/s2. Solo si algun estado de
-    ESTADOS tiene PESO PROPIO = SI (el mismo criterio que la carga estatica). Sin sobrecarga ni cargas nodales.
-    Devuelve (DataFrame por modo: T, f y % de masa efectiva en X, Y, Z; peso propio total en kgf)."""
+    Masa = peso propio de las barras (masa del catalogo Gerdau por PERFIL, kgf/m, x L; la mitad a cada extremo) mas las
+    cargas de los estados con PESO PROPIO = SI que bajan (FZ < 0 en la hoja CARGAS; la gravedad es -Z); cada carga va a su
+    nudo. Solo traslacion: m = W/g, g = 981 cm/s2. Devuelve (DataFrame por modo: T, f y % de masa efectiva en X, Y, Z;
+    peso de las barras en kgf; peso de las cargas en nudos en kgf)."""
     G_CM = 981.0                                                  # cm/s2
     if materiales_filas is None:
         raise ErrorAnalisis('la planilla no tiene la hoja MATERIALES: no se calculan periodos.')
-    if not any(pp for _, pp in estados_desde_df(estados_df)):
+    estados = estados_desde_df(estados_df)
+    if not any(pp for _, pp in estados):
         raise ErrorAnalisis('ningun estado de ESTADOS tiene PESO PROPIO = SI: no hay peso propio que llevar a la masa.')
     materiales = materiales_desde_filas(materiales_filas)
     props = propiedades_barras(dib, materiales, id_barra, factor_hss)
@@ -704,15 +705,25 @@ def periodos(dib, materiales_filas, estados_df, id_barra, factor_hss=None, n_mod
     ops.system('BandGeneral')
     ops.numberer('RCM')
     _restricciones(dib)
-    masa, peso_total = {}, 0.0
+    masa, peso_barras = {}, 0.0
     for i, b in enumerate(dib.barras):
         p1, p2 = np.array(dib.nodos[b['n1']], float), np.array(dib.nodos[b['n2']], float)
         W = props[i]['masa'] / 100.0 * float(np.linalg.norm(p2 - p1)) * 100.0     # kgf
-        peso_total += W
+        peso_barras += W
         for nodo in ops.eleNodes(i + 1):
             masa[nodo] = masa.get(nodo, 0.0) + 0.5 * W / G_CM
+    peso_nudos = 0.0
+    cargas = getattr(dib, 'cargas', {}) or {}
+    for nombre, pp in estados:
+        if not pp:
+            continue
+        for idx, v in cargas.get(nombre, {}).items():
+            W = max(0.0, -float(v[2]))                 # FZ < 0 = hacia abajo; FZ > 0 no es peso
+            if W > 0:
+                masa[idx + 1] = masa.get(idx + 1, 0.0) + W / G_CM      # nudo idx+1 (ops)
+                peso_nudos += W
     if not masa:
-        raise ErrorAnalisis('el modelo no tiene barras con peso propio: no hay masas para el periodo.')
+        raise ErrorAnalisis('el modelo no tiene barras ni cargas de peso propio: no hay masas para el periodo.')
     for nodo, m in masa.items():
         ops.mass(nodo, m, m, m, 0.0, 0.0, 0.0)                    # solo traslacion
     # Masa solo de traslacion: M es singular (giros sin masa). ARPACK no converge con eso; el solver denso de LAPACK
@@ -735,7 +746,7 @@ def periodos(dib, materiales_filas, estados_df, id_barra, factor_hss=None, n_mod
             fila[f'Masa efectiva {eje} (%)'] = (100.0 * s * s / (gen * total[d])
                                                 if gen > 0 and total[d] > 0 else 0.0)
         filas.append(fila)
-    return pd.DataFrame(filas), peso_total
+    return pd.DataFrame(filas), peso_barras, peso_nudos
 
 
 def correr(dib, materiales, estados, rep_barras, rep_nodos, id_barra, id_de_indice, ruta_salida, factor_hss=None):
