@@ -798,17 +798,20 @@ def _seccion_desplazamientos_sismicos(dib, casos, desp):
         lim_txt = 'no informado: el resultado queda <span class="pend">PENDIENTE</span>'
     else:
         lim_txt = f'δ_lim / h = {limite:g} ({limite * 100:.2f} %)'
-    intro = ('<p>Desplazamientos laterales de los nudos en las combinaciones de sismo (estado E). Los nudos se agrupan '
+    intro = ('<p>Desplazamientos laterales de los nudos en los casos sísmicos (estados E, sin combinar) y en las combinaciones que incluyen sismo. Los nudos se agrupan '
              'por cota Z en niveles; δ de cada nivel = máximo |UX| y |UY| de sus nudos. Entrepiso: Δ = δ<sub>i</sub> − '
              'δ<sub>i−1</sub>; deriva = |Δ| / h. Convención de desplazamientos del modelo: '
              f'<b>{convencion or "sin informar"}</b>.</p>'
              f'<p><b>Límite de deriva de entrepiso</b>: {lim_txt}.</p>')
 
     cls = getattr(dib, 'clase_combinacion', {}) or {}
-    sismo = [(n, res) for n, tipo, res in casos if tipo == 'COMBINACION' and cls.get(n) == 'sismo']
+    tipos = getattr(dib, 'estados_tipo', {}) or {}
+    # casos sismicos puros (estados de tipo E, sin combinar) y combinaciones que incluyen sismo, en ese orden
+    sismo = [(n, res, tipo == 'ESTADO') for n, tipo, res in casos
+             if (tipo == 'ESTADO' and tipos.get(n) == 'E') or (tipo == 'COMBINACION' and cls.get(n) == 'sismo')]
     z_mm = np.array([dib.nodos[i][2] for i in range(len(dib.nodos))], float) * 1000.0
     bloques, peor = [], None
-    for nombre, res in sismo:
+    for nombre, res, es_estado in sismo:
         d = np.array([res['nodos'][i][:3] for i in range(len(dib.nodos))], float) * 10.0     # cm -> mm
         filas = _derivas_niveles(_nivel_nodos(z_mm, d[:, 0], d[:, 1]), limite)
         if not filas:
@@ -822,7 +825,9 @@ def _seccion_desplazamientos_sismicos(dib, casos, desp):
             f'<td class="num">{f["deriva_x"]:.5f}</td><td class="num">{f["deriva_y"]:.5f}</td>'
             f'<td class="num">{f["deriva"]:.5f}</td><td>{_estado_html(f["estado"])}</td></tr>'
             for f in filas)
-        bloques.append(f'<h4>Combinación {html.escape(str(nombre))}</h4>'
+        encabezado = (f'Caso sísmico {html.escape(str(nombre))} (estado E, sin combinar)' if es_estado
+                      else f'Combinación {html.escape(str(nombre))}')
+        bloques.append(f'<h4>{encabezado}</h4>'
                        '<table><tr><th>Cota Z del nivel (mm)</th><th>h entrepiso (mm)</th><th>δX (mm)</th>'
                        '<th>δY (mm)</th><th>Deriva X</th><th>Deriva Y</th><th>Deriva máx</th><th>Estado</th></tr>'
                        f'{cuerpo}</table>')
@@ -834,7 +839,7 @@ def _seccion_desplazamientos_sismicos(dib, casos, desp):
     elif sismo:
         derivas = '<p class="nota">El modelo tiene un solo nivel: no hay entrepisos que revisar.</p>'
     else:
-        derivas = '<p class="nota">No hay combinaciones de sismo (estado E) en la planilla: no hay derivas que revisar.</p>'
+        derivas = '<p class="nota">No hay casos sísmicos (estados E) ni combinaciones con sismo en la planilla: no hay derivas que revisar.</p>'
     return titulo + intro + '<h4>Derivas de entrepiso por combinación de sismo</h4>' + derivas
 
 

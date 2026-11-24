@@ -67,6 +67,7 @@ class Dib:
     def __init__(self):
         self.nodos = [(0.0, 0.0, 0.0), (0.0, 0.0, 3.0), (6.0, 0.0, 3.0), (0.0, 0.0, 6.0), (6.0, 0.0, 6.0)]
         self.clase_combinacion = {'SIS_X': 'sismo', 'GRAV': 'gravitacional'}
+        self.estados_tipo = {'E_X': 'E', 'W_X': 'W'}
 
 
 class DibUnNivel(Dib):
@@ -84,7 +85,8 @@ DIB = Dib()
 CASOS = [
     ('SIS_X', 'COMBINACION', res([0.0, 1.0, 0.8, 2.5, 2.0], [0.0, 0.0, 0.0, 0.5, 0.0])),
     ('GRAV', 'COMBINACION', res([0.0, 9.0, 9.0, 9.0, 9.0], [0.0] * 5)),      # gravitacional: no debe entrar
-    ('E_X', 'ESTADO', res([0.0, 5.0, 5.0, 5.0, 5.0], [0.0] * 5)),           # estado: no debe entrar
+    ('E_X', 'ESTADO', res([0.0, 0.5, 0.5, 0.5, 0.5], [0.0] * 5)),           # caso sismico puro: entra (sin combinar)
+    ('W_X', 'ESTADO', res([0.0, 9.0, 9.0, 9.0, 9.0], [0.0] * 5)),           # viento: no entra
 ]
 DESP = {'limite': None, 'convencion': 'ELASTICO'}
 
@@ -109,14 +111,15 @@ chequeo('limite 0.004: entrepiso 2 NO CUMPLE, entrepiso 1 CUMPLE',
 # 3) Seccion 6.3 con el modelo sintetico (solo combinaciones de sismo)
 sec = MA._seccion_desplazamientos_sismicos(DIB, CASOS, DESP)
 chequeo('deriva maxima 0.00500 en la combinacion SIS_X', 'Deriva máxima</b>: 0.00500' in sec and 'SIS_X' in sec)
-chequeo('combinacion de gravedad y estado E excluidos', 'GRAV' not in sec and 'E_X' not in sec)
+chequeo('caso sismico puro E_X incluido con su encabezado', 'Caso sísmico E_X' in sec)
+chequeo('gravedad y viento excluidos', 'GRAV' not in sec and 'W_X' not in sec)
 chequeo('sin limite se muestra PENDIENTE', 'PENDIENTE' in sec and 'class="cumple"' not in sec)
 chequeo('la seccion no trae tuberias (Δp, lineas)', 'Δp' not in sec and 'Línea' not in sec)
 sec_lim = MA._seccion_desplazamientos_sismicos(DIB, CASOS, dict(DESP, limite=0.004))
 chequeo('limite 0.004: deriva maxima NO CUMPLE', 'Estado: <span class="nocumple">NO CUMPLE' in sec_lim)
 sec_ok = MA._seccion_desplazamientos_sismicos(DIB, CASOS, dict(DESP, limite=0.006))
 chequeo('limite 0.006: deriva maxima CUMPLE', 'Estado: <span class="cumple">CUMPLE' in sec_ok)
-chequeo('sin combinaciones de sismo: se indica', 'No hay combinaciones de sismo' in
+chequeo('sin casos sismicos: se indica', 'No hay casos sísmicos' in
         MA._seccion_desplazamientos_sismicos(DIB, [('GRAV', 'COMBINACION', CASOS[1][2])], DESP))
 chequeo('un solo nivel: se indica que no hay entrepisos',
         'un solo nivel' in MA._seccion_desplazamientos_sismicos(DibUnNivel(), CASOS[:1], DESP))
