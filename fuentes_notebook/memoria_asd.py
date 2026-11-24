@@ -1188,7 +1188,7 @@ def _resumen_placa_html(r):
         estado = 'CUMPLE' if v['fu'] <= 1.0 else 'NO CUMPLE'
         clase = 'cumple' if estado == 'CUMPLE' else 'nocumple'
         filas.append(f'<tr><td>{html.escape(v["nombre"])}</td><td>{html.escape(v["caso"])}</td>'
-                     f'<td class="num">{_vp(dem, 2)} {unidad}</td><td class="num">{_vp(cap, 2)}</td>'
+                     f'<td class="num">{_vp(dem, 2)} {unidad}</td><td class="num">{_vp(cap, 2)} {unidad}</td>'
                      f'<td class="num">{_fu(v["fu"])}</td><td class="{clase}">{estado}</td></tr>')
     alt = ''
     combos_s = [c for c in r['combos'] if c.get('treq_s') is not None]
