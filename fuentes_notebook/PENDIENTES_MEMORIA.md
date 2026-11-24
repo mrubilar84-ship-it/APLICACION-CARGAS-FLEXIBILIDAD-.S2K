@@ -35,3 +35,7 @@ Siguen siendo pendientes reales del cálculo: revisarlos antes de dar el cálcul
 
 ## Estados de barra NO REVISADO por datos faltantes
 - Se mantienen en la memoria (estado de datos, no comentario). Pendiente de decisión.
+
+## Alternativa con atiezador (sección 8.i.3b)
+- Aproximación: el voladizo que gobierna se reduce a la mitad (atiezador a media distancia entre patín y borde). No cambia el veredicto principal.
+- El atiezador no se dimensiona: espesor, soldadura al patín y a la placa, flexión y corte no verificados. Su posición real y su método de DG1 para placas rigidizadas no están en la fuente disponible.

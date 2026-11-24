@@ -1190,9 +1190,29 @@ def _resumen_placa_html(r):
         filas.append(f'<tr><td>{html.escape(v["nombre"])}</td><td>{html.escape(v["caso"])}</td>'
                      f'<td class="num">{_vp(dem, 2)} {unidad}</td><td class="num">{_vp(cap, 2)}</td>'
                      f'<td class="num">{_fu(v["fu"])}</td><td class="{clase}">{estado}</td></tr>')
+    alt = ''
+    combos_s = [c for c in r['combos'] if c.get('treq_s') is not None]
+    if combos_s:
+        cs = max(combos_s, key=lambda c: c['treq_s'])
+        t_s = cs['treq_s']
+        fu_s = cs['fu'].get('pl_s', math.inf)
+        t_0 = max((c.get('treq') or 0.0) for c in r['combos'])
+        pl_t = r['datos']['pl_t']
+        alt = ('<h4>8.{i}.3b Alternativa con un atiezador a mitad del voladizo (aproximación)</h4>'
+               '<table><tr><th>Concepto</th><th>Sin atiezador</th><th>Con atiezador</th></tr>'
+               f'<tr><td>Voladizo que gobierna l (cm)</td><td class="num">{_vp(cs["l"], 2)}</td>'
+               f'<td class="num">{_vp(cs["l_s"], 2)}</td></tr>'
+               f'<tr><td>Espesor requerido (cm)</td><td class="num">{_vp(t_0, 3)}</td>'
+               f'<td class="num">{_vp(t_s, 3)}</td></tr>'
+               f'<tr><td>Espesor de la placa (cm)</td><td class="num">{_vp(pl_t, 2)}</td>'
+               f'<td class="num">{_vp(pl_t, 2)}</td></tr>'
+               f'<tr><td>FU de espesor</td><td class="num">{_fu((t_0 / pl_t) ** 2)}</td>'
+               f'<td class="num">{_fu(fu_s)}</td></tr></table>'
+               '<p class="nota">Aproximación: el voladizo que gobierna se toma a la mitad (atiezador a media distancia '
+               'entre el patín y el borde). Caso que controla: ' + html.escape(cs['caso']) + '.</p>')
     return ('<h4>8.{i}.3 Resumen de verificaciones</h4>'
             '<table><tr><th>Verificación</th><th>Caso que controla</th><th>Demanda</th><th>Capacidad</th>'
-            '<th>FU</th><th>Estado</th></tr>' + ''.join(filas) + '</table>')
+            '<th>FU</th><th>Estado</th></tr>' + ''.join(filas) + '</table>' + alt)
 
 
 def _detalle_placa_html(r):

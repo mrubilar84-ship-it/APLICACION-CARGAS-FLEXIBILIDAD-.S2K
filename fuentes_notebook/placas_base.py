@@ -184,7 +184,22 @@ def _combinacion(caso, v, d, ctx):
             if x['grande']:
                 casos_t.append(x['treq'] if x['ok'] else math.inf)
         treq = max(casos_t)
-        c.update(X=X, lam=lam, m=m_, n=n_, np=np_, l=l_, treq=treq)
+        # Alternativa aproximada: un atiezador a mitad del voladizo reduce el voladizo a l/2 (espesor, flexion
+        # y soldadura del atiezador no se dimensionan aqui). No cambia el veredicto principal.
+        ls = l_ / 2.0
+        casos_s = []
+        if f_peq:
+            casos_s.append(ls * math.sqrt(2.0 * ctx['Opl'] * max(f_peq) / d['fy']))
+        for x in (dx, dy):
+            if x['grande']:
+                if x['ok']:
+                    tcs = 2.58 * math.sqrt(ctx['f_adm'] * x['Y'] * (ls - x['Y'] / 2.0) / d['fy']) if x['Y'] else 0.0
+                    casos_s.append(max(tcs, x['t_anc']))
+                else:
+                    casos_s.append(math.inf)
+        treq_s = max(casos_s)
+        c.update(X=X, lam=lam, m=m_, n=n_, np=np_, l=l_, treq=treq, treq_s=treq_s, l_s=ls)
+        c['fu']['pl_s'] = (treq_s / d['pl_t']) ** 2
         c['fu']['pl'] = (treq / d['pl_t']) ** 2
     # Traccion en pernos: compresion con excentricidad fuera del tercio medio, o levantamiento (anclas al lado X)
     if Pc > 0:
