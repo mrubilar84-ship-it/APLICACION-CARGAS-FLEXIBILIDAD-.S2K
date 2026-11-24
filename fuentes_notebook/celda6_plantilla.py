@@ -954,6 +954,9 @@ NORMA_VALORES = [
     ('AISC_H3_20PCT', 0.2, '', 'AISC 360-22, H3.2', 'Fraccion Tr/Tc a partir de la cual se aplica H3-6 en lugar de H1.'),
     ('AISC_B42_HSS', 0.93, '', 'AISC 360-22, B4.2 (espesor de diseno de HSS: 0.93 t nominal salvo ASTM A1065/A1085)',
      'Factor del espesor de diseno de HSS. Se aplica a las propiedades de diseno (A, I, S, Z, r, J); el analisis usa estas mismas propiedades; la masa es la del catalogo.'),
+    # Deformacion lateral sismica (hoja DESPLAZAMIENTOS): criterio W40428
+    ('W40428_DELTA_P', 0.0085, '', 'Criterio W40428-000-DD20-DSC-001 Rev. 0, 11.10 (pag. 22): Δp = 0.0085 · Δh',
+     'Desplazamiento relativo que debe absorber el componente entre dos niveles. El criterio no cita su origen normativo.'),
     # Placas base (bloque 10b): AISC DG1 2.a ed. (AISC 2005) para aplastamiento, placa, anclas, cono y soldadura
     ('BASE_J8_085', 0.85, '', 'IMCA 5ta ed., cap. J, J8-1 (II-218, pdf 312), verificada en imagen', 'Coeficiente 0.85 de P_p = 0.85 f′c A1.'),
     ('BASE_J8_LIM', 1.7, '', 'IMCA 5ta ed., cap. J, J8-2 (II-218, pdf 312), verificada en imagen', 'Limite P_p <= 1.7 f′c A1.'),
@@ -1061,9 +1064,68 @@ def _hoja_bases(wb, filas=None):
     ws.freeze_panes = 'B5'
 
 
+# ---------------------------------------------------------------- DESPLAZAMIENTOS (deformacion lateral sismica, W40428)
+DESP_MAX = 30                # lineas de tuberia que admite la hoja
+DESP_FIL_INI = 10            # primera fila de datos de las lineas (la cabecera de la tabla es la fila 9)
+DESP_COLS = ['LINEA', 'NODO INFERIOR', 'NODO SUPERIOR', 'APOYO (RIGIDO/FLEXIBLE)', 'HOLGURA O CAPACIDAD (mm)', 'NOTA']
+
+
+def _hoja_desplazamientos(wb, desp=None):
+    """Hoja DESPLAZAMIENTOS (criterio W40428-000-DD20-DSC-001 Rev. 0, 11.10 y 11.11): deformacion lateral sismica.
+    Datos de entrada: limite de deriva (vacio = PENDIENTE, nunca OK), convencion de desplazamientos del modelo y
+    lineas de tuberia (nudos de anclaje de NODOS, tipo de apoyo y holgura o capacidad en mm).
+    desp: {'limite', 'convencion', 'lineas': [filas de DESP_COLS]} para regenerar el libro; None = hoja vacia."""
+    from openpyxl.worksheet.datavalidation import DataValidation as DV
+    desp = desp or {}
+    ws = wb.create_sheet('DESPLAZAMIENTOS')
+    ws['A1'] = 'DESPLAZAMIENTOS: deformacion lateral sismica (criterio W40428, 11.10 y 11.11). Datos de entrada.'
+    ws['A1'].font = NEGRITA
+    ws['A2'] = ('Derivas: entrepiso Δ = δ_i − δ_(i−1) y deriva = |Δ| / h. Lineas de tuberia: Δp = 0.0085 · Δh, con Δh entre '
+                'las cotas Z de sus nudos. Un dato vacio deja el resultado PENDIENTE: nunca se marca OK.')
+    _cabecera_en(ws, 4, ['CLAVE', 'CONCEPTO', 'VALOR', 'REFERENCIA'], [22, 34, 20, 26])
+    filas_p = [
+        ('LIMITE_DERIVA', 'Límite de deriva de entrepiso δ_lim / h (adimensional)', desp.get('limite'),
+         'No fijado en el criterio W40428: confirme el valor con el MDOC de sismo CFE 2015 o con Wood. Ej.: 0.005 = 0.5 %.'),
+        ('CONVENCION', 'Convención de desplazamientos del modelo', desp.get('convencion'),
+         'ELASTICO o AMPLIFICADO: indique si δ sale del análisis elástico o viene amplificado según el MDOC.'),
+    ]
+    for k, (clave, concepto, valor, ref) in enumerate(filas_p):
+        fila = 5 + k
+        ws[f'A{fila}'] = clave
+        ws[f'B{fila}'] = concepto
+        ws[f'C{fila}'] = valor
+        ws[f'C{fila}'].fill = ENTRADA
+        ws[f'D{fila}'] = ref
+    dv_lim = DV(type='decimal', operator='greaterThanOrEqual', formula1='0', allow_blank=True)
+    dv_conv = DV(type='list', formula1='"ELASTICO,AMPLIFICADO"', allow_blank=True)
+    ws.add_data_validation(dv_lim)
+    ws.add_data_validation(dv_conv)
+    dv_lim.add('C5')
+    dv_conv.add('C6')
+    ws['A8'] = 'LINEAS DE TUBERIA (una fila por línea; máximo 30). NODO = ID de la hoja NODOS. Holgura o capacidad en mm.'
+    ws['A8'].font = NEGRITA
+    _cabecera_en(ws, 9, DESP_COLS, [22, 34, 20, 26, 22, 44])
+    lineas = list(desp.get('lineas') or [])
+    for k in range(DESP_MAX):
+        fila = DESP_FIL_INI + k
+        valores = lineas[k] if k < len(lineas) else []
+        for c in range(len(DESP_COLS)):
+            celda = ws.cell(row=fila, column=c + 1, value=(valores[c] if c < len(valores) else None))
+            if DESP_COLS[c] != 'NOTA':
+                celda.fill = ENTRADA
+    fin = DESP_FIL_INI + DESP_MAX - 1
+    dv_apoyo = DV(type='list', formula1='"RIGIDO,FLEXIBLE"', allow_blank=True)
+    dv_hol = DV(type='decimal', operator='greaterThanOrEqual', formula1='0', allow_blank=True)
+    ws.add_data_validation(dv_apoyo)
+    ws.add_data_validation(dv_hol)
+    dv_apoyo.add(f'D{DESP_FIL_INI}:D{fin}')
+    dv_hol.add(f'E{DESP_FIL_INI}:E{fin}')
+
+
 def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas=None, estados=None,
                       materiales=None, combinaciones=None, longitudes=None, listas=None,
-                      grupos_perfil=None, fu_matriz=None, perfiles_analizados=None, bases=None, parametros=None):
+                      grupos_perfil=None, fu_matriz=None, perfiles_analizados=None, bases=None, parametros=None,
+                      desplazamientos=None):
     """Escribe el libro completo con los datos dados. Cada fila de NODOS: NODOS_COLS; de BARRAS: BARRAS_COLS.
     bases: filas de la hoja BASES (BASES_COLS); None = hoja vacia."""
     wb = openpyxl.Workbook()
@@ -1100,6 +1162,8 @@ def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas
         'VISTA_VIVA: planta, alzado y 3D esquematico que se actualizan al cambiar NODOS y BARRAS.',
         '   Cambie el nivel Z (C3), la cota Y (C4), el azimut (C5), la elevacion (C6) y el largo de la flecha (C7).',
         '',
+        'DESPLAZAMIENTOS: deformacion lateral sismica (criterio W40428, 11.10). LIMITE_DERIVA: valor confirmado (MDOC o Wood); vacio = PENDIENTE, nunca OK.',
+        'CONVENCION: ELASTICO o AMPLIFICADO (desplazamientos del modelo). LINEAS DE TUBERIA: NODO INFERIOR y NODO SUPERIOR son IDs de NODOS; APOYO RIGIDO o FLEXIBLE; HOLGURA O CAPACIDAD (mm).',
         'No cambiar los nombres de las hojas ni de las columnas. Las filas vacias se ignoran.',
     ]
     for linea in texto:
@@ -1146,6 +1210,7 @@ def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas
 
     _hoja_longitudes(wb, longitudes)
     _hoja_bases(wb, bases)
+    _hoja_desplazamientos(wb, desplazamientos)
     ws_c = wb.create_sheet('CONEXIONES')
     _encabezado(ws_c, ['TIPO', 'EN NODOS (UX a RZ = SI)', 'EN EXTREMOS DE BARRA (CONEXION_I / CONEXION_J)',
                        'USO TIPICO'], [14, 44, 50, 46])

@@ -28,6 +28,7 @@ td.num { text-align: right; white-space: nowrap; }
 .meta td { border: none; padding: 1px 6px 1px 0; }
 .cumple { color: #1e6b33; font-weight: bold; }
 .nocumple { color: #a61b1b; font-weight: bold; }
+.pend { color: #8a5a00; font-weight: bold; }
 .nota { color: #555; font-size: 8.5pt; }
 .norev { color: #8a5a00; font-weight: bold; }
 .barra { page-break-inside: avoid; margin-top: 18px; }
@@ -726,6 +727,175 @@ def _seccion_desplazamientos(dib, casos, id_de_indice, id_barra, clase, proyecto
             f'{tabla_f}')
 
 
+# ---------------------------------------------------------------- 6.3 Deformacion lateral sismica (criterio W40428)
+APOYOS_TUBERIA = ('RIGIDO', 'FLEXIBLE')
+
+
+def _sin_dato(v):
+    return v is None or str(v).strip() == ''
+
+
+def _numero_opcional(v, etiqueta):
+    """Dato numerico de la hoja DESPLAZAMIENTOS. Vacio = None (pendiente); texto que no es numero = error de la planilla."""
+    if _sin_dato(v):
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        raise DA.ErrorAsd(f'DESPLAZAMIENTOS: {etiqueta} debe ser un número (leído: {v}). Corríjalo y vuelva a ejecutar.')
+
+
+def _estado_limite(valor, limite):
+    """CUMPLE / NO CUMPLE frente a un limite. Sin limite informado = PENDIENTE: el criterio W40428 no permite OK."""
+    if limite is None:
+        return 'PENDIENTE'
+    return 'CUMPLE' if valor <= limite else 'NO CUMPLE'
+
+
+def _estado_html(estado):
+    return f'<span class="{ {"CUMPLE": "cumple", "NO CUMPLE": "nocumple"}.get(estado, "pend") }">{estado}</span>'
+
+
+def _nivel_nodos(z_mm, ux_mm, uy_mm, tol_mm=1.0):
+    """Agrupa los nudos por cota Z (tolerancia tol_mm). Por nivel: cota y maximo |UX| y |UY| de sus nudos (mm),
+    de menor a mayor cota."""
+    niveles = []
+    for k in np.argsort(z_mm, kind='stable'):
+        if niveles and z_mm[k] - niveles[-1]['z_hi'] <= tol_mm:
+            g = niveles[-1]
+            g['z_hi'] = float(z_mm[k])
+            g['ux'] = max(g['ux'], abs(float(ux_mm[k])))
+            g['uy'] = max(g['uy'], abs(float(uy_mm[k])))
+        else:
+            niveles.append({'z': float(z_mm[k]), 'z_hi': float(z_mm[k]),
+                            'ux': abs(float(ux_mm[k])), 'uy': abs(float(uy_mm[k]))})
+    return niveles
+
+
+def _derivas_niveles(niveles, limite):
+    """Entrepisos (criterio W40428, 11.10): Δ_i = δ_i − δ_(i−1) y deriva = |Δ_i| / h_i en X e Y. Cada fila es el
+    entrepiso entre un nivel y el inmediato inferior; el estado se da con la mayor de las dos derivas."""
+    filas = []
+    for abajo, arriba in zip(niveles, niveles[1:]):
+        h = arriba['z'] - abajo['z']
+        dx = abs(arriba['ux'] - abajo['ux'])
+        dy = abs(arriba['uy'] - abajo['uy'])
+        deriva = max(dx, dy) / h
+        filas.append({'z': arriba['z'], 'h': h, 'ux': arriba['ux'], 'uy': arriba['uy'],
+                      'deriva_x': dx / h, 'deriva_y': dy / h, 'deriva': deriva,
+                      'estado': _estado_limite(deriva, limite)})
+    return filas
+
+
+def _id_nodo(v):
+    try:
+        return int(float(v))
+    except (TypeError, ValueError):
+        return None
+
+
+def _tuberias(dib, id_de_indice, lineas, coef):
+    """Lineas de tuberia (criterio W40428, 11.10 y 11.11): Δh entre las cotas Z de sus nudos de anclaje (mm),
+    Δp = coef · Δh y su estado frente a la holgura (apoyo rigido) o la capacidad (apoyo flexible).
+    Sin tipo de apoyo o sin holgura: PENDIENTE."""
+    inv = {_id_nodo(v): k for k, v in id_de_indice.items()}
+    filas = []
+    for linea, ninf, nsup, apoyo, holgura, _nota in lineas:
+        zs = []
+        for nodo in (ninf, nsup):
+            k = inv.get(_id_nodo(nodo))
+            if k is None:
+                raise DA.ErrorAsd(f'DESPLAZAMIENTOS, línea {linea}: el nudo {nodo} no existe en el modelo')
+            zs.append(float(dib.nodos[k][2]) * 1000.0)            # m -> mm
+        dh = abs(zs[1] - zs[0])
+        dp = coef * dh
+        ap = '' if _sin_dato(apoyo) else str(apoyo).strip().upper()
+        hol = _numero_opcional(holgura, f'holgura de la línea {linea}')
+        estado = 'PENDIENTE' if (ap not in APOYOS_TUBERIA or hol is None) else _estado_limite(dp, hol)
+        filas.append({'linea': linea, 'ninf': ninf, 'zi': zs[0], 'nsup': nsup, 'zs': zs[1], 'dh': dh, 'dp': dp,
+                      'apoyo': ap or '—', 'holgura': hol, 'estado': estado})
+    return filas
+
+
+def _seccion_desplazamientos_sismicos(dib, casos, id_de_indice, desp):
+    """6.3 Deformacion lateral sismica (criterio W40428-000-DD20-DSC-001 Rev. 0, 11.10 y 11.11): derivas de entrepiso
+    de las combinaciones de sismo (desplazamientos del analisis) y desplazamiento relativo de cada linea de tuberia,
+    Δp = coef · Δh, frente a su holgura o capacidad. Datos de la hoja DESPLAZAMIENTOS y de NORMA."""
+    titulo = '<h3>6.3 Deformación lateral sísmica (criterio W40428, 11.10 y 11.11)</h3>'
+    if desp is None:
+        return titulo + ('<p class="nota">La planilla no tiene la hoja DESPLAZAMIENTOS: use la plantilla nueva para '
+                         'ingresar el límite de deriva y las líneas de tubería.</p>')
+    coef = desp.get('coef_dp')
+    if coef is None:
+        raise DA.ErrorAsd('falta W40428_DELTA_P en la hoja NORMA: use la plantilla nueva (no se genera la memoria)')
+    limite = _numero_opcional(desp.get('limite'), 'LIMITE_DERIVA')
+    convencion = '' if _sin_dato(desp.get('convencion')) else html.escape(str(desp['convencion']).strip())
+    if limite is None:
+        lim_txt = ('no informado: el resultado queda <span class="pend">PENDIENTE</span> '
+                   '(el criterio no fija el límite de deriva para racks)')
+    else:
+        lim_txt = f'δ_lim / h = {limite:g} ({limite * 100:.2f} %)'
+    intro = ('<p>Desplazamientos laterales de los nudos en las combinaciones de sismo (estado E). Los nudos se agrupan '
+             'por cota Z en niveles; δ de cada nivel = máximo |UX| y |UY| de sus nudos. Entrepiso: Δ = δ<sub>i</sub> − '
+             'δ<sub>i−1</sub>; deriva = |Δ| / h. Convención de desplazamientos del modelo: '
+             f'<b>{convencion or "sin informar"}</b>.</p>'
+             f'<p><b>Límite de deriva de entrepiso</b>: {lim_txt}.</p>')
+
+    cls = getattr(dib, 'clase_combinacion', {}) or {}
+    sismo = [(n, res) for n, tipo, res in casos if tipo == 'COMBINACION' and cls.get(n) == 'sismo']
+    z_mm = np.array([dib.nodos[i][2] for i in range(len(dib.nodos))], float) * 1000.0
+    bloques, peor = [], None
+    for nombre, res in sismo:
+        d = np.array([res['nodos'][i][:3] for i in range(len(dib.nodos))], float) * 10.0     # cm -> mm
+        filas = _derivas_niveles(_nivel_nodos(z_mm, d[:, 0], d[:, 1]), limite)
+        if not filas:
+            continue
+        for f in filas:
+            if peor is None or f['deriva'] > peor[1]['deriva']:
+                peor = (nombre, f)
+        cuerpo = ''.join(
+            f'<tr><td class="num">{_v(f["z"], 1)}</td><td class="num">{_v(f["h"], 1)}</td>'
+            f'<td class="num">{_v(f["ux"], 2)}</td><td class="num">{_v(f["uy"], 2)}</td>'
+            f'<td class="num">{f["deriva_x"]:.5f}</td><td class="num">{f["deriva_y"]:.5f}</td>'
+            f'<td class="num">{f["deriva"]:.5f}</td><td>{_estado_html(f["estado"])}</td></tr>'
+            for f in filas)
+        bloques.append(f'<h4>Combinación {html.escape(str(nombre))}</h4>'
+                       '<table><tr><th>Cota Z del nivel (mm)</th><th>h entrepiso (mm)</th><th>δX (mm)</th>'
+                       '<th>δY (mm)</th><th>Deriva X</th><th>Deriva Y</th><th>Deriva máx</th><th>Estado</th></tr>'
+                       f'{cuerpo}</table>')
+    if bloques:
+        derivas = ''.join(bloques)
+        nombre, f = peor
+        derivas += (f'<p><b>Deriva máxima</b>: {f["deriva"]:.5f} ({f["deriva"] * 100:.3f} %) en el entrepiso de cota '
+                    f'Z = {_v(f["z"], 1)} mm, combinación {html.escape(str(nombre))}. Estado: {_estado_html(f["estado"])}.</p>')
+    elif sismo:
+        derivas = '<p class="nota">El modelo tiene un solo nivel: no hay entrepisos que revisar.</p>'
+    else:
+        derivas = '<p class="nota">No hay combinaciones de sismo (estado E) en la planilla: no hay derivas que revisar.</p>'
+
+    lin = _tuberias(dib, id_de_indice, desp.get('lineas') or [], coef)
+    if lin:
+        filas_t = ''.join(
+            f'<tr><td>{html.escape(str(f["linea"]))}</td><td class="num">{html.escape(str(f["ninf"]))}</td>'
+            f'<td class="num">{_v(f["zi"], 1)}</td><td class="num">{html.escape(str(f["nsup"]))}</td>'
+            f'<td class="num">{_v(f["zs"], 1)}</td><td class="num">{_v(f["dh"], 1)}</td>'
+            f'<td class="num">{_v(f["dp"], 2)}</td><td>{html.escape(f["apoyo"])}</td>'
+            f'<td class="num">{_v(f["holgura"], 1)}</td><td>{_estado_html(f["estado"])}</td></tr>'
+            for f in lin)
+        tabla_t = ('<table><tr><th>Línea</th><th>Nudo inferior</th><th>Z inferior (mm)</th><th>Nudo superior</th>'
+                   '<th>Z superior (mm)</th><th>Δh (mm)</th><th>Δp (mm)</th><th>Apoyo</th>'
+                   '<th>Holgura o capacidad (mm)</th><th>Estado</th></tr>' + filas_t + '</table>')
+    else:
+        tabla_t = '<p class="nota">La hoja DESPLAZAMIENTOS no tiene líneas de tubería.</p>'
+
+    return (titulo + intro
+            + '<h4>Derivas de entrepiso por combinación de sismo</h4>' + derivas
+            + '<h4>Líneas de tubería: desplazamiento relativo Δp</h4>'
+            + f'<p>Δp = {coef:g} · Δh (criterio W40428, 11.10). Δh = diferencia de cota Z entre los nudos de anclaje '
+              'de la línea. Apoyo rígido: Δp ≤ holgura. Apoyo flexible: Δp ≤ capacidad del apoyo.</p>'
+            + tabla_t)
+
+
 def _encabezado_doc(proyecto, dib):
     meta = [('Proyecto', proyecto.get('nombre', '(completar)')),
             ('Elemento / estructura', proyecto.get('elemento', '(completar)')),
@@ -1367,7 +1537,7 @@ def _seccion_placas(resultados):
 
 
 def memoria_html(dib, materiales_filas, longitudes_df, demandas, id_barra, ruta_salida, proyecto=None,
-                 casos=None, id_de_indice=None, equilibrio=None, bases=None):
+                 casos=None, id_de_indice=None, equilibrio=None, bases=None, desplazamientos=None):
     """Escribe la memoria de calculo completa (HTML imprimible) del diseno de todas las barras del modelo."""
     proyecto = dict(proyecto or {})
     if not proyecto.get('conf'):
@@ -1393,6 +1563,8 @@ def memoria_html(dib, materiales_filas, longitudes_df, demandas, id_barra, ruta_
     desp_html = (_seccion_desplazamientos(dib, casos, id_de_indice, id_barra,
                                           getattr(dib, 'clase_combinacion', {}) or {}, proyecto)
                  if casos is not None else '<p>Sin resultados de desplazamientos.</p>')
+    if casos is not None:
+        desp_html += _seccion_desplazamientos_sismicos(dib, casos, id_de_indice, desplazamientos)
     resumen_txt = ' · '.join(f'{k}: {n}' for k, n in sorted(contar.items()))
     cuerpo = f'''<!doctype html><html lang="es"><head><meta charset="utf-8">
 <title>Memoria de cálculo</title><style>{CSS}</style></head><body>

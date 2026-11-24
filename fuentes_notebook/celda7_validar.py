@@ -360,6 +360,26 @@ def leer_bases(ruta):
     return filas
 
 
+def leer_desplazamientos(ruta):
+    """Hoja DESPLAZAMIENTOS (deformacion lateral sismica, W40428): {'limite', 'convencion', 'lineas', 'coef_dp'}.
+    None si la planilla no tiene la hoja. Vacio = dato no informado (el resultado queda PENDIENTE).
+    coef_dp = NORMA W40428_DELTA_P (None si la hoja NORMA no lo trae)."""
+    import openpyxl
+    try:
+        ws = openpyxl.load_workbook(ruta, data_only=True)['DESPLAZAMIENTOS']
+    except KeyError:
+        return None
+    lineas = []
+    for fila in range(DESP_FIL_INI, DESP_FIL_INI + DESP_MAX):
+        valores = [ws.cell(row=fila, column=c + 1).value for c in range(len(DESP_COLS))]
+        if all(_vacio(v) for v in valores):
+            continue
+        lineas.append(valores)
+    norma = leer_norma(ruta)
+    coef = None if norma is None else norma['VALORES'].get('W40428_DELTA_P')
+    return {'limite': ws['C5'].value, 'convencion': ws['C6'].value, 'lineas': lineas, 'coef_dp': coef}
+
+
 def validar_datos_diseno(barras, longitudes):
     """Datos obligatorios para el diseno de cada barra: LX, LY, LB, KX, KY, CB en LONGITUDES. Sin estos datos no se
     supone nada: aparece como ERROR."""
@@ -537,6 +557,7 @@ import parametros as P
 PAR_LEIDA = leer_parametros(RUTA_PLANILLA_LEIDA)     # hoja PARAMETROS (listas desplegables del Excel)
 NOR_LEIDA = leer_norma(RUTA_PLANILLA_LEIDA)          # hoja NORMA (valores de norma con su referencia)
 BASES_FILAS = leer_bases(RUTA_PLANILLA_LEIDA)        # hoja BASES (placas base); None si la planilla no la tiene
+DESP_LEIDA = leer_desplazamientos(RUTA_PLANILLA_LEIDA)   # hoja DESPLAZAMIENTOS (deformacion lateral sismica); None si no la tiene
 CONF = None
 if PAR_LEIDA is None or NOR_LEIDA is None:
     mensajes.append(('PARAMETROS', '', 'ERROR', 'la planilla no tiene las hojas PARAMETROS y NORMA: use la plantilla nueva'))
