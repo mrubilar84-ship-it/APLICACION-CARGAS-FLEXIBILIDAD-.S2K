@@ -42,7 +42,7 @@ Siguen siendo pendientes reales del cálculo: revisarlos antes de dar el cálcul
 
 ## Deformación lateral sísmica (criterio W40428, hoja DESPLAZAMIENTOS)
 - LIMITE_DERIVA: el criterio no fija el límite de deriva de entrepiso para racks. Sin valor confirmado (MDOC de sismo CFE 2015 o Wood) la memoria muestra PENDIENTE; nunca OK.
-- Coeficiente Δp = 0.0085 · Δh: el criterio no cita su origen normativo. Se guarda en NORMA (W40428_DELTA_P) con la referencia del criterio.
+- Coeficiente Δp = 0.0085 · Δh: el criterio no cita su origen normativo. Se guarda en la hoja DESPLAZAMIENTOS (COEF_DP, celda C7) con la referencia del criterio.
 - Convención de desplazamientos (ELASTICO o AMPLIFICADO): se registra en DESPLAZAMIENTOS. El modelo es elástico lineal; si el MDOC exige amplificar δ, el resultado cambia.
 - Tipo de apoyo (RIGIDO o FLEXIBLE), holgura o capacidad de cada línea: datos de entrada; sin ellos la línea queda PENDIENTE.
 - Deflexión horizontal de vigas y columnas (sección 12, δ ≤ L/λ): fuera de esta versión (alcance: deformación lateral sísmica).

@@ -60,7 +60,7 @@ def _funciones_celda7(nombres):
     return espacio
 
 
-E7 = _funciones_celda7({'_vacio', 'leer_norma', 'leer_desplazamientos'})
+E7 = _funciones_celda7({'_vacio', 'leer_desplazamientos'})
 
 
 class Dib:
@@ -145,9 +145,9 @@ chequeo('sin hoja DESPLAZAMIENTOS: aviso de plantilla nueva',
         'use la plantilla nueva' in MA._seccion_desplazamientos_sismicos(DIB, CASOS, IDS, None))
 try:
     MA._seccion_desplazamientos_sismicos(DIB, CASOS, IDS, dict(DESP, coef_dp=None))
-    chequeo('falta W40428_DELTA_P en NORMA da error', False)
+    chequeo('falta COEF_DP da error', False)
 except MA.DA.ErrorAsd as error:
-    chequeo('falta W40428_DELTA_P en NORMA da error', 'W40428_DELTA_P' in str(error))
+    chequeo('falta COEF_DP da error', 'COEF_DP' in str(error))
 try:
     MA._seccion_desplazamientos_sismicos(DIB, CASOS, IDS, dict(DESP, limite='abc'))
     chequeo('LIMITE_DERIVA no numerico da error', False)
@@ -167,7 +167,7 @@ with tempfile.TemporaryDirectory() as tmp:
     chequeo('lee LIMITE_DERIVA = 0.005', leido['limite'] == 0.005, str(leido['limite']))
     chequeo('lee CONVENCION', leido['convencion'] == 'AMPLIFICADO')
     chequeo('lee una linea de tuberia', len(leido['lineas']) == 1 and leido['lineas'][0][0] == 'L1')
-    chequeo('lee W40428_DELTA_P = 0.0085 de NORMA', leido['coef_dp'] == 0.0085, str(leido['coef_dp']))
+    chequeo('lee COEF_DP = 0.0085 de la hoja', leido['coef_dp'] == 0.0085, str(leido['coef_dp']))
     wb2 = openpyxl.Workbook()
     wb2.remove(wb2.active)
     PL['_hoja_normas_y_parametros'](wb2)

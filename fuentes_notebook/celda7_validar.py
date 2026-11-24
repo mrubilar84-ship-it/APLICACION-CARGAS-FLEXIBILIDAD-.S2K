@@ -363,7 +363,7 @@ def leer_bases(ruta):
 def leer_desplazamientos(ruta):
     """Hoja DESPLAZAMIENTOS (deformacion lateral sismica, W40428): {'limite', 'convencion', 'lineas', 'coef_dp'}.
     None si la planilla no tiene la hoja. Vacio = dato no informado (el resultado queda PENDIENTE).
-    coef_dp = NORMA W40428_DELTA_P (None si la hoja NORMA no lo trae)."""
+    coef_dp = celda C7 (COEF_DP) de la misma hoja."""
     import openpyxl
     try:
         ws = openpyxl.load_workbook(ruta, data_only=True)['DESPLAZAMIENTOS']
@@ -375,9 +375,7 @@ def leer_desplazamientos(ruta):
         if all(_vacio(v) for v in valores):
             continue
         lineas.append(valores)
-    norma = leer_norma(ruta)
-    coef = None if norma is None else norma['VALORES'].get('W40428_DELTA_P')
-    return {'limite': ws['C5'].value, 'convencion': ws['C6'].value, 'lineas': lineas, 'coef_dp': coef}
+    return {'limite': ws['C5'].value, 'convencion': ws['C6'].value, 'lineas': lineas, 'coef_dp': ws['C7'].value}
 
 
 def validar_datos_diseno(barras, longitudes):

@@ -820,14 +820,14 @@ def _tuberias(dib, id_de_indice, lineas, coef):
 def _seccion_desplazamientos_sismicos(dib, casos, id_de_indice, desp):
     """6.3 Deformacion lateral sismica (criterio W40428-000-DD20-DSC-001 Rev. 0, 11.10 y 11.11): derivas de entrepiso
     de las combinaciones de sismo (desplazamientos del analisis) y desplazamiento relativo de cada linea de tuberia,
-    Δp = coef · Δh, frente a su holgura o capacidad. Datos de la hoja DESPLAZAMIENTOS y de NORMA."""
+    Δp = coef · Δh, frente a su holgura o capacidad. Datos de la hoja DESPLAZAMIENTOS."""
     titulo = '<h3>6.3 Deformación lateral sísmica (criterio W40428, 11.10 y 11.11)</h3>'
     if desp is None:
         return titulo + ('<p class="nota">La planilla no tiene la hoja DESPLAZAMIENTOS: use la plantilla nueva para '
                          'ingresar el límite de deriva y las líneas de tubería.</p>')
-    coef = desp.get('coef_dp')
+    coef = _numero_opcional(desp.get('coef_dp'), 'COEF_DP (celda C7)')
     if coef is None:
-        raise DA.ErrorAsd('falta W40428_DELTA_P en la hoja NORMA: use la plantilla nueva (no se genera la memoria)')
+        raise DA.ErrorAsd('falta COEF_DP (celda C7) en la hoja DESPLAZAMIENTOS: no se genera la memoria')
     limite = _numero_opcional(desp.get('limite'), 'LIMITE_DERIVA')
     convencion = '' if _sin_dato(desp.get('convencion')) else html.escape(str(desp['convencion']).strip())
     if limite is None:

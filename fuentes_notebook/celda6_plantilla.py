@@ -954,9 +954,6 @@ NORMA_VALORES = [
     ('AISC_H3_20PCT', 0.2, '', 'AISC 360-22, H3.2', 'Fraccion Tr/Tc a partir de la cual se aplica H3-6 en lugar de H1.'),
     ('AISC_B42_HSS', 0.93, '', 'AISC 360-22, B4.2 (espesor de diseno de HSS: 0.93 t nominal salvo ASTM A1065/A1085)',
      'Factor del espesor de diseno de HSS. Se aplica a las propiedades de diseno (A, I, S, Z, r, J); el analisis usa estas mismas propiedades; la masa es la del catalogo.'),
-    # Deformacion lateral sismica (hoja DESPLAZAMIENTOS): criterio W40428
-    ('W40428_DELTA_P', 0.0085, '', 'Criterio W40428-000-DD20-DSC-001 Rev. 0, 11.10 (pag. 22): Δp = 0.0085 · Δh',
-     'Desplazamiento relativo que debe absorber el componente entre dos niveles. El criterio no cita su origen normativo.'),
     # Placas base (bloque 10b): AISC DG1 2.a ed. (AISC 2005) para aplastamiento, placa, anclas, cono y soldadura
     ('BASE_J8_085', 0.85, '', 'IMCA 5ta ed., cap. J, J8-1 (II-218, pdf 312), verificada en imagen', 'Coeficiente 0.85 de P_p = 0.85 f′c A1.'),
     ('BASE_J8_LIM', 1.7, '', 'IMCA 5ta ed., cap. J, J8-2 (II-218, pdf 312), verificada en imagen', 'Limite P_p <= 1.7 f′c A1.'),
@@ -1082,12 +1079,16 @@ def _hoja_desplazamientos(wb, desp=None):
     ws['A1'].font = NEGRITA
     ws['A2'] = ('Derivas: entrepiso Δ = δ_i − δ_(i−1) y deriva = |Δ| / h. Lineas de tuberia: Δp = 0.0085 · Δh, con Δh entre '
                 'las cotas Z de sus nudos. Un dato vacio deja el resultado PENDIENTE: nunca se marca OK.')
+    ws['A3'] = ('Planilla anterior: copie esta hoja desde la plantilla nueva (clic derecho en la pestaña > Mover o copiar '
+                '> su planilla > Crear una copia).')
     _cabecera_en(ws, 4, ['CLAVE', 'CONCEPTO', 'VALOR', 'REFERENCIA'], [22, 34, 20, 26])
     filas_p = [
         ('LIMITE_DERIVA', 'Límite de deriva de entrepiso δ_lim / h (adimensional)', desp.get('limite'),
          'No fijado en el criterio W40428: confirme el valor con el MDOC de sismo CFE 2015 o con Wood. Ej.: 0.005 = 0.5 %.'),
         ('CONVENCION', 'Convención de desplazamientos del modelo', desp.get('convencion'),
          'ELASTICO o AMPLIFICADO: indique si δ sale del análisis elástico o viene amplificado según el MDOC.'),
+        ('COEF_DP', 'Coeficiente de Δp = COEF_DP · Δh (criterio W40428, 11.10)', 0.0085,
+         'Valor del criterio W40428 (Δp = 0.0085 · Δh). El criterio no cita su origen normativo.'),
     ]
     for k, (clave, concepto, valor, ref) in enumerate(filas_p):
         fila = 5 + k
