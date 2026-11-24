@@ -85,5 +85,10 @@ try:
 except AO.ErrorAnalisis as error:
     chequeo('sin PESO PROPIO = SI en ESTADOS no se calcula el periodo', 'PESO PROPIO' in str(error))
 
+import memoria_asd as MA                # noqa: E402  (solo presentacion de 6.4)
+sec = MA._seccion_periodo({'tabla': tabla, 'barras': peso, 'nudos': 0.0})
+chequeo('6.4 muestra T1 de la tabla', f"T1 = {tabla['T (s)'][0]:.4f} s" in sec)
+chequeo('6.4 muestra la tabla de modos (3 filas)', sec.count('<tr><td class="num">') == 3)
+chequeo('6.4 sin periodo: aviso de bloque 9c', 'bloque 9c' in MA._seccion_periodo(None))
 print(f'FALLOS: {len(FALLOS)}')
 sys.exit(1 if FALLOS else 0)

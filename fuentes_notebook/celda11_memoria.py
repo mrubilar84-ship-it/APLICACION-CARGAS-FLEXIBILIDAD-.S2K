@@ -20,7 +20,8 @@ else:
     try:
         MA.memoria_html(dib, materiales_leidos, longitudes_df, bloques['DISENO_BARRAS'], dib.id_barra_de_indice,
                         RUTA_MEMORIA, PROYECTO, casos=casos, id_de_indice=id_de_indice, equilibrio=equilibrio,
-                        bases=BASES_RESULTADOS, desplazamientos=DESP_LEIDA)
+                        bases=BASES_RESULTADOS, desplazamientos=DESP_LEIDA,
+                        periodo=globals().get('PERIODO_MEMORIA'))
     except DA.ErrorAsd as error:
         print('NO se genero la memoria. Corrija lo siguiente y vuelva a ejecutar este bloque:')
         print(error)

@@ -3,6 +3,7 @@
 import analisis_opensees as AO
 from IPython.display import display
 PERIODOS = None
+PERIODO_MEMORIA = None           # lo lee la memoria (6.4)
 if dib is None or 'materiales_leidos' not in globals():
     print('Ejecute primero el bloque 9 (analisis).')
 else:
@@ -17,6 +18,7 @@ else:
         print(f'Masa del peso propio: barras {PESO_PROPIO:,.1f} kgf + cargas en nudos {PESO_NUDOS:,.1f} kgf '
               f'= {PESO_PROPIO + PESO_NUDOS:,.1f} kgf (la masa es ese peso dividido por g).')
         print(f'Periodo fundamental T1 = {PERIODOS.loc[0, "T (s)"]:.4f} s')
+        PERIODO_MEMORIA = {'tabla': PERIODOS, 'barras': PESO_PROPIO, 'nudos': PESO_NUDOS}
         display(PERIODOS.round(4))
         print('Masa efectiva: porcentaje de la masa que se mueve en cada modo y direccion. Un modo con 0 % en las tres '
               'direcciones no mueve masa en traslacion (los giros no tienen masa en este modelo).')

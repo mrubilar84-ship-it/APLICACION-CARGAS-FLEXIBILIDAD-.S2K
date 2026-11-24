@@ -838,6 +838,42 @@ def _seccion_desplazamientos_sismicos(dib, casos, desp):
     return titulo + intro + '<h4>Derivas de entrepiso por combinación de sismo</h4>' + derivas
 
 
+# ---------------------------------------------------------------- 6.4 Periodo natural del soporte
+def _seccion_periodo(periodo):
+    """6.4 Periodo natural del soporte: autovalores del modelo lineal con la masa de peso propio (barras y cargas en
+    nudos de los estados con PESO PROPIO = SI). Lo calcula el bloque 9c del notebook; aqui solo se reporta."""
+    titulo = '<h3>6.4 Periodo natural del soporte</h3>'
+    if periodo is None:
+        return titulo + '<p class="nota">No se calculó el periodo natural (bloque 9c del notebook).</p>'
+    tabla, peso_barras, peso_nudos = periodo['tabla'], periodo['barras'], periodo['nudos']
+    peso = peso_barras + peso_nudos
+    t1 = tabla.iloc[0]
+    eje_t1 = max([('X', t1['Masa efectiva X (%)']), ('Y', t1['Masa efectiva Y (%)']),
+                  ('Z', t1['Masa efectiva Z (%)'])], key=lambda p: p[1])
+    filas = ''.join(
+        f'<tr><td class="num">{int(r["Modo"])}</td><td class="num">{r["T (s)"]:.4f}</td>'
+        f'<td class="num">{r["f (Hz)"]:.4f}</td><td class="num">{r["Masa efectiva X (%)"]:.2f}</td>'
+        f'<td class="num">{r["Masa efectiva Y (%)"]:.2f}</td><td class="num">{r["Masa efectiva Z (%)"]:.2f}</td></tr>'
+        for _, r in tabla.iterrows())
+    suma = {eje: tabla[f'Masa efectiva {eje} (%)'].sum() for eje in ('X', 'Y', 'Z')}
+    return (titulo
+            + '<p><b>Método</b>: problema de autovalores del modelo lineal, K φ = ω² M φ, con K la rigidez de la '
+              'estructura y M la masa de peso propio. Periodo T = 2π / ω.</p>'
+            + '<p><b>Masa</b> (estados con PESO PROPIO = SI):</p><ul>'
+              f'<li>Barras: masa del catálogo por perfil (kg/m) × longitud, la mitad de cada barra a cada extremo: '
+              f'{_v(peso_barras, 1)} kgf.</li>'
+              f'<li>Cargas de peso en nudos (hoja CARGAS, FZ negativa): {_v(peso_nudos, 1)} kgf.</li>'
+              f'<li>Peso total {_v(peso, 1)} kgf. Masa M = peso / g, con g = 981 cm/s². Masa solo de traslación en '
+              'cada nudo; los giros no tienen masa.</li></ul>'
+            + f'<p><b>Periodo fundamental</b>: T1 = {t1["T (s)"]:.4f} s, f1 = {t1["f (Hz)"]:.4f} Hz. El modo 1 es '
+              f'predominante en la dirección {eje_t1[0]} ({eje_t1[1]:.2f} % de la masa).</p>'
+            + '<table><tr><th>Modo</th><th>T (s)</th><th>f (Hz)</th><th>Masa efectiva X (%)</th>'
+              '<th>Masa efectiva Y (%)</th><th>Masa efectiva Z (%)</th></tr>' + filas + '</table>'
+            + '<p class="nota">Masa efectiva: porcentaje de la masa total que se mueve en cada modo y dirección. '
+              f'Suma de los {len(tabla)} modos calculados: X {suma["X"]:.2f} %, Y {suma["Y"]:.2f} %, '
+              f'Z {suma["Z"]:.2f} %.</p>')
+
+
 def _encabezado_doc(proyecto, dib):
     meta = [('Proyecto', proyecto.get('nombre', '(completar)')),
             ('Elemento / estructura', proyecto.get('elemento', '(completar)')),
@@ -1479,7 +1515,8 @@ def _seccion_placas(resultados):
 
 
 def memoria_html(dib, materiales_filas, longitudes_df, demandas, id_barra, ruta_salida, proyecto=None,
-                 casos=None, id_de_indice=None, equilibrio=None, bases=None, desplazamientos=None):
+                 casos=None, id_de_indice=None, equilibrio=None, bases=None, desplazamientos=None,
+                 periodo=None):
     """Escribe la memoria de calculo completa (HTML imprimible) del diseno de todas las barras del modelo."""
     proyecto = dict(proyecto or {})
     if not proyecto.get('conf'):
@@ -1528,6 +1565,7 @@ el detalle completo de cada elemento está en diseno_asd.xlsx (RESULTADOS).</p>
 {resumen_html}
 <h2>6. Desplazamientos máximos por combinación</h2>
 {desp_html}
+{_seccion_periodo(periodo)}
 <h2>7. Detalle de barras críticas (FU máximo de cada grupo)</h2>
 <p class="nota">Se detalla solo la barra que controla cada grupo, con los pasos 1 a 6 de la sección 1. Las demás barras de cada grupo están en la tabla por
 grupo (sección 5) y en diseno_asd.xlsx (RESULTADOS).</p>
