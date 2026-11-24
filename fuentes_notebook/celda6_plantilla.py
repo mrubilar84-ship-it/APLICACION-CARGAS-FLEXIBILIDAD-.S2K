@@ -1061,34 +1061,26 @@ def _hoja_bases(wb, filas=None):
     ws.freeze_panes = 'B5'
 
 
-# ---------------------------------------------------------------- DESPLAZAMIENTOS (deformacion lateral sismica, W40428)
-DESP_MAX = 30                # lineas de tuberia que admite la hoja
-DESP_FIL_INI = 10            # primera fila de datos de las lineas (la cabecera de la tabla es la fila 9)
-DESP_COLS = ['LINEA', 'NODO INFERIOR', 'NODO SUPERIOR', 'APOYO (RIGIDO/FLEXIBLE)', 'HOLGURA O CAPACIDAD (mm)', 'NOTA']
-
-
+# ---------------------------------------------------------------- DESPLAZAMIENTOS (derivas de entrepiso bajo sismo)
 def _hoja_desplazamientos(wb, desp=None):
-    """Hoja DESPLAZAMIENTOS (criterio W40428-000-DD20-DSC-001 Rev. 0, 11.10 y 11.11): deformacion lateral sismica.
-    Datos de entrada: limite de deriva (vacio = PENDIENTE, nunca OK), convencion de desplazamientos del modelo y
-    lineas de tuberia (nudos de anclaje de NODOS, tipo de apoyo y holgura o capacidad en mm).
-    desp: {'limite', 'convencion', 'lineas': [filas de DESP_COLS]} para regenerar el libro; None = hoja vacia."""
+    """Hoja DESPLAZAMIENTOS: derivas de entrepiso de la estructura bajo sismo (memoria, seccion 6.3).
+    Datos de entrada: limite de deriva (C5; vacio = PENDIENTE, nunca OK) y convencion de desplazamientos (C6).
+    desp: {'limite', 'convencion'} para regenerar el libro; None = hoja vacia."""
     from openpyxl.worksheet.datavalidation import DataValidation as DV
     desp = desp or {}
     ws = wb.create_sheet('DESPLAZAMIENTOS')
-    ws['A1'] = 'DESPLAZAMIENTOS: deformacion lateral sismica (criterio W40428, 11.10 y 11.11). Datos de entrada.'
+    ws['A1'] = 'DESPLAZAMIENTOS: derivas de entrepiso de la estructura bajo sismo. Datos de entrada.'
     ws['A1'].font = NEGRITA
-    ws['A2'] = ('Derivas: entrepiso Δ = δ_i − δ_(i−1) y deriva = |Δ| / h. Lineas de tuberia: Δp = 0.0085 · Δh, con Δh entre '
-                'las cotas Z de sus nudos. Un dato vacio deja el resultado PENDIENTE: nunca se marca OK.')
+    ws['A2'] = ('Entrepiso: Δ = δ_i − δ_(i−1); deriva = |Δ| / h, con δ el desplazamiento del nivel en el análisis. '
+                'Un dato vacío deja el resultado PENDIENTE: nunca se marca OK.')
     ws['A3'] = ('Planilla anterior: copie esta hoja desde la plantilla nueva (clic derecho en la pestaña > Mover o copiar '
                 '> su planilla > Crear una copia).')
-    _cabecera_en(ws, 4, ['CLAVE', 'CONCEPTO', 'VALOR', 'REFERENCIA'], [22, 34, 20, 26])
+    _cabecera_en(ws, 4, ['CLAVE', 'CONCEPTO', 'VALOR', 'REFERENCIA'], [22, 44, 20, 60])
     filas_p = [
         ('LIMITE_DERIVA', 'Límite de deriva de entrepiso δ_lim / h (adimensional)', desp.get('limite'),
-         'No fijado en el criterio W40428: confirme el valor con el MDOC de sismo CFE 2015 o con Wood. Ej.: 0.005 = 0.5 %.'),
+         'Valor confirmado (MDOC de sismo CFE 2015 o Wood). Ej.: 0.005 = 0.5 %. Vacío = PENDIENTE.'),
         ('CONVENCION', 'Convención de desplazamientos del modelo', desp.get('convencion'),
          'ELASTICO o AMPLIFICADO: indique si δ sale del análisis elástico o viene amplificado según el MDOC.'),
-        ('COEF_DP', 'Coeficiente de Δp = COEF_DP · Δh (criterio W40428, 11.10)', 0.0085,
-         'Valor del criterio W40428 (Δp = 0.0085 · Δh). El criterio no cita su origen normativo.'),
     ]
     for k, (clave, concepto, valor, ref) in enumerate(filas_p):
         fila = 5 + k
@@ -1103,24 +1095,6 @@ def _hoja_desplazamientos(wb, desp=None):
     ws.add_data_validation(dv_conv)
     dv_lim.add('C5')
     dv_conv.add('C6')
-    ws['A8'] = 'LINEAS DE TUBERIA (una fila por línea; máximo 30). NODO = ID de la hoja NODOS. Holgura o capacidad en mm.'
-    ws['A8'].font = NEGRITA
-    _cabecera_en(ws, 9, DESP_COLS, [22, 34, 20, 26, 22, 44])
-    lineas = list(desp.get('lineas') or [])
-    for k in range(DESP_MAX):
-        fila = DESP_FIL_INI + k
-        valores = lineas[k] if k < len(lineas) else []
-        for c in range(len(DESP_COLS)):
-            celda = ws.cell(row=fila, column=c + 1, value=(valores[c] if c < len(valores) else None))
-            if DESP_COLS[c] != 'NOTA':
-                celda.fill = ENTRADA
-    fin = DESP_FIL_INI + DESP_MAX - 1
-    dv_apoyo = DV(type='list', formula1='"RIGIDO,FLEXIBLE"', allow_blank=True)
-    dv_hol = DV(type='decimal', operator='greaterThanOrEqual', formula1='0', allow_blank=True)
-    ws.add_data_validation(dv_apoyo)
-    ws.add_data_validation(dv_hol)
-    dv_apoyo.add(f'D{DESP_FIL_INI}:D{fin}')
-    dv_hol.add(f'E{DESP_FIL_INI}:E{fin}')
 
 
 def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas=None, estados=None,
@@ -1163,8 +1137,7 @@ def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas
         'VISTA_VIVA: planta, alzado y 3D esquematico que se actualizan al cambiar NODOS y BARRAS.',
         '   Cambie el nivel Z (C3), la cota Y (C4), el azimut (C5), la elevacion (C6) y el largo de la flecha (C7).',
         '',
-        'DESPLAZAMIENTOS: deformacion lateral sismica (criterio W40428, 11.10). LIMITE_DERIVA: valor confirmado (MDOC o Wood); vacio = PENDIENTE, nunca OK.',
-        'CONVENCION: ELASTICO o AMPLIFICADO (desplazamientos del modelo). LINEAS DE TUBERIA: NODO INFERIOR y NODO SUPERIOR son IDs de NODOS; APOYO RIGIDO o FLEXIBLE; HOLGURA O CAPACIDAD (mm).',
+        'DESPLAZAMIENTOS: derivas de entrepiso de la estructura bajo sismo (memoria, 6.3). LIMITE_DERIVA (C5) y CONVENCION (C6): datos de entrada; vacio = PENDIENTE.',
         'No cambiar los nombres de las hojas ni de las columnas. Las filas vacias se ignoran.',
     ]
     for linea in texto:
