@@ -599,16 +599,65 @@ def registrar_secciones(filas):
     return msgs
 
 
+# Hojas de entrada: una formula de estas hojas sin valor guardado (la planilla la guardo una herramienta que no calcula)
+# se leeria como vacia y el resultado saldria mal sin aviso. Se reporta como ERROR: no se arma el modelo.
+HOJAS_ENTRADA_FORMULAS = ['NODOS', 'BARRAS', 'LONGITUDES', 'CARGAS', 'ESTADOS', 'COMBINACIONES', 'MATERIALES',
+                          'BASES', 'DESPLAZAMIENTOS', 'SECCIONES', 'NORMA', 'PARAMETROS', 'CONEXIONES']
+
+
+def formulas_sin_valor(ruta):
+    """{hoja: [celdas]}: formulas de las hojas de entrada sin valor calculado guardado. Se mira el XML de la hoja: una
+    formula tiene valor si su celda trae el elemento <v> (aunque el resultado sea texto vacio)."""
+    import xml.etree.ElementTree as ET
+    import zipfile
+    NS = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
+    RNS = '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id'
+    zf = zipfile.ZipFile(ruta)
+    wbx = ET.fromstring(zf.read('xl/workbook.xml'))
+    rels = ET.fromstring(zf.read('xl/_rels/workbook.xml.rels'))
+    destino = {r.get('Id'): r.get('Target') for r in rels}
+    hallazgos = {}
+    for hoja in wbx.iter(NS + 'sheet'):
+        nombre = hoja.get('name')
+        if nombre not in HOJAS_ENTRADA_FORMULAS:
+            continue
+        ruta_xml = destino[hoja.get(RNS)].lstrip('/')
+        if not ruta_xml.startswith('xl/'):
+            ruta_xml = 'xl/' + ruta_xml
+        for c in ET.fromstring(zf.read(ruta_xml)).iter(NS + 'c'):
+            v = c.find(NS + 'v')
+            tiene_valor = v is not None and (v.text is not None or c.get('t') == 'str')   # str vacio = resultado vacio
+            if c.find(NS + 'f') is not None and not tiene_valor:
+                hallazgos.setdefault(nombre, []).append(c.get('r'))
+    return hallazgos
+
+
+def mensajes_formulas(ruta):
+    """Mensajes (hoja, fila, nivel, texto) por formulas sin valor calculado en las hojas de entrada."""
+    try:
+        hallazgos = formulas_sin_valor(ruta)
+    except Exception as error:                  # la planilla no se pudo revisar: se avisa, no se supone nada
+        return [('PLANILLA', '', 'ERROR', f'no se pudo revisar las formulas de la planilla: {error}')]
+    msgs = []
+    for hoja, celdas in hallazgos.items():
+        msgs.append((hoja, '', 'ERROR', 'formulas sin valor calculado en ' + ', '.join(celdas) + '. El notebook las leeria '
+                     'como vacias y el resultado saldria mal. Abra la planilla en Excel, guardela (Excel calcula y guarda los '
+                     'valores) y vuelva a subirla.'))
+    return msgs
+
+
 RUTA_PLANILLA_LEIDA = buscar_planilla()   # o escriba la ruta exacta, por ejemplo '/kaggle/input/mi-dataset/mis_soportes.xlsx'
 print('Planilla que se lee:', RUTA_PLANILLA_LEIDA)
 nodos, barras = leer_planilla(RUTA_PLANILLA_LEIDA)
 SECCIONES_LEIDAS = leer_secciones(RUTA_PLANILLA_LEIDA)       # hoja SECCIONES (familia GEN); None si no la tiene
 MSGS_SECCIONES = registrar_secciones(SECCIONES_LEIDAS)       # registra las secciones GEN en G.PERFILES
+MSGS_FORMULAS = mensajes_formulas(RUTA_PLANILLA_LEIDA)         # formulas sin valor calculado: ERROR
 materiales_leidos = leer_materiales(RUTA_PLANILLA_LEIDA)     # None = la planilla no tiene la hoja MATERIALES
 materiales_filas = materiales_leidos or MATERIALES_DEFAULT   # solo para dibujar y validar nombres; el analisis usa materiales_leidos
 MATERIALES_VALIDOS = {str(f[0]).strip() for f in materiales_filas}
 mensajes = validar(nodos, barras)
 mensajes += MSGS_SECCIONES
+mensajes += MSGS_FORMULAS
 cargas = leer_cargas(RUTA_PLANILLA_LEIDA)
 estados_df = leer_estados(RUTA_PLANILLA_LEIDA)
 longitudes_df = leer_longitudes(RUTA_PLANILLA_LEIDA)
