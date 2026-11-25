@@ -643,6 +643,9 @@ def _hoja_listas_grupo(wb, ws_l, listas=None):
         cab = ws_l.cell(row=1, column=col, value=f'PERFILES {g}')
         cab.font = NEGRITA
         cab.fill = ENCABEZADO
+        if listas is None:                       # plantilla: al final, las secciones GEN de la hoja SECCIONES
+            nombres = list(nombres) + [f'=IF(SECCIONES!$A${SECC_FIL_INI + k}="","",SECCIONES!$A${SECC_FIL_INI + k})'
+                                       for k in range(SECC_MAX)]
         for k, n in enumerate(nombres):
             ws_l.cell(row=k + 2, column=col, value=n)
         ws_l.column_dimensions[letra].width = 24
@@ -1097,10 +1100,48 @@ def _hoja_desplazamientos(wb, desp=None):
     dv_conv.add('C6')
 
 
+# ---------------- SECCIONES (familia GEN): secciones genericas que ingresa el usuario ----------------
+SECC_FORMAS = ['IR', 'CE', 'LI', 'HSS']          # forma geometrica: decide las ecuaciones AISC que se aplican
+SECC_MAX = 30
+SECC_FIL_INI = 5                                 # primera fila de datos (cabecera en la fila 4)
+SECC_COLS = ['NOMBRE', 'FORMA', 'MASA (kg/m)', 'H (cm)', 'B (cm)', 'E alma (cm)', 'T ala (cm)', 'A (cm2)',
+             'IX (cm4)', 'IY (cm4)', 'SX (cm3)', 'SY (cm3)', 'ZX (cm3)', 'ZY (cm3)', 'RX (cm)', 'RY (cm)',
+             'J (cm4)', 'CW (cm6)', 'RO (cm)']
+
+
+def _hoja_secciones(wb, filas=None):
+    """Hoja SECCIONES (familia GEN): una fila por seccion generica. Todo es dato de entrada: no se estima ninguna
+    propiedad. FORMA es lista desplegable (IR, CE, LI o HSS). filas: filas ya existentes (SECC_COLS)."""
+    from openpyxl.worksheet.datavalidation import DataValidation as DV
+    ws = wb.create_sheet('SECCIONES')
+    ws['A1'] = 'SECCIONES (familia GEN): secciones genericas con propiedades que usted ingresa. Una fila por seccion.'
+    ws['A1'].font = NEGRITA
+    ws['A2'] = ('FORMA elige las ecuaciones AISC (IR, CE, LI o HSS). Dimensiones en cm; propiedades en cm2, cm3, cm4 '
+                'y cm6; masa en kg/m (peso propio). No se estima nada: lo que falte queda sin revisar. NOMBRE aparece en la '
+                'lista PERFIL de BARRAS y no puede repetir un perfil Gerdau.')
+    _cabecera_en(ws, 4, SECC_COLS, [22, 10, 12, 10, 10, 12, 12, 11, 12, 12, 12, 12, 12, 12, 11, 11, 12, 12, 10])
+    ws.row_dimensions[4].height = 45
+    filas = filas or []
+    for k in range(SECC_MAX):
+        fila = SECC_FIL_INI + k
+        valores = filas[k] if k < len(filas) else []
+        for c in range(len(SECC_COLS)):
+            celda = ws.cell(row=fila, column=c + 1, value=(valores[c] if c < len(valores) else None))
+            celda.fill = ENTRADA
+    fin = SECC_FIL_INI + SECC_MAX - 1
+    dv_forma = DV(type='list', formula1='"' + ','.join(SECC_FORMAS) + '"', allow_blank=True)
+    ws.add_data_validation(dv_forma)
+    dv_forma.add(f'B{SECC_FIL_INI}:B{fin}')
+    dv_num = DV(type='decimal', operator='greaterThanOrEqual', formula1='0', allow_blank=True)
+    ws.add_data_validation(dv_num)
+    dv_num.add(f'C{SECC_FIL_INI}:S{fin}')
+    ws.freeze_panes = f'B{SECC_FIL_INI}'
+
+
 def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas=None, estados=None,
                       materiales=None, combinaciones=None, longitudes=None, listas=None,
                       grupos_perfil=None, fu_matriz=None, perfiles_analizados=None, bases=None, parametros=None,
-                      desplazamientos=None):
+                      desplazamientos=None, secciones=None):
     """Escribe el libro completo con los datos dados. Cada fila de NODOS: NODOS_COLS; de BARRAS: BARRAS_COLS.
     bases: filas de la hoja BASES (BASES_COLS); None = hoja vacia."""
     wb = openpyxl.Workbook()
@@ -1138,6 +1179,7 @@ def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas
         '   Cambie el nivel Z (C3), la cota Y (C4), el azimut (C5), la elevacion (C6) y el largo de la flecha (C7).',
         '',
         'DESPLAZAMIENTOS: derivas de entrepiso de la estructura bajo sismo (memoria, 6.3). LIMITE_DERIVA (C5) y CONVENCION (C6): datos de entrada; vacio = PENDIENTE.',
+        'SECCIONES (familia GEN): secciones genericas. FORMA (lista): IR, CE, LI o HSS. Propiedades en cm, cm2, cm3, cm4 y cm6; masa en kg/m. Lo que falte queda sin revisar en el diseno.',
         'No cambiar los nombres de las hojas ni de las columnas. Las filas vacias se ignoran.',
     ]
     for linea in texto:
@@ -1185,6 +1227,7 @@ def escribir_planilla(ruta, filas_nodos, filas_barras, imagen=None, filas_cargas
     _hoja_longitudes(wb, longitudes)
     _hoja_bases(wb, bases)
     _hoja_desplazamientos(wb, desplazamientos)
+    _hoja_secciones(wb, secciones)
     ws_c = wb.create_sheet('CONEXIONES')
     _encabezado(ws_c, ['TIPO', 'EN NODOS (UX a RZ = SI)', 'EN EXTREMOS DE BARRA (CONEXION_I / CONEXION_J)',
                        'USO TIPICO'], [14, 44, 50, 46])

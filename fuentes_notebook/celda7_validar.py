@@ -522,13 +522,93 @@ def filas_cargas_para_excel(cargas):
     return filas
 
 
+# Secciones GEN (hoja SECCIONES): columna de la hoja -> clave de la base de perfiles
+SECC_CLAVE_RECORD = {'MASA (kg/m)': 'masa_kg_m', 'H (cm)': 'd_ala_diametro_cm', 'B (cm)': 'bf_b_cm',
+                     'E alma (cm)': 'tw_cm', 'T ala (cm)': 'tf_t_cm', 'A (cm2)': 'area_cm2', 'IX (cm4)': 'ix_cm4',
+                     'IY (cm4)': 'iy_cm4', 'SX (cm3)': 'sx_cm3', 'SY (cm3)': 'sy_cm3', 'ZX (cm3)': 'zx_cm3',
+                     'ZY (cm3)': 'zy_cm3', 'RX (cm)': 'rx_cm', 'RY (cm)': 'ry_cm', 'J (cm4)': 'j_cm4',
+                     'CW (cm6)': 'cw_cm6', 'RO (cm)': 'ro_cm'}
+# Datos que exige el diseno por forma (igual que _props_asd). Los de analisis (A, IX, IY, J y masa) se exigen siempre.
+_DISENO_IR = ['H (cm)', 'B (cm)', 'E alma (cm)', 'T ala (cm)', 'A (cm2)', 'IX (cm4)', 'IY (cm4)', 'SX (cm3)',
+              'SY (cm3)', 'RX (cm)', 'RY (cm)', 'J (cm4)', 'ZX (cm3)', 'ZY (cm3)', 'CW (cm6)']
+SECC_REQ_DISENO = {'IR': _DISENO_IR, 'CE': _DISENO_IR + ['RO (cm)'],
+                   'LI': ['H (cm)', 'T ala (cm)', 'A (cm2)', 'IX (cm4)', 'RX (cm)'],
+                   'HSS': [c for c in _DISENO_IR if c != 'CW (cm6)']}
+SECC_REQ_ANALISIS = ['MASA (kg/m)', 'A (cm2)', 'IX (cm4)', 'IY (cm4)', 'J (cm4)']
+
+
+def leer_secciones(ruta):
+    """Hoja SECCIONES (familia GEN): [(fila, valores)] con datos. None si la planilla no tiene la hoja."""
+    import openpyxl
+    try:
+        ws = openpyxl.load_workbook(ruta, data_only=True)['SECCIONES']
+    except KeyError:
+        return None
+    filas = []
+    for fila in range(SECC_FIL_INI, SECC_FIL_INI + SECC_MAX):
+        valores = [ws.cell(row=fila, column=c + 1).value for c in range(len(SECC_COLS))]
+        if all(_vacio(v) for v in valores):
+            continue
+        filas.append((fila, valores))
+    return filas
+
+
+def registrar_secciones(filas):
+    """Registra cada seccion GEN en la base de perfiles (G.PERFILES) con su FORMA como familia de diseno y origen GEN.
+    Devuelve mensajes (hoja, fila, nivel, texto): ERROR si el nombre o la forma no sirven; AVISO si faltan datos."""
+    msgs = []
+    vistos = set()
+    for fila, valores in filas or []:
+        d = dict(zip(SECC_COLS, valores))
+        nombre = '' if _vacio(d['NOMBRE']) else str(d['NOMBRE']).strip()
+        forma = '' if _vacio(d['FORMA']) else str(d['FORMA']).strip().upper()
+        if not nombre:
+            msgs.append(('SECCIONES', fila, 'ERROR', 'falta NOMBRE'))
+            continue
+        if nombre in G.PERFILES and G.PERFILES[nombre].get('origen') != 'GEN':
+            msgs.append(('SECCIONES', fila, 'ERROR', f"'{nombre}' ya es un perfil de la base Gerdau: use otro NOMBRE"))
+            continue
+        if nombre in vistos:
+            msgs.append(('SECCIONES', fila, 'ERROR', f"NOMBRE '{nombre}' repetido"))
+            continue
+        vistos.add(nombre)
+        if forma not in SECC_FORMAS:
+            msgs.append(('SECCIONES', fila, 'ERROR', f"FORMA '{d['FORMA']}' no reconocida (use IR, CE, LI o HSS)"))
+            continue
+        rec = {'perfil_comercial': nombre, 'familia': forma, 'origen': 'GEN', 'estado': 'GEN (hoja SECCIONES)',
+               'pagina_manual': None, 'fuente_completado': None, 'seccion': None,
+               'pagina_catalogo_atc': None, 'referencia_catalogo': None, 'alerta_catalogo': None}
+        malos = []
+        for col, clave in SECC_CLAVE_RECORD.items():
+            if _vacio(d[col]):
+                rec[clave] = None
+                continue
+            try:
+                rec[clave] = float(d[col])
+            except (TypeError, ValueError):
+                malos.append(col)
+                rec[clave] = None
+        if malos:
+            msgs.append(('SECCIONES', fila, 'ERROR', f"'{nombre}': valor no numerico en {', '.join(malos)}"))
+        G.PERFILES[nombre] = rec
+        faltan = [c for c in SECC_REQ_ANALISIS if _vacio(d[c])]
+        faltan += [c for c in SECC_REQ_DISENO[forma] if _vacio(d[c]) and c not in faltan]
+        if faltan:
+            msgs.append(('SECCIONES', fila, 'AVISO', f"'{nombre}' ({forma}): faltan datos: {', '.join(faltan)}. "
+                         'Sin ellos la barra no se diseña (NO REVISADO) y el análisis no corre.'))
+    return msgs
+
+
 RUTA_PLANILLA_LEIDA = buscar_planilla()   # o escriba la ruta exacta, por ejemplo '/kaggle/input/mi-dataset/mis_soportes.xlsx'
 print('Planilla que se lee:', RUTA_PLANILLA_LEIDA)
 nodos, barras = leer_planilla(RUTA_PLANILLA_LEIDA)
+SECCIONES_LEIDAS = leer_secciones(RUTA_PLANILLA_LEIDA)       # hoja SECCIONES (familia GEN); None si no la tiene
+MSGS_SECCIONES = registrar_secciones(SECCIONES_LEIDAS)       # registra las secciones GEN en G.PERFILES
 materiales_leidos = leer_materiales(RUTA_PLANILLA_LEIDA)     # None = la planilla no tiene la hoja MATERIALES
 materiales_filas = materiales_leidos or MATERIALES_DEFAULT   # solo para dibujar y validar nombres; el analisis usa materiales_leidos
 MATERIALES_VALIDOS = {str(f[0]).strip() for f in materiales_filas}
 mensajes = validar(nodos, barras)
+mensajes += MSGS_SECCIONES
 cargas = leer_cargas(RUTA_PLANILLA_LEIDA)
 estados_df = leer_estados(RUTA_PLANILLA_LEIDA)
 longitudes_df = leer_longitudes(RUTA_PLANILLA_LEIDA)

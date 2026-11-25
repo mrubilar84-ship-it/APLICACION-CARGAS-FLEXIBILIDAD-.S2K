@@ -871,6 +871,9 @@ def clave_orden(nombre):
     """Orden de las listas: tipo (IR, CE, LI), luego la designacion comercial (peralte o ala, luego peso o espesor)
     y la masa como desempate."""
     p = G.PERFILES[nombre]
+    masa = p['masa_kg_m'] if p['masa_kg_m'] is not None else math.inf
+    if p.get('origen') == 'GEN':          # secciones genericas: sin designacion comercial; van al final de su forma
+        return (FAMILIA_ORDEN.index(p['familia']), math.inf, math.inf, masa, nombre)
     a, b = _valores_designacion(nombre)[:2]
     masa = p['masa_kg_m'] if p['masa_kg_m'] is not None else math.inf
     return (FAMILIA_ORDEN.index(p['familia']), a, b, masa, nombre)

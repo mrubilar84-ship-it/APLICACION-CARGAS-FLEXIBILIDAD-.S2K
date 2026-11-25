@@ -971,6 +971,30 @@ def _parametros_html(cf):
             '<h4>Valores resultantes</h4>' + resultantes)
 
 
+def _secciones_gen_html(dib):
+    """Secciones GEN (hoja SECCIONES) usadas por las barras: sus datos son de la planilla, no del catalogo Gerdau."""
+    usadas = []
+    for b in dib.barras:
+        n = b['perfil']
+        p = G.PERFILES.get(n)
+        if p is not None and p.get('origen') == 'GEN' and n not in usadas:
+            usadas.append(n)
+    if not usadas:
+        return ''
+    claves = ['H', 'B', 'e', 't', 'masa', 'A', 'Ix', 'Iy', 'Sx', 'Sy', 'Zx', 'Zy', 'rx', 'ry', 'J', 'Cw']
+    filas = ''.join(
+        f'<tr><td>{html.escape(n)}</td><td>{html.escape(str(G.obtener_perfil(n)["familia"]))}</td>'
+        + ''.join(f'<td class="num">{_v(G.obtener_perfil(n)[c], 2)}</td>' for c in claves) + '</tr>'
+        for n in usadas)
+    return ('<h3>Secciones genéricas (familia GEN)</h3>'
+            '<p>Datos ingresados en la hoja SECCIONES de la planilla; no provienen del catálogo Gerdau. La forma indica '
+            'las ecuaciones AISC aplicadas.</p>'
+            '<table><tr><th>Sección</th><th>Forma</th>' + ''.join(f'<th>{c}</th>' for c in
+            ['H (cm)', 'B (cm)', 'E (cm)', 'T (cm)', 'masa (kg/m)', 'A (cm²)', 'Ix (cm⁴)', 'Iy (cm⁴)', 'Sx (cm³)',
+             'Sy (cm³)', 'Zx (cm³)', 'Zy (cm³)', 'rx (cm)', 'ry (cm)', 'J (cm⁴)', 'Cw (cm⁶)']) + '</tr>'
+            + filas + '</table>')
+
+
 def _datos_entrada_html(dib, materiales_filas, id_barra, lon, mat, equilibrio):
     filas_mat = []
     for f in materiales_filas:
@@ -1562,7 +1586,7 @@ capacidad: cumple si FU ≤ 1.0. El resumen por grupo presenta el FU de interacc
 el detalle completo de cada elemento está en diseno_asd.xlsx (RESULTADOS).</p>
 {_orden_calculo_html()}
 <h2>2. Criterios de diseño adoptados</h2>{_criterios_html()}
-<h2>3. Datos de entrada</h2>{_parametros_html(proyecto['conf'])}{_datos_entrada_html(dib, materiales_filas, id_barra, lon, mat, equilibrio)}
+<h2>3. Datos de entrada</h2>{_parametros_html(proyecto['conf'])}{_datos_entrada_html(dib, materiales_filas, id_barra, lon, mat, equilibrio)}{_secciones_gen_html(dib)}
 <h2>4. Modelo de análisis</h2>{_modelo_html(dib, equilibrio)}
 <h2>5. Resultados por grupo</h2>
 <p class="nota">Por grupo: FU de esfuerzos (resistencia, incluida la interacción H1/H2 y la torsión H3) y FU de esbeltez (local y KL/r) por separado, con sus valores calculado y límite; la verificación que gobierna y el estado global (todas las verificaciones).</p>
