@@ -1,4 +1,4 @@
-"""Base de perfiles: Gerdau rev04 (datos en gerdau_datos.py) y HSS del catalogo ATC (en la misma base)."""
+"""Base de perfiles: Gerdau rev04, HSS del catalogo ATC y OR del catalogo IMCA (todos en la misma base)."""
 import base64
 import json
 import zlib
@@ -7,7 +7,7 @@ from gerdau_datos import _DATOS_TEXTO
 _DATOS = json.loads(zlib.decompress(base64.b64decode(_DATOS_TEXTO)).decode('utf-8'))   # texto comprimido (zlib + base64)
 PERFILES = {p['perfil_comercial']: p for p in _DATOS}
 
-FAMILIA_ORDEN = ['IR', 'CE', 'LI', 'HSS']   # CS, OS y SOL (macizos) eliminados de la base
+FAMILIA_ORDEN = ['IR', 'CE', 'LI', 'HSS', 'OR']   # CS, OS y SOL (macizos) eliminados; OR: IMCA PTE (rect. y cuad.)
 
 
 def obtener_perfil(nombre):

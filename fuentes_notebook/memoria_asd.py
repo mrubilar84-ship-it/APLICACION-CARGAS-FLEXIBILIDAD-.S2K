@@ -915,6 +915,8 @@ def _criterios_html():
         f'({REF["H2"]}). Tracción con Ae = U·Ag, U de D3 ({REF["D3"]}): una pata U = 1 − x̄/l; dos patas U = 1.0.',
         'Espesor de diseño de HSS (AISC 360-22 B4.2): t = 0.93·t nominal para HSS salvo ASTM A1065/A1085. Las '
         'propiedades de diseño se obtienen del catálogo por la razón de espesores; el análisis (OpenSees) usa el mismo espesor de diseño.',
+        'Perfiles OR (IMCA, PTE rectangular y cuadrado): el espesor de diseño es el impreso en la tabla del catálogo, sin el '
+        'factor 0.93 (B4.2 no aplica); se verifican con las mismas ecuaciones de sección hueca que HSS (E7, F7, G2, G4 y H3).',
         'Estimaciones: IR con Zx, Zy o Cw faltantes se estiman por geometría; LI con propiedades geométricas. Cada '
         'barra lista sus supuestos.',
         f'Interacción: H1-1 para I y canal ({REF["H1"]}); H2-1 para ángulos ({REF["H2"]}), con el momento resultante '
@@ -927,7 +929,7 @@ def _orden_calculo_html():
     """Orden del calculo por barra (seccion 1). Los mismos seis pasos aparecen en el detalle de la seccion 7."""
     pasos = [
         ('Datos y propiedades', 'material, longitudes y sección de la base. En HSS, espesor de diseño '
-         't = 0.93·t nominal (AISC 360-22 B4.2) y propiedades de diseño (ver sección 2).'),
+         't = 0.93·t nominal (AISC 360-22 B4.2) y propiedades de diseño (ver sección 2). En OR, el espesor impreso en el catálogo IMCA, sin factor.'),
         ('Demandas', 'Pr, Mr, Vr y torsión de cada combinación de servicio ASD (hoja COMBINACIONES). Cada '
          'verificación toma la combinación que la controla.'),
         ('Esbeltez', 'clasificación de elementos (AISC B4.1: tabla B4.1a en compresión y B4.1b en flexión) y '

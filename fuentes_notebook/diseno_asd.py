@@ -110,8 +110,13 @@ class ErrorAsd(Exception):
     pass
 
 
+# Familias de seccion hueca rectangular o cuadrada: ecuaciones E7, F7, G2, G4 y H3 de HSS. OR (IMCA PTE) usa las
+# mismas ecuaciones, pero sin el factor B4.2 del espesor (su espesor de diseno ya viene impreso).
+FAMILIAS_HUECAS = ('HSS', 'OR')
+
+
 def _forma(familia):
-    return {'IR': 'I', 'CE': 'canal', 'LI': 'angulo', 'HSS': 'HSS'}.get(familia)
+    return {'IR': 'I', 'CE': 'canal', 'LI': 'angulo', 'HSS': 'HSS', 'OR': 'HSS'}.get(familia)
 
 
 def _elementos_E7(p, forma, fy, E, fn):
@@ -198,7 +203,7 @@ def _ltb_I(p, fy, E, G_, Lb, Cb, canal=False):
 
 def mn_fuerte(p, familia, fy, E, G_, Lb, Cb=None):
     """Momento nominal eje mayor de I y canales (F2, F3). Devuelve (Mn, detalle)."""
-    if familia == 'HSS':
+    if familia in FAMILIAS_HUECAS:
         return mn_hss(p, fy, E, 'x', Lb, Cb)
     canal = _forma(familia) == 'canal'
     ltb, det = _ltb_I(p, fy, E, G_, Lb, Cb, canal=canal)
@@ -220,7 +225,7 @@ def mn_fuerte(p, familia, fy, E, G_, Lb, Cb=None):
 
 def mn_debil(p, familia, fy, E):
     """Momento nominal eje menor de I y canales (F6)."""
-    if familia == 'HSS':
+    if familia in FAMILIAS_HUECAS:
         return mn_hss(p, fy, E, 'y')
     forma = _forma(familia)
     Mp = min(fy * p['Zy'], 1.6 * fy * p['Sy'])                                    # F6-1
@@ -246,7 +251,7 @@ def _cv(ht, kv, E, fy):
 
 def vn_fuerte(p, familia, fy, E):
     """Cortante en el alma eje mayor de I y canales (G2)."""
-    if familia == 'HSS':
+    if familia in FAMILIAS_HUECAS:
         return vn_hss(p, fy, E, 'x')
     h = p['H'] - 2.0 * p['t']
     ht = h / p['e']
@@ -260,7 +265,7 @@ def vn_fuerte(p, familia, fy, E):
 
 def vn_debil(p, familia, fy, E):
     """Cortante en el eje menor (G6): dos patines, Cv2 con kv = 1.2 (nota de usuario de G6)."""
-    if familia == 'HSS':
+    if familia in FAMILIAS_HUECAS:
         return vn_hss(p, fy, E, 'y')
     ratio = (p['B'] / (2.0 * p['t'])) if _forma(familia) == 'I' else (p['B'] / p['t'])
     cv2 = _cv(ratio, KV_ANGULO, E, fy)
@@ -571,7 +576,7 @@ def resistencias_asd(p, familia, fy, fu, E, nu, Lx, Ly, Lb, Kx, Ky, Lz, Cb=None,
     vn_y, om_y, det_vy = vn_debil(p, familia, fy, E)
     out['Va_y'] = vn_y / om_y
     out['detalle_vy'] = det_vy
-    if familia == 'HSS':
+    if familia in FAMILIAS_HUECAS:
         tn, det_t = torsion_hss(p, fy, E)                              # H3.1: Tc = Tn / ΩT
         out['Tc'] = tn / AISC_OMEGA_T_HSS
         out['detalle_t'] = det_t
@@ -642,7 +647,7 @@ def esbeltez_local(p, familia, fy, E, compresion):
     """Esbeltez local por elemento segun AISC B4.1: lambda / lambda_r (<= 1 cumple). Compresion: B4.1a;
     flexion: B4.1b (lambda_r = limite de seccion esbelta). Devuelve (FU, {elemento: (lambda, lambda_r)})."""
     sq = math.sqrt(E / fy)
-    if familia == 'HSS':
+    if familia in FAMILIAS_HUECAS:
         bf, hw = _hss_planos(p)
         t = p['t']
         if compresion:
@@ -674,7 +679,7 @@ def clasificacion_flexion(p, familia, fy, E):
     peor = 0
     for n, (lam, _) in det.items():
         base = n.split('_')[0]
-        _, lp, lr = (AISC_HSS_FLEX if familia == 'HSS' else AISC_LIMITES_FLEXION)[base]
+        _, lp, lr = (AISC_HSS_FLEX if familia in FAMILIAS_HUECAS else AISC_LIMITES_FLEXION)[base]
         if lam <= lp * sq:
             k = 0
         elif lam <= lr * sq:
@@ -821,8 +826,8 @@ def en_compresion(grupo, demandas_list):
     """Verificacion de compresion (KL/r y esbeltez local en compresion): por grupo, o si la barra tiene
     compresion en alguna combinacion de servicio (criterio IMCA/AISC: aplica a cualquier miembro comprimido)."""
     return grupo in COMPRESION_GRUPOS or any((d.get('Pr_c') or 0.0) > 0 for d in demandas_list)
-FAMILIAS_ASD = ('IR', 'CE', 'LI', 'HSS')
-FAMILIA_ORDEN = ['IR', 'CE', 'LI', 'HSS']
+FAMILIAS_ASD = ('IR', 'CE', 'LI', 'HSS', 'OR')
+FAMILIA_ORDEN = ['IR', 'CE', 'LI', 'HSS', 'OR']
 CHEQUEOS_DEMANDA_BASE = ['T traccion', 'C compresion', 'F flexion eje mayor', 'F flexion eje menor',
                          'V cortante eje mayor', 'V cortante eje menor', 'H1 flexocompresion', 'H1 flexotension',
                          'H2 angulo (H2-1)']
@@ -882,7 +887,7 @@ def clave_orden(nombre):
 def seccion_de(nombre):
     """Seccion sin el tipo: 'IR 10 × 30' -> '10 × 30'."""
     import re
-    return re.sub(r'^(IR|CE|LI|HSS)\s*ᴬ?\s*', '', nombre).strip()
+    return re.sub(r'^(IR|CE|LI|HSS|OR)\s*ᴬ?\s*', '', nombre).strip()
 
 
 def _chequear(p, familia, fy, fu, E, nu, Lx, Ly, Lb, kx, ky, grupo, demandas_list, cb=None,

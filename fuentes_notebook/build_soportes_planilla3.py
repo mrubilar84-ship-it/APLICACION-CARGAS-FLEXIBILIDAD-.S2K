@@ -8,6 +8,7 @@ SALIDA = sys.argv[1]
 PLANTILLA = sys.argv[2] if len(sys.argv) > 2 else None
 FUENTE_GERDAU = os.path.join(D, 'datos', 'perfiles_gerdau_mexico_rev04.json')
 FUENTE_HSS = os.path.join(D, 'datos', 'hss_atc_catalogo.json')   # HSS del catalogo ATC (extraer_hss_atc.py)
+FUENTE_OR = os.path.join(D, 'datos', 'perfiles_or_imca.json')       # OR del catalogo IMCA (extraer_or_imca.py)
 CAMPOS = ['pagina_manual', 'pagina_pdf', 'referencia_excel', 'campos_pendientes', 'designacion_pulgadas', 'designacion_metrica_manual', 'fuente_completado',
           'familia', 'perfil_comercial', 'estado', 'masa_kg_m', 'd_ala_diametro_cm', 'bf_b_cm', 'tw_cm',
           'tf_t_cm', 'area_cm2', 'ix_cm4', 'iy_cm4', 'sx_cm3', 'sy_cm3', 'rx_cm', 'ry_cm', 'j_cm4', 'cw_cm6',
@@ -68,11 +69,25 @@ def completar_desde_manual(perfiles):
 FAMILIAS_ELIMINADAS = ('CS', 'OS', 'SOL')
 
 
+def descripcion_base():
+    """Texto del bloque 2 con el conteo real de cada fuente (Gerdau rev04, HSS ATC y OR IMCA)."""
+    with open(FUENTE_GERDAU, encoding='utf-8') as f:
+        n_gerdau = sum(1 for p in json.load(f)['perfiles'] if p['familia'] not in FAMILIAS_ELIMINADAS)
+    with open(FUENTE_HSS, encoding='utf-8') as f:
+        n_hss = len(json.load(f)['perfiles'])
+    with open(FUENTE_OR, encoding='utf-8') as f:
+        n_or = len(json.load(f)['perfiles'])
+    return (f'Los {n_gerdau + n_hss + n_or} perfiles ({n_gerdau} Gerdau rev04, {n_hss} HSS del catálogo ATC y '
+            f'{n_or} OR del catálogo IMCA)')
+
+
 def datos_texto():
     with open(FUENTE_GERDAU, encoding='utf-8') as f:
         perfiles = [p for p in json.load(f)['perfiles'] if p['familia'] not in FAMILIAS_ELIMINADAS]
     completar_desde_manual(perfiles)
     with open(FUENTE_HSS, encoding='utf-8') as f:
+        perfiles += json.load(f)['perfiles']
+    with open(FUENTE_OR, encoding='utf-8') as f:
         perfiles += json.load(f)['perfiles']
     compacto = [{k: p.get(k) for k in CAMPOS} for p in perfiles]
     texto = json.dumps(compacto, ensure_ascii=False, separators=(',', ':'))
@@ -140,7 +155,7 @@ def construir():
     celdas = [md(PORTADA)]
     celdas.append(md('## Bloque 1. Motor de dibujo (dibujo_directo.py)'))
     celdas.append(code('%%writefile dibujo_directo.py\n' + leer('dibujo_directo.py')))
-    celdas.append(md('## Bloque 2. Datos de perfiles (gerdau_datos.py)\n\nLos 280 perfiles (164 Gerdau rev04 y 116 HSS del catálogo ATC) en un texto comprimido. No hay que editar este bloque.'))
+    celdas.append(md('## Bloque 2. Datos de perfiles (gerdau_datos.py)\n\n' + descripcion_base() + ' en un texto comprimido. No hay que editar este bloque.'))
     celdas.append(code('%%writefile gerdau_datos.py\n_DATOS_TEXTO = ' + datos_texto() + '\n'))
     celdas.append(md('## Bloque 3. Base de perfiles y lista ordenada (perfiles_gerdau.py)'))
     celdas.append(code('%%writefile perfiles_gerdau.py\n' + leer('perfiles_gerdau_nb.py')))
